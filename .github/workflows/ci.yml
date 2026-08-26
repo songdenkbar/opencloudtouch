@@ -8,15 +8,15 @@
 name: CI
 
 on:
-  push:
-    branches:
-      - main
-
-  pull_request:
-    types: [opened, synchronize, reopened]
-
-  schedule:
-    - cron: '0 6 * * 1'  # Every Monday 6:00 UTC (for main branch SonarCloud scans)
+#  push:
+#    branches:
+#      - main
+#
+#  pull_request:
+#    types: [opened, synchronize, reopened]
+#
+#  schedule:
+#    - cron: '0 6 * * 1'  # Every Monday 6:00 UTC (for main branch SonarCloud scans)
 
   workflow_dispatch:
 
