@@ -50,6 +50,7 @@ function getApiBaseUrl(): string {
 
 type SearchType = "name" | "country" | "tag";
 type RadioProviderType = "radiobrowser" | "tunein";
+type SearchMode = "provider" | "manual";
 
 const RESULTS_PER_PAGE = 10;
 const MAX_RESULTS = 200;
@@ -78,6 +79,7 @@ export default function RadioSearch({
   hasExistingPreset,
 }: RadioSearchProps) {
   const { t } = useTranslation();
+  const [searchMode, setSearchMode] = useState<SearchMode>("provider");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<RadioStation[]>([]);
   const [loading, setLoading] = useState(false);
@@ -290,6 +292,7 @@ export default function RadioSearch({
                 className="search-input"
                 placeholder={t(`presets.searchPlaceholder.${searchType}`)}
                 value={query}
+                disabled={searchMode === "manual"}
                 onChange={(e) => handleSearch(e.target.value)}
                 autoFocus
               />
@@ -307,6 +310,7 @@ export default function RadioSearch({
                 <button
                   key={st.value}
                   className={`search-type-chip${searchType === st.value ? " active" : ""}`}
+                  disabled={searchMode === "manual"}
                   onClick={() => {
                     setSearchType(st.value);
                     if (query.trim().length >= 2) {
@@ -323,8 +327,9 @@ export default function RadioSearch({
                 {PROVIDERS.map((p) => (
                   <button
                     key={p.value}
-                    className={`search-type-chip${radioProvider === p.value ? " active" : ""}`}
+                    className={`search-type-chip${searchMode === "provider" && radioProvider === p.value ? " active" : ""}`}
                     onClick={() => {
+                      setSearchMode("provider");
                       setRadioProvider(p.value);
                       if (query.trim().length >= 2) {
                         handleSearch(query, p.value, searchType);
@@ -334,6 +339,12 @@ export default function RadioSearch({
                     {p.label}
                   </button>
                 ))}
+                <button
+                  className={`search-type-chip${searchMode === "manual" ? " active" : ""}`}
+                  onClick={() => setSearchMode("manual")}
+                >
+                  Stream-URL
+                </button>
               </div>
             )}
 
