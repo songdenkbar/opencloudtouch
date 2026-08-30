@@ -13,6 +13,7 @@ from opencloudtouch.devices.client import (
     NowPlayingInfo,
     VolumeInfo,
 )
+from opencloudtouch.stereo.models import StereoGroupStatus
 from opencloudtouch.zones.models import ZoneMemberInfo, ZoneStatus
 
 logger = logging.getLogger(__name__)
@@ -230,6 +231,12 @@ class MockDeviceClient(DeviceClient):
             station_name,
             device_id,
         )
+
+    # ---- Group Methods ----
+
+    async def get_group_status(self) -> StereoGroupStatus | None:
+        """Mock get group status."""
+        return None
 
     # ---- Zone Methods ----
 

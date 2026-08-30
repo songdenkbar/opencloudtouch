@@ -65,6 +65,8 @@ from opencloudtouch.swupdate.routes import router as swupdate_router
 from opencloudtouch.wizard_audit.repository import WizardAuditRepository
 from opencloudtouch.wizard_audit.routes import audit_router as wizard_audit_router
 from opencloudtouch.zones.repository import ZoneRepository
+from opencloudtouch.stereo.routes import router as stereo_router
+from opencloudtouch.stereo.service import StereoService
 from opencloudtouch.zones.routes import device_zone_router
 from opencloudtouch.zones.routes import router as zones_router
 from opencloudtouch.zones.service import ZoneService
@@ -195,6 +197,12 @@ async def _init_services(
         client_factory=get_device_client,
     )
     logger.info("ZoneService initialized")
+
+    app.state.stereo_service = StereoService(
+        device_repo=device_repo,
+        client_factory=get_device_client,
+    )
+    logger.info("StereoService initialized")
 
     # Auto-discover in mock mode
     if cfg.mock_mode:
@@ -423,6 +431,7 @@ app.include_router(setup_router)  # Device setup wizard
 app.include_router(wizard_router)  # SSH-driven wizard step endpoints
 app.include_router(swupdate_router)  # SWUpdate firmware index emulation
 app.include_router(zones_router)  # Multi-room zone management
+app.include_router(stereo_router)  # Stereo pair management
 app.include_router(device_zone_router)  # Per-device zone status
 app.include_router(logs_router)  # Backend log download
 app.include_router(bug_report_router)  # Bug report submission

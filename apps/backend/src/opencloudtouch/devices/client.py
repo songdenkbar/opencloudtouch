@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
+    from opencloudtouch.stereo.models import StereoGroupStatus
     from opencloudtouch.zones.models import ZoneMemberInfo, ZoneStatus
 
 
@@ -153,6 +154,13 @@ class DeviceClient(ABC):
             station_image_url: Optional station logo URL
             station_uuid: Optional station ID (used for TuneIn dynamic resolution)
         """
+        pass
+
+    # ---- Group Methods ----
+
+    @abstractmethod
+    async def get_group_status(self) -> StereoGroupStatus | None:
+        """Get current group status. Returns None if not in a group."""
         pass
 
     # ---- Zone Methods ----

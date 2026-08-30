@@ -23,6 +23,7 @@ from opencloudtouch.devices.client import (
     NowPlayingInfo,
     VolumeInfo,
 )
+from opencloudtouch.stereo.models import StereoGroupRole, StereoGroupStatus
 from opencloudtouch.zones.models import ZoneMemberInfo, ZoneStatus
 
 logger = logging.getLogger(__name__)
@@ -461,6 +462,50 @@ class BoseDeviceClientAdapter(DeviceClient):
             is_master=bool(zone.IsZoneMaster),
             members=members,
         )
+
+    async def get_group_status(self) -> StereoGroupStatus | None:
+        """Get current SoundTouch group status from device."""
+        try:
+            group = await asyncio.to_thread(
+                self._client.GetGroupStereoPairStatus,
+                True,
+            )
+
+            roles = getattr(group, "Roles", None) or []
+            group_id = getattr(group, "GroupId", None)
+            master_device_id = getattr(group, "MasterDeviceId", None)
+
+            if not group_id and not master_device_id and not roles:
+                return None
+
+            return StereoGroupStatus(
+                group_id=group_id,
+                name=getattr(group, "Name", None),
+                master_device_id=master_device_id,
+                sender_ip_address=getattr(group, "SenderIpAddress", None),
+                status=(
+                    str(
+                        getattr(
+                            getattr(group, "Status", None),
+                            "value",
+                            getattr(group, "Status", None),
+                        )
+                    )
+                    if getattr(group, "Status", None) is not None
+                    else None
+                ),
+                roles=[
+                    StereoGroupRole(
+                        device_id=role.DeviceId,
+                        ip_address=role.IpAddress or "",
+                        role=str(getattr(role.Role, "value", role.Role)),
+                    )
+                    for role in roles
+                ],
+            )
+        except Exception as e:
+            logger.debug("Failed to get group status from %s: %s", self.ip, e)
+            return None
 
     async def get_zone_status(self) -> ZoneStatus | None:
         """Get current zone status from device.
