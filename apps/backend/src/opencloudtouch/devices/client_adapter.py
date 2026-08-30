@@ -466,10 +466,7 @@ class BoseDeviceClientAdapter(DeviceClient):
     async def get_group_status(self) -> StereoGroupStatus | None:
         """Get current SoundTouch group status from device."""
         try:
-            group = await asyncio.to_thread(
-                self._client.GetGroupStereoPairStatus,
-                True,
-            )
+            group = await asyncio.to_thread(self._client.GetGroupStereoPairStatus, True)
 
             roles = getattr(group, "Roles", None) or []
             group_id = getattr(group, "GroupId", None)
@@ -479,7 +476,7 @@ class BoseDeviceClientAdapter(DeviceClient):
                 return None
 
             return StereoGroupStatus(
-                group_id=group_id,
+                group_id=str(group_id) if group_id is not None else None,
                 name=getattr(group, "Name", None),
                 master_device_id=master_device_id,
                 sender_ip_address=getattr(group, "SenderIpAddress", None),

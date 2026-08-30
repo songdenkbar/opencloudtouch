@@ -2991,6 +2991,98 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/stereo-pairs:
+    get:
+      tags:
+      - Stereo
+      summary: Get Stereo Pairs
+      description: Get active stereo pairs.
+      operationId: get_stereo_pairs_api_stereo_pairs_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/StereoPairStatus'
+                type: array
+                title: Response Get Stereo Pairs Api Stereo Pairs Get
+    post:
+      tags:
+      - Stereo
+      summary: Create Stereo Pair
+      description: Create a persistent SoundTouch stereo pair.
+      operationId: create_stereo_pair_api_stereo_pairs_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStereoPairRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StereoPairStatus'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/stereo-pairs/{group_id}:
+    delete:
+      tags:
+      - Stereo
+      summary: Remove Stereo Pair
+      description: Remove a persistent SoundTouch stereo pair.
+      operationId: remove_stereo_pair_api_stereo_pairs__group_id__delete
+      parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Group Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/stereo-pairs/{group_id}/verify:
+    post:
+      tags:
+      - Stereo
+      summary: Verify Stereo Pair
+      description: Verify the current state of a stereo pair.
+      operationId: verify_stereo_pair_api_stereo_pairs__group_id__verify_post
+      parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Group Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StereoVerifyResult'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/devices/{device_id}/zone:
     get:
       tags:
@@ -4847,6 +4939,85 @@ components:
       - role
       title: ZoneMemberInfo
       description: A member device within a multi-room zone.
+    CreateStereoPairRequest:
+      properties:
+        master_device_id:
+          type: string
+          title: Master Device Id
+        slave_device_id:
+          type: string
+          title: Slave Device Id
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+      type: object
+      required:
+      - master_device_id
+      - slave_device_id
+      title: CreateStereoPairRequest
+      description: Request to create a stereo pair.
+    StereoPairStatus:
+      properties:
+        group_id:
+          type: string
+          title: Group Id
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        master_device_id:
+          type: string
+          title: Master Device Id
+        slave_device_id:
+          type: string
+          title: Slave Device Id
+        master_ip:
+          type: string
+          title: Master Ip
+        slave_ip:
+          type: string
+          title: Slave Ip
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+      type: object
+      required:
+      - group_id
+      - master_device_id
+      - slave_device_id
+      - master_ip
+      - slave_ip
+      title: StereoPairStatus
+      description: Status of a stereo pair.
+    StereoVerifyResult:
+      properties:
+        group_id:
+          type: string
+          title: Group Id
+        verified:
+          type: boolean
+          title: Verified
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+      type: object
+      required:
+      - group_id
+      - verified
+      title: StereoVerifyResult
+      description: Result of verifying a stereo pair.
     ZoneStatus:
       properties:
         master_id:
