@@ -42,7 +42,10 @@
     "manageZone": "Zone verwalten",
     "multiRoom": "Multi-Room",
     "prevDevice": "Vorheriges Gerät",
-    "nextDevice": "Nächstes Gerät"
+    "nextDevice": "Nächstes Gerät",
+    "radio": "Radio",
+    "mediaServer": "Medienserver",
+    "playbackSource": "Wiedergabequelle"
   },
   "presets": {
     "pageTitle": "Radio Presets",
@@ -765,5 +768,13 @@
     "reboot": "Gerät neu starten",
     "sent": "Neustart-Befehl gesendet",
     "confirmMessage": "{{name}} neu starten? Das Gerät ist für ca. 60 Sekunden nicht erreichbar."
+  },
+  "dlna": {
+    "title": "Medienserver",
+    "server": "Medienserver",
+    "noServers": "Keine Medienserver gefunden",
+    "discoveryFailed": "Medienserver konnten nicht gefunden werden.",
+    "browseFailed": "Medienserver konnte nicht durchsucht werden.",
+    "playFailed": "Titel konnte nicht abgespielt werden."
   }
 }

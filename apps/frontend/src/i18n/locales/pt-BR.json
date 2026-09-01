@@ -42,7 +42,10 @@
     "manageZone": "Gerenciar zona",
     "multiRoom": "Multissala",
     "prevDevice": "Dispositivo anterior",
-    "nextDevice": "Próximo dispositivo"
+    "nextDevice": "Próximo dispositivo",
+    "radio": "Rádio",
+    "mediaServer": "Servidor de mídia",
+    "playbackSource": "Fonte de reprodução"
   },
   "presets": {
     "pageTitle": "Presets de rádio",
@@ -657,7 +660,7 @@
     "hallOfFameDescription": "Top 3 colaboradores de todos os tempos — reconhecidos pelo impacto técnico excepcional.",
     "supportersTitle": "Apoiadores",
     "reportBug": "Relatar bug",
-    "diagnostics": "Diagn\u00f3sticos",
+    "diagnostics": "Diagnósticos",
     "supportersDescription": "Obrigado a todos que apoiam o OpenCloudTouch financeiramente. Suas contribuições ajudam a manter o projeto vivo!",
     "supportersMonthly": "Apoiadores Mensais",
     "supportersOneTime": "Apoiadores únicos",
@@ -765,5 +768,13 @@
     "reboot": "Reiniciar dispositivo",
     "sent": "Comando de reinicialização enviado",
     "confirmMessage": "Reiniciar {{name}}? O dispositivo ficará indisponível por cerca de 60 segundos."
+  },
+  "dlna": {
+    "title": "Servidor de mídia",
+    "server": "Servidor de mídia",
+    "noServers": "Nenhum servidor de mídia encontrado",
+    "discoveryFailed": "Não foi possível localizar servidores de mídia.",
+    "browseFailed": "Não foi possível navegar no servidor de mídia.",
+    "playFailed": "Não foi possível reproduzir a faixa."
   }
 }

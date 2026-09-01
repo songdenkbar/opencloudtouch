@@ -1,0 +1,93 @@
+.dlna-browser {
+  background: linear-gradient(135deg, var(--color-bg-card) 0%, rgba(0, 102, 204, 0.1) 100%);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-xl);
+  padding: var(--space-lg);
+  min-height: 320px;
+  box-shadow: var(--shadow-md);
+}
+
+.dlna-browser-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.dlna-browser-title {
+  font-size: 18px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.dlna-server-select {
+  min-width: 0;
+  max-width: 60%;
+}
+
+.dlna-back {
+  background: transparent;
+  border: 0;
+  padding: var(--space-xs) 0;
+  margin-bottom: var(--space-sm);
+  color: var(--color-text-secondary);
+  text-align: left;
+}
+
+.dlna-item-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.dlna-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.dlna-item:hover:not(:disabled) {
+  background-color: var(--color-bg-darker);
+}
+
+.dlna-item-icon,
+.dlna-item-action {
+  flex-shrink: 0;
+}
+
+.dlna-item-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dlna-item-title {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dlna-item-meta,
+.dlna-message {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.dlna-item-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dlna-error {
+  color: var(--color-error);
+}

@@ -42,7 +42,10 @@
     "manageZone": "Manage zone",
     "multiRoom": "Multi-room",
     "prevDevice": "Previous device",
-    "nextDevice": "Next device"
+    "nextDevice": "Next device",
+    "radio": "Radio",
+    "mediaServer": "Media Server",
+    "playbackSource": "Playback source"
   },
   "presets": {
     "pageTitle": "Radio Presets",
@@ -765,5 +768,13 @@
     "reboot": "Reboot device",
     "sent": "Reboot command sent",
     "confirmMessage": "Reboot {{name}}? The device will be unavailable for about 60 seconds."
+  },
+  "dlna": {
+    "title": "Media Server",
+    "server": "Media server",
+    "noServers": "No media servers found",
+    "discoveryFailed": "Media servers could not be discovered.",
+    "browseFailed": "Media server could not be browsed.",
+    "playFailed": "Track could not be played."
   }
 }

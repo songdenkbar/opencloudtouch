@@ -42,7 +42,10 @@
     "manageZone": "ゾーンを管理",
     "multiRoom": "マルチルーム",
     "prevDevice": "前のデバイス",
-    "nextDevice": "次のデバイス"
+    "nextDevice": "次のデバイス",
+    "radio": "ラジオ",
+    "mediaServer": "メディアサーバー",
+    "playbackSource": "再生ソース"
   },
   "presets": {
     "pageTitle": "ラジオプリセット",
@@ -765,5 +768,13 @@
     "reboot": "デバイスを再起動",
     "sent": "再起動コマンドを送信しました",
     "confirmMessage": "{{name}}を再起動しますか？デバイスは約60秒間使用できなくなります。"
+  },
+  "dlna": {
+    "title": "メディアサーバー",
+    "server": "メディアサーバー",
+    "noServers": "メディアサーバーが見つかりません",
+    "discoveryFailed": "メディアサーバーを検出できませんでした。",
+    "browseFailed": "メディアサーバーを参照できませんでした。",
+    "playFailed": "トラックを再生できませんでした。"
   }
 }
