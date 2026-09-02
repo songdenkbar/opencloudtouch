@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   browseDlna,
   getDlnaServers,
+  getCurrentDlnaItem,
   nextDlna,
   pauseDlna,
   playDlnaItem,
@@ -30,6 +31,7 @@ export default function DlnaBrowser({ deviceId }: DlnaBrowserProps) {
   const [path, setPath] = useState<BrowseLevel[]>([{ id: "0", title: "" }]);
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [currentItem, setCurrentItem] = useState<DlnaItem | null>(null);
   const [controlBusy, setControlBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,6 +90,29 @@ export default function DlnaBrowser({ deviceId }: DlnaBrowserProps) {
     };
   }, [loadItems, t]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshCurrentItem() {
+      try {
+        const item = await getCurrentDlnaItem(deviceId);
+        if (!cancelled) {
+          setCurrentItem(item);
+        }
+      } catch (err) {
+        console.error("[DLNA] Current item failed:", err);
+      }
+    }
+
+    void refreshCurrentItem();
+    const interval = window.setInterval(() => void refreshCurrentItem(), 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [deviceId]);
+
   const handleServerChange = async (newServerId: string) => {
     setServerId(newServerId);
     setPath([{ id: "0", title: "" }]);
@@ -112,7 +137,8 @@ export default function DlnaBrowser({ deviceId }: DlnaBrowserProps) {
     setError(null);
 
     try {
-      await playDlnaItem(serverId, item.id, deviceId, currentLevel.id);
+      const result = await playDlnaItem(serverId, item.id, deviceId, currentLevel.id);
+      setCurrentItem(result.item);
     } catch (err) {
       console.error("[DLNA] Playback failed:", err);
       setError(t("dlna.playFailed"));
@@ -127,18 +153,22 @@ export default function DlnaBrowser({ deviceId }: DlnaBrowserProps) {
 
     try {
       switch (action) {
-        case "previous":
-          await previousDlna(deviceId);
+        case "previous": {
+          const result = await previousDlna(deviceId);
+          setCurrentItem(result.item);
           break;
+        }
         case "resume":
           await resumeDlna(deviceId);
           break;
         case "pause":
           await pauseDlna(deviceId);
           break;
-        case "next":
-          await nextDlna(deviceId);
+        case "next": {
+          const result = await nextDlna(deviceId);
+          setCurrentItem(result.item);
           break;
+        }
       }
     } catch (err) {
       console.error(`[DLNA] ${action} failed:`, err);
@@ -206,6 +236,17 @@ export default function DlnaBrowser({ deviceId }: DlnaBrowserProps) {
         </button>
       </div>
 
+      {currentItem && (
+        <div className="dlna-current" aria-live="polite">
+          <span className="dlna-current-title">▶ {currentItem.title}</span>
+          {(currentItem.artist || currentItem.album) && (
+            <span className="dlna-current-meta">
+              {[currentItem.artist, currentItem.album].filter(Boolean).join(" · ")}
+            </span>
+          )}
+        </div>
+      )}
+
       {path.length > 1 && (
         <button className="dlna-back" onClick={() => void goBack()}>
           ← {currentLevel.title}
@@ -248,6 +289,10 @@ export default function DlnaBrowser({ deviceId }: DlnaBrowserProps) {
           ))}
         </div>
       )}
+      <details className="dlna-info">
+        <summary aria-label={t("dlna.stereoInfoLabel")}>ⓘ</summary>
+        <div className="dlna-info-text">{t("dlna.stereoInfo")}</div>
+      </details>
     </div>
   );
 }

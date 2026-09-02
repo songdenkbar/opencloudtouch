@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import DlnaBrowser from "../../src/components/DlnaBrowser";
 import {
   browseDlna,
+  getCurrentDlnaItem,
   getDlnaServers,
   nextDlna,
   pauseDlna,
@@ -13,6 +14,7 @@ import {
 
 vi.mock("../../src/api/dlna", () => ({
   getDlnaServers: vi.fn(),
+  getCurrentDlnaItem: vi.fn(),
   browseDlna: vi.fn(),
   playDlnaItem: vi.fn(),
   pauseDlna: vi.fn(),
@@ -34,20 +36,38 @@ const server = {
   control_url: "http://192.168.1.10/ContentDirectory/Control",
 };
 
+const currentTrack = {
+  id: "track-current",
+  parent_id: "0",
+  title: "Current Track",
+  is_container: false,
+  resource_url: "http://192.168.1.10/current.mp3",
+  media_class: "object.item.audioItem.musicTrack",
+  artist: "Test Artist",
+  album: "Test Album",
+};
+
 describe("DlnaBrowser playback controls", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
     vi.mocked(getDlnaServers).mockResolvedValue([server]);
+    vi.mocked(getCurrentDlnaItem).mockResolvedValue(null);
     vi.mocked(browseDlna).mockResolvedValue({
       server_id: "server-1",
       object_id: "0",
       items: [],
     });
-    vi.mocked(previousDlna).mockResolvedValue(undefined);
+    vi.mocked(previousDlna).mockResolvedValue({
+      device_id: "device-1",
+      item: currentTrack,
+    });
     vi.mocked(resumeDlna).mockResolvedValue(undefined);
     vi.mocked(pauseDlna).mockResolvedValue(undefined);
-    vi.mocked(nextDlna).mockResolvedValue(undefined);
+    vi.mocked(nextDlna).mockResolvedValue({
+      device_id: "device-1",
+      item: currentTrack,
+    });
   });
 
   it("renders playback controls", async () => {
@@ -161,5 +181,39 @@ describe("DlnaBrowser playback controls", () => {
 
     expect(screen.getByTitle("dlna.pause")).toBeInTheDocument();
     expect(screen.getByTitle("dlna.next")).toBeInTheDocument();
+  });
+
+  it("shows the currently playing track with artist and album", async () => {
+    vi.mocked(getCurrentDlnaItem).mockResolvedValue(currentTrack);
+
+    render(<DlnaBrowser deviceId="device-1" />);
+
+    expect(await screen.findByText("▶ Current Track")).toBeInTheDocument();
+    expect(screen.getByText("Test Artist · Test Album")).toBeInTheDocument();
+
+    expect(getCurrentDlnaItem).toHaveBeenCalledWith("device-1");
+  });
+
+  it("does not show a current track when playback is idle", async () => {
+    vi.mocked(getCurrentDlnaItem).mockResolvedValue(null);
+
+    render(<DlnaBrowser deviceId="device-1" />);
+
+    await screen.findByText("Test Media Server");
+
+    expect(screen.queryByText("▶ Current Track")).not.toBeInTheDocument();
+  });
+
+  it("shows information about stereo pairs and zones", async () => {
+    render(<DlnaBrowser deviceId="device-1" />);
+
+    await screen.findByText("Test Media Server");
+
+    const info = screen.getByLabelText("dlna.stereoInfoLabel");
+    expect(info).toBeInTheDocument();
+
+    fireEvent.click(info);
+
+    expect(screen.getByText("dlna.stereoInfo")).toBeInTheDocument();
   });
 });

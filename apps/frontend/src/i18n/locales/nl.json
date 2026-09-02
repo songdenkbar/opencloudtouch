@@ -778,6 +778,8 @@
     "previous": "Vorige",
     "play": "Afspelen",
     "pause": "Pauze",
-    "next": "Volgende"
+    "next": "Volgende",
+    "stereoInfo": "Bij stereoparen en zones moet de masterluidspreker worden geselecteerd om afspelen mogelijk te maken.",
+    "stereoInfoLabel": "Informatie over stereoparen en zones"
   }
 }

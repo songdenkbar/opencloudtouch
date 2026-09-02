@@ -72,6 +72,20 @@ export async function playDlnaItem(
   return response.json();
 }
 
+interface DlnaCurrentResponse {
+  device_id: string;
+  item: DlnaItem | null;
+}
+
+export async function getCurrentDlnaItem(deviceId: string): Promise<DlnaItem | null> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/dlna/devices/${encodeURIComponent(deviceId)}/current`
+  );
+  await throwIfNotOk(response, "Failed to get current DLNA item");
+  const result: DlnaCurrentResponse = await response.json();
+  return result.item;
+}
+
 export async function pauseDlna(deviceId: string): Promise<void> {
   const response = await fetch(
     `${API_BASE_URL}/api/dlna/devices/${encodeURIComponent(deviceId)}/pause`,

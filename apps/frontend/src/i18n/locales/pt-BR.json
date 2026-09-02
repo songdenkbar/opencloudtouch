@@ -778,6 +778,8 @@
     "previous": "Anterior",
     "play": "Reproduzir",
     "pause": "Pausar",
-    "next": "Próxima"
+    "next": "Próxima",
+    "stereoInfo": "Para pares estéreo e zonas, o alto-falante mestre deve ser selecionado para que a reprodução funcione.",
+    "stereoInfoLabel": "Informações sobre pares estéreo e zonas"
   }
 }

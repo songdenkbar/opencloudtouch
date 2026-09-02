@@ -778,6 +778,8 @@
     "previous": "Zurück",
     "play": "Wiedergabe",
     "pause": "Pause",
-    "next": "Weiter"
+    "next": "Weiter",
+    "stereoInfo": "Bei Stereo-Paaren und Zonen muss der Master-Lautsprecher ausgewählt werden, damit die Wiedergabe funktioniert.",
+    "stereoInfoLabel": "Hinweis zu Stereo-Paaren und Zonen"
   }
 }

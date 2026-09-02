@@ -138,3 +138,53 @@
   cursor: default;
   opacity: 0.5;
 }
+
+.dlna-current {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--space-md);
+  text-align: center;
+}
+
+.dlna-current-title {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dlna-current-meta {
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dlna-info {
+  position: relative;
+  margin-top: var(--space-md);
+  text-align: right;
+}
+
+.dlna-info summary {
+  display: inline-block;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  list-style: none;
+}
+
+.dlna-info summary::-webkit-details-marker {
+  display: none;
+}
+
+.dlna-info-text {
+  margin-top: var(--space-xs);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+}
