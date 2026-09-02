@@ -770,7 +770,6 @@
     "confirmMessage": "Reboot {{name}}? The device will be unavailable for about 60 seconds."
   },
   "dlna": {
-    "title": "Media Server",
     "server": "Media server",
     "noServers": "No media servers found",
     "discoveryFailed": "Media servers could not be discovered.",

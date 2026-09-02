@@ -770,7 +770,6 @@
     "confirmMessage": "Redémarrer {{name}} ? L'appareil sera indisponible pendant environ 60 secondes."
   },
   "dlna": {
-    "title": "Serveur multimédia",
     "server": "Serveur multimédia",
     "noServers": "Aucun serveur multimédia trouvé",
     "discoveryFailed": "Impossible de détecter les serveurs multimédia.",

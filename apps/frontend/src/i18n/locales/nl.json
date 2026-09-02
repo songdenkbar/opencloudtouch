@@ -770,7 +770,6 @@
     "confirmMessage": "{{name}} herstarten? Het apparaat is ongeveer 60 seconden niet beschikbaar."
   },
   "dlna": {
-    "title": "Mediaserver",
     "server": "Mediaserver",
     "noServers": "Geen mediaservers gevonden",
     "discoveryFailed": "Mediaservers konden niet worden gevonden.",

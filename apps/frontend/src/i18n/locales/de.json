@@ -770,7 +770,6 @@
     "confirmMessage": "{{name}} neu starten? Das Gerät ist für ca. 60 Sekunden nicht erreichbar."
   },
   "dlna": {
-    "title": "Medienserver",
     "server": "Medienserver",
     "noServers": "Keine Medienserver gefunden",
     "discoveryFailed": "Medienserver konnten nicht gefunden werden.",

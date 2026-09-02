@@ -770,7 +770,6 @@
     "confirmMessage": "Riavviare {{name}}? Il dispositivo non sarà disponibile per circa 60 secondi."
   },
   "dlna": {
-    "title": "Server multimediale",
     "server": "Server multimediale",
     "noServers": "Nessun server multimediale trovato",
     "discoveryFailed": "Impossibile rilevare i server multimediali.",

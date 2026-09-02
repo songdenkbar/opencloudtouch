@@ -34,7 +34,13 @@ vi.mock("../../src/api/presets", () => ({
 // Mock device hooks
 const mockSetDeviceVolume = vi.fn();
 const mockToggleMute = vi.fn();
-let mockVolumeState = { volume: 45, muted: false, loading: false, setDeviceVolume: mockSetDeviceVolume, toggleMute: mockToggleMute };
+let mockVolumeState = {
+  volume: 45,
+  muted: false,
+  loading: false,
+  setDeviceVolume: mockSetDeviceVolume,
+  toggleMute: mockToggleMute,
+};
 vi.mock("../../src/hooks/useVolume", () => ({
   useVolume: () => mockVolumeState,
 }));
@@ -55,7 +61,13 @@ import type { ReactNode } from "react";
 
 // Mock child components
 vi.mock("../../src/components/DeviceSwiper", () => ({
-  default: ({ children, onIndexChange }: { children: ReactNode; onIndexChange: (index: number) => void }) => (
+  default: ({
+    children,
+    onIndexChange,
+  }: {
+    children: ReactNode;
+    onIndexChange: (index: number) => void;
+  }) => (
     <div data-testid="device-swiper">
       <button onClick={() => onIndexChange(0)}>Device 1</button>
       <button onClick={() => onIndexChange(1)}>Device 2</button>
@@ -72,12 +84,24 @@ vi.mock("../../src/components/NowPlaying", () => ({
 
 vi.mock("../../src/components/DeviceNameEditor", () => ({
   default: ({ name }: { name: string }) => (
-    <h2 className="device-name" data-test="device-name">{name}</h2>
+    <h2 className="device-name" data-test="device-name">
+      {name}
+    </h2>
   ),
 }));
 
 vi.mock("../../src/components/VolumeSlider", () => ({
-  default: ({ volume, onVolumeChange, muted, onMuteToggle }: { volume: number; onVolumeChange: (v: number) => void; muted: boolean; onMuteToggle: () => void }) => (
+  default: ({
+    volume,
+    onVolumeChange,
+    muted,
+    onMuteToggle,
+  }: {
+    volume: number;
+    onVolumeChange: (v: number) => void;
+    muted: boolean;
+    onMuteToggle: () => void;
+  }) => (
     <div data-testid="volume-slider">
       <input
         type="range"
@@ -93,7 +117,19 @@ vi.mock("../../src/components/VolumeSlider", () => ({
 }));
 
 vi.mock("../../src/components/PresetButton", () => ({
-  default: ({ number, preset, onAssign, onPlay, isCurrentlyPlaying }: { number: number; preset: { station_name: string } | null; onAssign: () => void; onPlay: () => void; isCurrentlyPlaying?: boolean }) => (
+  default: ({
+    number,
+    preset,
+    onAssign,
+    onPlay,
+    isCurrentlyPlaying,
+  }: {
+    number: number;
+    preset: { station_name: string } | null;
+    onAssign: () => void;
+    onPlay: () => void;
+    isCurrentlyPlaying?: boolean;
+  }) => (
     <div data-testid={`preset-${number}`}>
       <span>Preset {number}</span>
       {preset ? (
@@ -102,7 +138,11 @@ vi.mock("../../src/components/PresetButton", () => ({
           <button onClick={onAssign} data-testid={`preset-${number}-change`}>
             Change
           </button>
-          <button onClick={onPlay} data-testid={`preset-${number}-play`} disabled={isCurrentlyPlaying}>
+          <button
+            onClick={onPlay}
+            data-testid={`preset-${number}-play`}
+            disabled={isCurrentlyPlaying}
+          >
             Play
           </button>
         </>
@@ -116,7 +156,26 @@ vi.mock("../../src/components/PresetButton", () => ({
 }));
 
 vi.mock("../../src/components/RadioSearch", () => ({
-  default: ({ isOpen, onClose, onStationSelect, onDelete, hasExistingPreset }: { isOpen: boolean; onClose: () => void; onStationSelect: (station: { stationuuid: string; name: string; country: string; url: string; homepage: string; favicon: string }) => void; onDelete?: () => void; hasExistingPreset?: boolean }) => {
+  default: ({
+    isOpen,
+    onClose,
+    onStationSelect,
+    onDelete,
+    hasExistingPreset,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onStationSelect: (station: {
+      stationuuid: string;
+      name: string;
+      country: string;
+      url: string;
+      homepage: string;
+      favicon: string;
+    }) => void;
+    onDelete?: () => void;
+    hasExistingPreset?: boolean;
+  }) => {
     if (!isOpen) return null;
     return (
       <div data-testid="radio-search-modal">
@@ -148,6 +207,14 @@ vi.mock("../../src/components/RadioSearch", () => ({
   },
 }));
 
+vi.mock("../../src/components/DlnaBrowser", () => ({
+  default: ({ deviceId }: { deviceId: string }) => (
+    <div data-testid="dlna-browser" data-device-id={deviceId}>
+      DLNA Browser
+    </div>
+  ),
+}));
+
 vi.mock("../../src/components/SetupBadge", () => ({
   default: () => <span data-testid="setup-badge" />,
 }));
@@ -172,7 +239,13 @@ describe("RadioPresets Page", () => {
     vi.clearAllMocks();
 
     // Reset volume hook mock state
-    mockVolumeState = { volume: 45, muted: false, loading: false, setDeviceVolume: mockSetDeviceVolume, toggleMute: mockToggleMute };
+    mockVolumeState = {
+      volume: 45,
+      muted: false,
+      loading: false,
+      setDeviceVolume: mockSetDeviceVolume,
+      toggleMute: mockToggleMute,
+    };
 
     // Setup default API mocks
     vi.mocked(presetsApi.getDevicePresets).mockResolvedValue([]);
@@ -236,6 +309,47 @@ describe("RadioPresets Page", () => {
 
       expect(screen.getByText("No devices found")).toBeInTheDocument();
       expect(screen.queryByTestId("device-swiper")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Media Mode Switching", () => {
+    it("shows radio mode by default", async () => {
+      await renderAndWaitForLoad();
+
+      expect(screen.getByTestId("now-playing")).toBeInTheDocument();
+      expect(screen.getByTestId("preset-1")).toBeInTheDocument();
+      expect(screen.queryByTestId("dlna-browser")).not.toBeInTheDocument();
+    });
+
+    it("switches from radio to media server mode", async () => {
+      await renderAndWaitForLoad();
+
+      fireEvent.click(screen.getByRole("button", { name: "Media Server" }));
+
+      expect(screen.getByTestId("dlna-browser")).toBeInTheDocument();
+      expect(screen.queryByTestId("now-playing")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("preset-1")).not.toBeInTheDocument();
+    });
+
+    it("passes the current device id to the media server browser", async () => {
+      await renderAndWaitForLoad();
+
+      fireEvent.click(screen.getByRole("button", { name: "Media Server" }));
+
+      expect(screen.getByTestId("dlna-browser")).toHaveAttribute("data-device-id", "AABBCC123456");
+    });
+
+    it("switches back from media server to radio mode", async () => {
+      await renderAndWaitForLoad();
+
+      fireEvent.click(screen.getByRole("button", { name: "Media Server" }));
+      expect(screen.getByTestId("dlna-browser")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Radio" }));
+
+      expect(screen.queryByTestId("dlna-browser")).not.toBeInTheDocument();
+      expect(screen.getByTestId("now-playing")).toBeInTheDocument();
+      expect(screen.getByTestId("preset-1")).toBeInTheDocument();
     });
   });
 
@@ -731,7 +845,9 @@ describe("RadioPresets Page", () => {
 
       // Should display error message
       await waitFor(() => {
-        expect(screen.getByTestId("error-message")).toHaveTextContent("Presets could not be loaded. Please try again.");
+        expect(screen.getByTestId("error-message")).toHaveTextContent(
+          "Presets could not be loaded. Please try again."
+        );
       });
     });
 
@@ -769,7 +885,9 @@ describe("RadioPresets Page", () => {
 
       // Should display error
       await waitFor(() => {
-        expect(screen.getByTestId("error-message")).toHaveTextContent("Preset could not be saved. Please try again.");
+        expect(screen.getByTestId("error-message")).toHaveTextContent(
+          "Preset could not be saved. Please try again."
+        );
       });
     });
 
@@ -803,7 +921,9 @@ describe("RadioPresets Page", () => {
 
       // Should display user-friendly error
       await waitFor(() => {
-        expect(screen.getByTestId("error-message")).toHaveTextContent("Preset could not be saved. Please try again.");
+        expect(screen.getByTestId("error-message")).toHaveTextContent(
+          "Preset could not be saved. Please try again."
+        );
       });
     });
   });

@@ -770,7 +770,6 @@
     "confirmMessage": "Uruchomić ponownie {{name}}? Urządzenie będzie niedostępne przez około 60 sekund."
   },
   "dlna": {
-    "title": "Serwer multimediów",
     "server": "Serwer multimediów",
     "noServers": "Nie znaleziono serwerów multimediów",
     "discoveryFailed": "Nie udało się wykryć serwerów multimediów.",

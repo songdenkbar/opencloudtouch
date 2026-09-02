@@ -770,7 +770,6 @@
     "confirmMessage": "Reiniciar {{name}}? O dispositivo ficará indisponível por cerca de 60 segundos."
   },
   "dlna": {
-    "title": "Servidor de mídia",
     "server": "Servidor de mídia",
     "noServers": "Nenhum servidor de mídia encontrado",
     "discoveryFailed": "Não foi possível localizar servidores de mídia.",

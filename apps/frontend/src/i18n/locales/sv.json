@@ -770,7 +770,6 @@
     "confirmMessage": "Starta om {{name}}? Enheten kommer att vara otillgänglig i ungefär 60 sekunder."
   },
   "dlna": {
-    "title": "Medieserver",
     "server": "Medieserver",
     "noServers": "Inga medieservrar hittades",
     "discoveryFailed": "Det gick inte att hitta medieservrar.",

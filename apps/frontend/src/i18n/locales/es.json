@@ -770,7 +770,6 @@
     "confirmMessage": "¿Reiniciar {{name}}? El dispositivo no estará disponible durante unos 60 segundos."
   },
   "dlna": {
-    "title": "Servidor multimedia",
     "server": "Servidor multimedia",
     "noServers": "No se encontraron servidores multimedia",
     "discoveryFailed": "No se pudieron detectar los servidores multimedia.",
