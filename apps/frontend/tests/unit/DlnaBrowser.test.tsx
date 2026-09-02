@@ -216,4 +216,172 @@ describe("DlnaBrowser playback controls", () => {
 
     expect(screen.getByText("dlna.stereoInfo")).toBeInTheDocument();
   });
+
+  it("ignores stale browse results after switching media servers", async () => {
+    const secondServer = {
+      id: "server-2",
+      name: "Second Media Server",
+      location: "http://192.168.1.20/device.xml",
+      control_url: "http://192.168.1.20/ContentDirectory/Control",
+    };
+
+    let resolveOldBrowse!: (value: {
+      server_id: string;
+      object_id: string;
+      items: Array<{
+        id: string;
+        parent_id: string;
+        title: string;
+        is_container: boolean;
+      }>;
+    }) => void;
+
+    vi.mocked(getDlnaServers).mockResolvedValue([server, secondServer]);
+
+    vi.mocked(browseDlna).mockImplementation((serverId, objectId) => {
+      if (serverId === "server-1" && objectId === "folder-old") {
+        return new Promise((resolve) => {
+          resolveOldBrowse = resolve;
+        });
+      }
+
+      if (serverId === "server-1") {
+        return Promise.resolve({
+          server_id: "server-1",
+          object_id: objectId,
+          items: [
+            {
+              id: "folder-old",
+              parent_id: "0",
+              title: "Old Folder",
+              is_container: true,
+            },
+          ],
+        });
+      }
+
+      return Promise.resolve({
+        server_id: "server-2",
+        object_id: objectId,
+        items: [
+          {
+            id: "folder-new",
+            parent_id: "0",
+            title: "New Folder",
+            is_container: true,
+          },
+        ],
+      });
+    });
+
+    render(<DlnaBrowser deviceId="device-1" />);
+
+    fireEvent.click(await screen.findByText("Old Folder"));
+
+    await waitFor(() => {
+      expect(browseDlna).toHaveBeenCalledWith("server-1", "folder-old");
+    });
+
+    fireEvent.change(screen.getByLabelText("dlna.server"), {
+      target: { value: "server-2" },
+    });
+
+    await waitFor(() => {
+      expect(browseDlna).toHaveBeenCalledWith("server-2", "0");
+    });
+
+    expect(await screen.findByText("New Folder")).toBeInTheDocument();
+
+    resolveOldBrowse({
+      server_id: "server-1",
+      object_id: "folder-old",
+      items: [
+        {
+          id: "stale-track",
+          parent_id: "folder-old",
+          title: "Stale Track",
+          is_container: false,
+        },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("New Folder")).toBeInTheDocument();
+      expect(screen.queryByText("Stale Track")).not.toBeInTheDocument();
+    });
+  });
+
+  it("ignores stale browse errors after switching media servers", async () => {
+    const secondServer = {
+      id: "server-2",
+      name: "Second Media Server",
+      location: "http://192.168.1.20/device.xml",
+      control_url: "http://192.168.1.20/ContentDirectory/Control",
+    };
+
+    let rejectOldBrowse!: (reason?: unknown) => void;
+
+    vi.mocked(getDlnaServers).mockResolvedValue([server, secondServer]);
+
+    vi.mocked(browseDlna).mockImplementation((serverId, objectId) => {
+      if (serverId === "server-1" && objectId === "folder-old") {
+        return new Promise((_, reject) => {
+          rejectOldBrowse = reject;
+        });
+      }
+
+      if (serverId === "server-1") {
+        return Promise.resolve({
+          server_id: "server-1",
+          object_id: objectId,
+          items: [
+            {
+              id: "folder-old",
+              parent_id: "0",
+              title: "Old Folder",
+              is_container: true,
+            },
+          ],
+        });
+      }
+
+      return Promise.resolve({
+        server_id: "server-2",
+        object_id: objectId,
+        items: [
+          {
+            id: "folder-new",
+            parent_id: "0",
+            title: "New Folder",
+            is_container: true,
+          },
+        ],
+      });
+    });
+
+    render(<DlnaBrowser deviceId="device-1" />);
+
+    fireEvent.click(await screen.findByText("Old Folder"));
+
+    await waitFor(() => {
+      expect(browseDlna).toHaveBeenCalledWith("server-1", "folder-old");
+    });
+
+    fireEvent.change(screen.getByLabelText("dlna.server"), {
+      target: { value: "server-2" },
+    });
+
+    await waitFor(() => {
+      expect(browseDlna).toHaveBeenCalledWith("server-2", "0");
+    });
+
+    expect(await screen.findByText("New Folder")).toBeInTheDocument();
+
+    rejectOldBrowse(new Error("old server failed"));
+
+    await waitFor(() => {
+      expect(screen.getByText("New Folder")).toBeInTheDocument();
+      expect(screen.queryByText("dlna.browseFailed")).not.toBeInTheDocument();
+    });
+  });
 });

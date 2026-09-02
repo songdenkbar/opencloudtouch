@@ -35,23 +35,38 @@ export default function DlnaBrowser({ deviceId }: DlnaBrowserProps) {
   const [currentTitleOverflow, setCurrentTitleOverflow] = useState(false);
   const [controlBusy, setControlBusy] = useState(false);
   const currentTitleRef = useRef<HTMLSpanElement | null>(null);
+  const currentTitleWindowRef = useRef<HTMLDivElement | null>(null);
+  const browseRequestRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
 
   const currentLevel = path[path.length - 1];
 
   const loadItems = useCallback(
     async (selectedServerId: string, objectId: string) => {
+      const requestId = ++browseRequestRef.current;
+
       setLoading(true);
       setError(null);
 
       try {
         const result = await browseDlna(selectedServerId, objectId);
+
+        if (requestId !== browseRequestRef.current) {
+          return;
+        }
+
         setItems(result.items);
       } catch (err) {
+        if (requestId !== browseRequestRef.current) {
+          return;
+        }
+
         console.error("[DLNA] Browse failed:", err);
         setError(t("dlna.browseFailed"));
       } finally {
-        setLoading(false);
+        if (requestId === browseRequestRef.current) {
+          setLoading(false);
+        }
       }
     },
     [t]
@@ -116,34 +131,38 @@ export default function DlnaBrowser({ deviceId }: DlnaBrowserProps) {
   }, [deviceId]);
 
   useEffect(() => {
-    const element = currentTitleRef.current;
-    if (!element) {
+    const title = currentTitleRef.current;
+    const viewport = currentTitleWindowRef.current;
+
+    if (!title || !viewport) {
       setCurrentTitleOverflow(false);
       return;
     }
 
     const updateOverflow = () => {
-      const overflow = Math.max(0, element.scrollWidth - element.clientWidth);
-      element.style.setProperty("--dlna-title-overflow", `${overflow}px`);
-      setCurrentTitleOverflow(overflow > 0);
+      const overflow = Math.max(0, title.scrollWidth - viewport.clientWidth);
+      title.style.setProperty("--dlna-title-overflow", `${overflow}px`);
+      setCurrentTitleOverflow(overflow > 2);
     };
 
     updateOverflow();
 
-    if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", updateOverflow);
-      return () => window.removeEventListener("resize", updateOverflow);
-    }
+    const observer =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateOverflow) : null;
 
-    const observer = new ResizeObserver(updateOverflow);
-    observer.observe(element);
+    observer?.observe(viewport);
+    window.addEventListener("resize", updateOverflow);
 
-    return () => observer.disconnect();
-  }, [currentItem]);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateOverflow);
+    };
+  }, [currentItem?.id]);
 
   const handleServerChange = async (newServerId: string) => {
     setServerId(newServerId);
     setPath([{ id: "0", title: "" }]);
+    setItems([]);
     await loadItems(newServerId, "0");
   };
 
@@ -266,7 +285,7 @@ export default function DlnaBrowser({ deviceId }: DlnaBrowserProps) {
 
       {currentItem && (
         <div className="dlna-current" aria-live="polite">
-          <div className="dlna-current-title-window">
+          <div ref={currentTitleWindowRef} className="dlna-current-title-window">
             <span
               ref={currentTitleRef}
               className={`dlna-current-title${currentTitleOverflow ? " dlna-current-title-scroll" : ""}`}
