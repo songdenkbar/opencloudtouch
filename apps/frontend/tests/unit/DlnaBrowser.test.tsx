@@ -23,9 +23,11 @@ vi.mock("../../src/api/dlna", () => ({
   previousDlna: vi.fn(),
 }));
 
+const translate = (key: string) => key;
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: translate,
   }),
 }));
 
