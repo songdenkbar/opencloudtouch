@@ -188,3 +188,120 @@
   line-height: 1.4;
   text-align: left;
 }
+
+.dlna-current {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--space-md);
+  text-align: center;
+}
+
+.dlna-current-title-window {
+  width: 100%;
+  overflow: hidden;
+}
+
+.dlna-current-title {
+  display: inline-block;
+  max-width: 100%;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+.dlna-current-title-scroll {
+  max-width: none;
+  animation: dlna-title-scroll 10s ease-in-out infinite alternate;
+}
+
+@keyframes dlna-title-scroll {
+  0%,
+  15% {
+    transform: translateX(0);
+  }
+
+  85%,
+  100% {
+    transform: translateX(calc(-1 * var(--dlna-title-overflow, 0px)));
+  }
+}
+
+.dlna-current-meta {
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dlna-info {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-md);
+}
+
+.dlna-info-button {
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--color-bg-darker);
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  color: var(--color-text-secondary);
+  cursor: help;
+  font-size: 0.85rem;
+  font-weight: var(--font-weight-bold);
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.dlna-info-button:hover,
+.dlna-info-button:focus-visible {
+  background: var(--color-bg-card);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  outline: none;
+}
+
+.dlna-info-tooltip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + var(--space-xs));
+  z-index: 10;
+  width: min(280px, 80vw);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg-darker);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-md);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+  opacity: 0;
+  pointer-events: none;
+  text-align: left;
+  transform: translateY(4px);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.dlna-info:hover .dlna-info-tooltip,
+.dlna-info:focus-within .dlna-info-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dlna-current-title-scroll {
+    animation: none;
+  }
+}

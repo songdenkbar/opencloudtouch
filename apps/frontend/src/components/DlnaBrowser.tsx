@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   browseDlna,
@@ -32,7 +32,9 @@ export default function DlnaBrowser({ deviceId }: DlnaBrowserProps) {
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [currentItem, setCurrentItem] = useState<DlnaItem | null>(null);
+  const [currentTitleOverflow, setCurrentTitleOverflow] = useState(false);
   const [controlBusy, setControlBusy] = useState(false);
+  const currentTitleRef = useRef<HTMLSpanElement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const currentLevel = path[path.length - 1];
@@ -112,6 +114,32 @@ export default function DlnaBrowser({ deviceId }: DlnaBrowserProps) {
       window.clearInterval(interval);
     };
   }, [deviceId]);
+
+  useEffect(() => {
+    const element = currentTitleRef.current;
+    if (!element) {
+      setCurrentTitleOverflow(false);
+      return;
+    }
+
+    const updateOverflow = () => {
+      const overflow = Math.max(0, element.scrollWidth - element.clientWidth);
+      element.style.setProperty("--dlna-title-overflow", `${overflow}px`);
+      setCurrentTitleOverflow(overflow > 0);
+    };
+
+    updateOverflow();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateOverflow);
+      return () => window.removeEventListener("resize", updateOverflow);
+    }
+
+    const observer = new ResizeObserver(updateOverflow);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [currentItem]);
 
   const handleServerChange = async (newServerId: string) => {
     setServerId(newServerId);
@@ -238,7 +266,14 @@ export default function DlnaBrowser({ deviceId }: DlnaBrowserProps) {
 
       {currentItem && (
         <div className="dlna-current" aria-live="polite">
-          <span className="dlna-current-title">▶ {currentItem.title}</span>
+          <div className="dlna-current-title-window">
+            <span
+              ref={currentTitleRef}
+              className={`dlna-current-title${currentTitleOverflow ? " dlna-current-title-scroll" : ""}`}
+            >
+              ▶ {currentItem.title}
+            </span>
+          </div>
           {(currentItem.artist || currentItem.album) && (
             <span className="dlna-current-meta">
               {[currentItem.artist, currentItem.album].filter(Boolean).join(" · ")}
@@ -289,10 +324,14 @@ export default function DlnaBrowser({ deviceId }: DlnaBrowserProps) {
           ))}
         </div>
       )}
-      <details className="dlna-info">
-        <summary aria-label={t("dlna.stereoInfoLabel")}>ⓘ</summary>
-        <div className="dlna-info-text">{t("dlna.stereoInfo")}</div>
-      </details>
+      <div className="dlna-info">
+        <button type="button" className="dlna-info-button" aria-label={t("dlna.stereoInfoLabel")}>
+          i
+        </button>
+        <div className="dlna-info-tooltip" role="tooltip">
+          {t("dlna.stereoInfo")}
+        </div>
+      </div>
     </div>
   );
 }
