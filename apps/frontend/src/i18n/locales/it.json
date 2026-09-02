@@ -775,6 +775,10 @@
     "noServers": "Nessun server multimediale trovato",
     "discoveryFailed": "Impossibile rilevare i server multimediali.",
     "browseFailed": "Impossibile esplorare il server multimediale.",
-    "playFailed": "Impossibile riprodurre il brano."
+    "playFailed": "Impossibile riprodurre il brano.",
+    "previous": "Precedente",
+    "play": "Riproduci",
+    "pause": "Pausa",
+    "next": "Successivo"
   }
 }

@@ -775,6 +775,10 @@
     "noServers": "Keine Medienserver gefunden",
     "discoveryFailed": "Medienserver konnten nicht gefunden werden.",
     "browseFailed": "Medienserver konnte nicht durchsucht werden.",
-    "playFailed": "Titel konnte nicht abgespielt werden."
+    "playFailed": "Titel konnte nicht abgespielt werden.",
+    "previous": "Zurück",
+    "play": "Wiedergabe",
+    "pause": "Pause",
+    "next": "Weiter"
   }
 }

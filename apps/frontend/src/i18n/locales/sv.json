@@ -775,6 +775,10 @@
     "noServers": "Inga medieservrar hittades",
     "discoveryFailed": "Det gick inte att hitta medieservrar.",
     "browseFailed": "Det gick inte att bläddra på medieservern.",
-    "playFailed": "Det gick inte att spela upp spåret."
+    "playFailed": "Det gick inte att spela upp spåret.",
+    "previous": "Föregående",
+    "play": "Spela",
+    "pause": "Pausa",
+    "next": "Nästa"
   }
 }

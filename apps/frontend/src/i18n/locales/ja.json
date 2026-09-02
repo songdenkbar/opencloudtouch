@@ -775,6 +775,10 @@
     "noServers": "メディアサーバーが見つかりません",
     "discoveryFailed": "メディアサーバーを検出できませんでした。",
     "browseFailed": "メディアサーバーを参照できませんでした。",
-    "playFailed": "トラックを再生できませんでした。"
+    "playFailed": "トラックを再生できませんでした。",
+    "previous": "前へ",
+    "play": "再生",
+    "pause": "一時停止",
+    "next": "次へ"
   }
 }

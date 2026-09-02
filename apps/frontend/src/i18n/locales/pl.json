@@ -775,6 +775,10 @@
     "noServers": "Nie znaleziono serwerów multimediów",
     "discoveryFailed": "Nie udało się wykryć serwerów multimediów.",
     "browseFailed": "Nie udało się przeglądać serwera multimediów.",
-    "playFailed": "Nie udało się odtworzyć utworu."
+    "playFailed": "Nie udało się odtworzyć utworu.",
+    "previous": "Poprzedni",
+    "play": "Odtwórz",
+    "pause": "Pauza",
+    "next": "Następny"
   }
 }

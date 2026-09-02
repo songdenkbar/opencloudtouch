@@ -775,6 +775,10 @@
     "noServers": "Nenhum servidor de mídia encontrado",
     "discoveryFailed": "Não foi possível localizar servidores de mídia.",
     "browseFailed": "Não foi possível navegar no servidor de mídia.",
-    "playFailed": "Não foi possível reproduzir a faixa."
+    "playFailed": "Não foi possível reproduzir a faixa.",
+    "previous": "Anterior",
+    "play": "Reproduzir",
+    "pause": "Pausar",
+    "next": "Próxima"
   }
 }

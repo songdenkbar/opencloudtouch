@@ -775,6 +775,10 @@
     "noServers": "No media servers found",
     "discoveryFailed": "Media servers could not be discovered.",
     "browseFailed": "Media server could not be browsed.",
-    "playFailed": "Track could not be played."
+    "playFailed": "Track could not be played.",
+    "previous": "Previous",
+    "play": "Play",
+    "pause": "Pause",
+    "next": "Next"
   }
 }

@@ -775,6 +775,10 @@
     "noServers": "No se encontraron servidores multimedia",
     "discoveryFailed": "No se pudieron detectar los servidores multimedia.",
     "browseFailed": "No se pudo explorar el servidor multimedia.",
-    "playFailed": "No se pudo reproducir la pista."
+    "playFailed": "No se pudo reproducir la pista.",
+    "previous": "Anterior",
+    "play": "Reproducir",
+    "pause": "Pausa",
+    "next": "Siguiente"
   }
 }

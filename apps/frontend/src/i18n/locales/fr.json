@@ -775,6 +775,10 @@
     "noServers": "Aucun serveur multimédia trouvé",
     "discoveryFailed": "Impossible de détecter les serveurs multimédia.",
     "browseFailed": "Impossible de parcourir le serveur multimédia.",
-    "playFailed": "Impossible de lire le titre."
+    "playFailed": "Impossible de lire le titre.",
+    "previous": "Précédent",
+    "play": "Lecture",
+    "pause": "Pause",
+    "next": "Suivant"
   }
 }

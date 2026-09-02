@@ -775,6 +775,10 @@
     "noServers": "Geen mediaservers gevonden",
     "discoveryFailed": "Mediaservers konden niet worden gevonden.",
     "browseFailed": "Mediaserver kon niet worden doorzocht.",
-    "playFailed": "Nummer kon niet worden afgespeeld."
+    "playFailed": "Nummer kon niet worden afgespeeld.",
+    "previous": "Vorige",
+    "play": "Afspelen",
+    "pause": "Pauze",
+    "next": "Volgende"
   }
 }

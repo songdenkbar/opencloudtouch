@@ -3,7 +3,11 @@ import { useTranslation } from "react-i18next";
 import {
   browseDlna,
   getDlnaServers,
+  nextDlna,
+  pauseDlna,
   playDlnaItem,
+  previousDlna,
+  resumeDlna,
   type DlnaItem,
   type DlnaServer,
 } from "../api/dlna";
@@ -26,6 +30,7 @@ export default function DlnaBrowser({ deviceId }: DlnaBrowserProps) {
   const [path, setPath] = useState<BrowseLevel[]>([{ id: "0", title: "" }]);
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [controlBusy, setControlBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const currentLevel = path[path.length - 1];
@@ -116,11 +121,36 @@ export default function DlnaBrowser({ deviceId }: DlnaBrowserProps) {
     }
   };
 
+  const controlPlayback = async (action: "previous" | "resume" | "pause" | "next") => {
+    setControlBusy(true);
+    setError(null);
+
+    try {
+      switch (action) {
+        case "previous":
+          await previousDlna(deviceId);
+          break;
+        case "resume":
+          await resumeDlna(deviceId);
+          break;
+        case "pause":
+          await pauseDlna(deviceId);
+          break;
+        case "next":
+          await nextDlna(deviceId);
+          break;
+      }
+    } catch (err) {
+      console.error(`[DLNA] ${action} failed:`, err);
+      setError(t("dlna.playFailed"));
+    } finally {
+      setControlBusy(false);
+    }
+  };
+
   return (
     <div className="dlna-browser">
       <div className="dlna-browser-header">
-        <span className="dlna-browser-title">{t("dlna.title")}</span>
-
         {servers.length > 0 && (
           <select
             className="dlna-server-select"
@@ -135,6 +165,45 @@ export default function DlnaBrowser({ deviceId }: DlnaBrowserProps) {
             ))}
           </select>
         )}
+      </div>
+
+      <div className="dlna-playback-controls">
+        <button
+          type="button"
+          onClick={() => void controlPlayback("previous")}
+          disabled={controlBusy}
+          aria-label={t("dlna.previous")}
+          title={t("dlna.previous")}
+        >
+          ⏮
+        </button>
+        <button
+          type="button"
+          onClick={() => void controlPlayback("resume")}
+          disabled={controlBusy}
+          aria-label={t("dlna.play")}
+          title={t("dlna.play")}
+        >
+          ▶
+        </button>
+        <button
+          type="button"
+          onClick={() => void controlPlayback("pause")}
+          disabled={controlBusy}
+          aria-label={t("dlna.pause")}
+          title={t("dlna.pause")}
+        >
+          ⏸
+        </button>
+        <button
+          type="button"
+          onClick={() => void controlPlayback("next")}
+          disabled={controlBusy}
+          aria-label={t("dlna.next")}
+          title={t("dlna.next")}
+        >
+          ⏭
+        </button>
       </div>
 
       {path.length > 1 && (
