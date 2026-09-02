@@ -339,6 +339,23 @@ describe("RadioPresets Page", () => {
       expect(screen.getByTestId("dlna-browser")).toHaveAttribute("data-device-id", "AABBCC123456");
     });
 
+    it("updates the media server browser when switching devices", async () => {
+      await renderAndWaitForLoad();
+
+      fireEvent.click(screen.getByRole("button", { name: "Media Server" }));
+
+      expect(screen.getByTestId("dlna-browser")).toHaveAttribute("data-device-id", "AABBCC123456");
+
+      fireEvent.click(screen.getByRole("button", { name: "Device 2" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("dlna-browser")).toHaveAttribute(
+          "data-device-id",
+          "DDEEFF789012"
+        );
+      });
+    });
+
     it("switches back from media server to radio mode", async () => {
       await renderAndWaitForLoad();
 
