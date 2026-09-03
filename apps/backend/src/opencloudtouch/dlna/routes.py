@@ -33,7 +33,11 @@ async def _get_device_ip(request: Request, device_id: str) -> str:
 
 
 def _get_callback_base_url(request: Request, device_ip: str) -> str:
-    """Build a callback URL reachable by the renderer."""
+    """Build an AVTransport callback URL reachable by the renderer.
+
+    The LAN interface is selected using the renderer address and the callback
+    uses the actual OCT backend port.
+    """
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.connect((device_ip, 8091))
         callback_host = sock.getsockname()[0]
@@ -93,7 +97,7 @@ async def play_dlna_item(
     device_id: str,
     parent_id: str = Query(...),
 ) -> dict:
-    """Play a DLNA item on a SoundTouch device."""
+    """Play a media server item directly on a SoundTouch device."""
     device_ip = await _get_device_ip(request, device_id)
 
     try:
@@ -151,7 +155,7 @@ async def dlna_avtransport_event(
 async def get_current_dlna_item(
     device_id: str,
 ) -> dict:
-    """Return the currently active DLNA queue item."""
+    """Return the current media server item managed by the OCT playback queue."""
     item = _service.playback.current(device_id)
 
     return {

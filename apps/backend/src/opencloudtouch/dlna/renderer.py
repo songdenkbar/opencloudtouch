@@ -18,8 +18,10 @@ class DlnaRenderer:
     async def play_uri(self, device_ip: str, uri: str) -> None:
         """Set a media URI on a SoundTouch device.
 
-        SoundTouch devices start playback automatically after
-        SetAVTransportURI, so no separate Play action is required.
+        The SoundTouch device retrieves the media resource directly from the
+        media server; OCT does not proxy the audio stream. SoundTouch devices
+        start playback automatically after SetAVTransportURI, so no separate
+        Play action is required.
         """
         await self._send_action(
             device_ip,
@@ -37,7 +39,7 @@ class DlnaRenderer:
         callback_url: str,
         timeout_seconds: int = 300,
     ) -> tuple[str, int]:
-        """Subscribe to AVTransport events from a SoundTouch device."""
+        """Subscribe to SoundTouch AVTransport events exposed on port 8091."""
         url = f"http://{device_ip}:8091/AVTransport/Event"
         headers = {
             "CALLBACK": f"<{callback_url}>",
@@ -161,7 +163,7 @@ class DlnaRenderer:
         action: str,
         body: str,
     ) -> None:
-        """Send an AVTransport SOAP action."""
+        """Send an AVTransport SOAP action to SoundTouch port 8091."""
         url = f"http://{device_ip}:8091/AVTransport/Control"
 
         payload = f"""<?xml version="1.0" encoding="utf-8"?>

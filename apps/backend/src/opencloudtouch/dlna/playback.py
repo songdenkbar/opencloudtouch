@@ -28,7 +28,12 @@ class DlnaPlaybackState:
 
 
 class DlnaPlaybackService:
-    """Manage DLNA playback and navigation per SoundTouch device."""
+    """Manage in-memory DLNA playback queues per SoundTouch device.
+
+    Queue state is intentionally not persisted. OCT advances tracks itself
+    because SoundTouch does not provide usable SetNextAVTransportURI support
+    for this playback flow.
+    """
 
     def __init__(self, renderer: DlnaRenderer | None = None):
         self.renderer = renderer or DlnaRenderer()
