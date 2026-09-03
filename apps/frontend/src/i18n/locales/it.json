@@ -42,7 +42,10 @@
     "manageZone": "Gestisci zona",
     "multiRoom": "Multi-stanza",
     "prevDevice": "Dispositivo precedente",
-    "nextDevice": "Dispositivo successivo"
+    "nextDevice": "Dispositivo successivo",
+    "radio": "Radio",
+    "mediaServer": "Server multimediale",
+    "playbackSource": "Sorgente di riproduzione"
   },
   "presets": {
     "pageTitle": "Preset radio",
@@ -765,5 +768,18 @@
     "reboot": "Riavvia il dispositivo",
     "sent": "Comando di riavvio inviato",
     "confirmMessage": "Riavviare {{name}}? Il dispositivo non sarà disponibile per circa 60 secondi."
+  },
+  "dlna": {
+    "server": "Server multimediale",
+    "noServers": "Nessun server multimediale trovato",
+    "discoveryFailed": "Impossibile rilevare i server multimediali.",
+    "browseFailed": "Impossibile esplorare il server multimediale.",
+    "playFailed": "Impossibile riprodurre il brano.",
+    "previous": "Precedente",
+    "play": "Riproduci",
+    "pause": "Pausa",
+    "next": "Successivo",
+    "stereoInfo": "Per le coppie stereo e le zone, è necessario selezionare l'altoparlante master affinché la riproduzione funzioni.",
+    "stereoInfoLabel": "Informazioni sulle coppie stereo e sulle zone"
   }
 }

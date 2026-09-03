@@ -42,7 +42,10 @@
     "manageZone": "Hantera zon",
     "multiRoom": "Flera rum",
     "prevDevice": "Föregående enhet",
-    "nextDevice": "Nästa enhet"
+    "nextDevice": "Nästa enhet",
+    "radio": "Radio",
+    "mediaServer": "Medieserver",
+    "playbackSource": "Uppspelningskälla"
   },
   "presets": {
     "pageTitle": "Radioförinställningar",
@@ -765,5 +768,18 @@
     "reboot": "Starta om enheten",
     "sent": "Omstartskommando skickat",
     "confirmMessage": "Starta om {{name}}? Enheten kommer att vara otillgänglig i ungefär 60 sekunder."
+  },
+  "dlna": {
+    "server": "Medieserver",
+    "noServers": "Inga medieservrar hittades",
+    "discoveryFailed": "Det gick inte att hitta medieservrar.",
+    "browseFailed": "Det gick inte att bläddra på medieservern.",
+    "playFailed": "Det gick inte att spela upp spåret.",
+    "previous": "Föregående",
+    "play": "Spela",
+    "pause": "Pausa",
+    "next": "Nästa",
+    "stereoInfo": "För stereopar och zoner måste masterhögtalaren väljas för att uppspelningen ska fungera.",
+    "stereoInfoLabel": "Information om stereopar och zoner"
   }
 }

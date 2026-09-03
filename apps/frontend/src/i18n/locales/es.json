@@ -42,7 +42,10 @@
     "manageZone": "Gestionar zona",
     "multiRoom": "Multisala",
     "prevDevice": "Dispositivo anterior",
-    "nextDevice": "Dispositivo siguiente"
+    "nextDevice": "Dispositivo siguiente",
+    "radio": "Radio",
+    "mediaServer": "Servidor multimedia",
+    "playbackSource": "Fuente de reproducción"
   },
   "presets": {
     "pageTitle": "Presets de radio",
@@ -657,7 +660,7 @@
     "hallOfFameDescription": "Los 3 mejores colaboradores de todos los tiempos — reconocidos por su impacto técnico excepcional.",
     "supportersTitle": "Patrocinadores",
     "reportBug": "Reportar error",
-    "diagnostics": "Diagn\u00f3sticos",
+    "diagnostics": "Diagnósticos",
     "supportersDescription": "Gracias a todos los que apoyan OpenCloudTouch financieramente. ¡Sus contribuciones ayudan a mantener el proyecto vivo!",
     "supportersMonthly": "Patrocinadores Mensuales",
     "supportersOneTime": "Patrocinadores Únicos",
@@ -765,5 +768,18 @@
     "reboot": "Reiniciar dispositivo",
     "sent": "Comando de reinicio enviado",
     "confirmMessage": "¿Reiniciar {{name}}? El dispositivo no estará disponible durante unos 60 segundos."
+  },
+  "dlna": {
+    "server": "Servidor multimedia",
+    "noServers": "No se encontraron servidores multimedia",
+    "discoveryFailed": "No se pudieron detectar los servidores multimedia.",
+    "browseFailed": "No se pudo explorar el servidor multimedia.",
+    "playFailed": "No se pudo reproducir la pista.",
+    "previous": "Anterior",
+    "play": "Reproducir",
+    "pause": "Pausa",
+    "next": "Siguiente",
+    "stereoInfo": "Para los pares estéreo y las zonas, debe seleccionarse el altavoz maestro para que funcione la reproducción.",
+    "stereoInfoLabel": "Información sobre pares estéreo y zonas"
   }
 }

@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import DeviceSwiper, { Device } from "../components/DeviceSwiper";
 import NowPlaying from "../components/NowPlaying";
+import DlnaBrowser from "../components/DlnaBrowser";
 import PresetButton from "../components/PresetButton";
 import SetupBadge from "../components/SetupBadge";
 import DeviceOfflineBanner from "../components/DeviceOfflineBanner";
@@ -34,6 +35,7 @@ export default function RadioPresets({ devices = [], onRemoveDevice }: RadioPres
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [currentDeviceIndex, setCurrentDeviceIndex] = useState(0);
+  const [mediaMode, setMediaMode] = useState<"radio" | "dlna">("radio");
   const [searchOpen, setSearchOpen] = useState(false);
   const [assigningPreset, setAssigningPreset] = useState<number | null>(null);
 
@@ -262,21 +264,46 @@ export default function RadioPresets({ devices = [], onRemoveDevice }: RadioPres
           )}
 
           {!deviceOffline && (
-            <NowPlaying
-              nowPlaying={nowPlaying}
-              onPlayPause={
-                currentDevice
-                  ? async () => {
-                      if (isStandby) {
-                        await power(currentDevice.device_id);
-                        await refreshNowPlaying();
-                      } else {
-                        await togglePlayPause(currentDevice.device_id);
-                      }
-                    }
-                  : undefined
-              }
-            />
+            <>
+              <div
+                className="media-mode-switch"
+                role="group"
+                aria-label={t("player.playbackSource")}
+              >
+                <button
+                  className={`media-mode-button ${mediaMode === "radio" ? "active" : ""}`}
+                  onClick={() => setMediaMode("radio")}
+                >
+                  {t("player.radio")}
+                </button>
+                <button
+                  className={`media-mode-button ${mediaMode === "dlna" ? "active" : ""}`}
+                  onClick={() => setMediaMode("dlna")}
+                >
+                  {t("player.mediaServer")}
+                </button>
+              </div>
+
+              {mediaMode === "dlna" && currentDevice ? (
+                <DlnaBrowser deviceId={currentDevice.device_id} />
+              ) : (
+                <NowPlaying
+                  nowPlaying={nowPlaying}
+                  onPlayPause={
+                    currentDevice
+                      ? async () => {
+                          if (isStandby) {
+                            await power(currentDevice.device_id);
+                            await refreshNowPlaying();
+                          } else {
+                            await togglePlayPause(currentDevice.device_id);
+                          }
+                        }
+                      : undefined
+                  }
+                />
+              )}
+            </>
           )}
 
           {!deviceOffline && (
@@ -291,87 +318,89 @@ export default function RadioPresets({ devices = [], onRemoveDevice }: RadioPres
       </DeviceSwiper>
 
       {/* Presets for Current Device */}
-      <div className="presets-section">
-        <div className="section-header">
-          <h3 className="section-title">{t("presets.savedStations")}</h3>
-          <button
-            className="sync-button"
-            onClick={handleSyncPresets}
-            disabled={syncing || loading || deviceOffline}
-            title={deviceOffline ? t("presets.deviceOffline") : t("presets.syncFromDeviceTitle")}
-          >
-            <span className="sync-icon">{syncing ? "\u23f3" : "\ud83d\udd04"}</span>
-            <span>
-              {syncing ? t("presets.syncFromDeviceSyncing") : t("presets.syncFromDevice")}
-            </span>
-          </button>
-        </div>
-
-        {/* Error Message */}
-        {error && !deviceOffline && (
-          <div className="error-message" data-testid="error-message">
-            <p>{error}</p>
-            <button onClick={clearError} aria-label={t("common.close")}>
-              ✕
+      {mediaMode === "radio" && (
+        <div className="presets-section">
+          <div className="section-header">
+            <h3 className="section-title">{t("presets.savedStations")}</h3>
+            <button
+              className="sync-button"
+              onClick={handleSyncPresets}
+              disabled={syncing || loading || deviceOffline}
+              title={deviceOffline ? t("presets.deviceOffline") : t("presets.syncFromDeviceTitle")}
+            >
+              <span className="sync-icon">{syncing ? "\u23f3" : "\ud83d\udd04"}</span>
+              <span>
+                {syncing ? t("presets.syncFromDeviceSyncing") : t("presets.syncFromDevice")}
+              </span>
             </button>
           </div>
-        )}
 
-        {/* Play Error Message */}
-        {playError && (
-          <div className="error-message" data-testid="play-error-message">
-            <p>{playError}</p>
-            <button onClick={() => setPlayError(null)} aria-label={t("common.close")}>
-              ✕
-            </button>
+          {/* Error Message */}
+          {error && !deviceOffline && (
+            <div className="error-message" data-testid="error-message">
+              <p>{error}</p>
+              <button onClick={clearError} aria-label={t("common.close")}>
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Play Error Message */}
+          {playError && (
+            <div className="error-message" data-testid="play-error-message">
+              <p>{playError}</p>
+              <button onClick={() => setPlayError(null)} aria-label={t("common.close")}>
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Loading Indicator / Skeleton — REFACT-112 */}
+          {loading && (
+            <div
+              className="loading-indicator"
+              data-testid="loading-indicator"
+              role="status"
+              aria-live="polite"
+            >
+              Lädt...
+            </div>
+          )}
+
+          <div className="presets-grid">
+            {loading && !deviceOffline
+              ? // REFACT-112: Skeleton placeholders reduce CLS (layout shift)
+                [1, 2, 3, 4, 5, 6].map((num) => <PresetSkeleton key={num} />)
+              : deviceOffline
+                ? // Offline: show disabled placeholder presets
+                  [1, 2, 3, 4, 5, 6].map((num) => (
+                    <PresetButton
+                      key={num}
+                      number={num}
+                      preset={{ station_name: t("errors.offlineTitle") }}
+                      onAssign={() => {}}
+                      onPlay={() => {}}
+                      isCurrentlyPlaying={false}
+                      disabled={true}
+                    />
+                  ))
+                : [1, 2, 3, 4, 5, 6].map((num) => (
+                    <PresetButton
+                      key={num}
+                      number={num}
+                      preset={presets[num]}
+                      onAssign={() => handleAssignClick(num)}
+                      onPlay={() => handlePlayPreset(num)}
+                      onPause={() => currentDevice && togglePlayPause(currentDevice.device_id)}
+                      isCurrentlyPlaying={
+                        npState?.state === "PLAY_STATE" &&
+                        npState?.station_name === presets[num]?.station_name
+                      }
+                    />
+                  ))}
           </div>
-        )}
-
-        {/* Loading Indicator / Skeleton — REFACT-112 */}
-        {loading && (
-          <div
-            className="loading-indicator"
-            data-testid="loading-indicator"
-            role="status"
-            aria-live="polite"
-          >
-            Lädt...
-          </div>
-        )}
-
-        <div className="presets-grid">
-          {loading && !deviceOffline
-            ? // REFACT-112: Skeleton placeholders reduce CLS (layout shift)
-              [1, 2, 3, 4, 5, 6].map((num) => <PresetSkeleton key={num} />)
-            : deviceOffline
-              ? // Offline: show disabled placeholder presets
-                [1, 2, 3, 4, 5, 6].map((num) => (
-                  <PresetButton
-                    key={num}
-                    number={num}
-                    preset={{ station_name: t("errors.offlineTitle") }}
-                    onAssign={() => {}}
-                    onPlay={() => {}}
-                    isCurrentlyPlaying={false}
-                    disabled={true}
-                  />
-                ))
-              : [1, 2, 3, 4, 5, 6].map((num) => (
-                  <PresetButton
-                    key={num}
-                    number={num}
-                    preset={presets[num]}
-                    onAssign={() => handleAssignClick(num)}
-                    onPlay={() => handlePlayPreset(num)}
-                    onPause={() => currentDevice && togglePlayPause(currentDevice.device_id)}
-                    isCurrentlyPlaying={
-                      npState?.state === "PLAY_STATE" &&
-                      npState?.station_name === presets[num]?.station_name
-                    }
-                  />
-                ))}
         </div>
-      </div>
+      )}
 
       {/* Info Box */}
       <div className="presets-info-box">
