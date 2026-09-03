@@ -276,6 +276,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/dlna/devices/{device_id}/current:
+    get:
+      tags:
+      - dlna
+      summary: Get Current Dlna Item
+      description: Return the current media server item managed by the OCT playback queue.
+      operationId: get_current_dlna_item_api_dlna_devices__device_id__current_get
+      parameters:
+      - name: device_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Device Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Current Dlna Item Api Dlna Devices  Device Id  Current Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/devices:
     get:
       tags:
