@@ -42,7 +42,10 @@
     "manageZone": "Zarządzaj strefą",
     "multiRoom": "Wiele pomieszczeń",
     "prevDevice": "Poprzednie urządzenie",
-    "nextDevice": "Następne urządzenie"
+    "nextDevice": "Następne urządzenie",
+    "radio": "Radio",
+    "mediaServer": "Serwer multimediów",
+    "playbackSource": "Źródło odtwarzania"
   },
   "presets": {
     "pageTitle": "Presety radiowe",
@@ -765,5 +768,18 @@
     "reboot": "Uruchom ponownie urządzenie",
     "sent": "Polecenie restartu wysłane",
     "confirmMessage": "Uruchomić ponownie {{name}}? Urządzenie będzie niedostępne przez około 60 sekund."
+  },
+  "dlna": {
+    "server": "Serwer multimediów",
+    "noServers": "Nie znaleziono serwerów multimediów",
+    "discoveryFailed": "Nie udało się wykryć serwerów multimediów.",
+    "browseFailed": "Nie udało się przeglądać serwera multimediów.",
+    "playFailed": "Nie udało się odtworzyć utworu.",
+    "previous": "Poprzedni",
+    "play": "Odtwórz",
+    "pause": "Pauza",
+    "next": "Następny",
+    "stereoInfo": "W przypadku par stereo i stref należy wybrać głośnik główny, aby odtwarzanie działało.",
+    "stereoInfoLabel": "Informacje o parach stereo i strefach"
   }
 }

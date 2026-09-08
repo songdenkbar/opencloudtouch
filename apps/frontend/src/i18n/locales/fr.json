@@ -42,7 +42,10 @@
     "manageZone": "Gérer la zone",
     "multiRoom": "Multi-pièces",
     "prevDevice": "Appareil précédent",
-    "nextDevice": "Appareil suivant"
+    "nextDevice": "Appareil suivant",
+    "radio": "Radio",
+    "mediaServer": "Serveur multimédia",
+    "playbackSource": "Source de lecture"
   },
   "presets": {
     "pageTitle": "Préréglages radio",
@@ -765,5 +768,18 @@
     "reboot": "Redémarrer l'appareil",
     "sent": "Commande de redémarrage envoyée",
     "confirmMessage": "Redémarrer {{name}} ? L'appareil sera indisponible pendant environ 60 secondes."
+  },
+  "dlna": {
+    "server": "Serveur multimédia",
+    "noServers": "Aucun serveur multimédia trouvé",
+    "discoveryFailed": "Impossible de détecter les serveurs multimédia.",
+    "browseFailed": "Impossible de parcourir le serveur multimédia.",
+    "playFailed": "Impossible de lire le titre.",
+    "previous": "Précédent",
+    "play": "Lecture",
+    "pause": "Pause",
+    "next": "Suivant",
+    "stereoInfo": "Pour les paires stéréo et les zones, l’enceinte maître doit être sélectionnée pour que la lecture fonctionne.",
+    "stereoInfoLabel": "Informations sur les paires stéréo et les zones"
   }
 }

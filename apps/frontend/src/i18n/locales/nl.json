@@ -42,7 +42,10 @@
     "manageZone": "Zone beheren",
     "multiRoom": "Meerkamers",
     "prevDevice": "Vorig apparaat",
-    "nextDevice": "Volgend apparaat"
+    "nextDevice": "Volgend apparaat",
+    "radio": "Radio",
+    "mediaServer": "Mediaserver",
+    "playbackSource": "Afspeelbron"
   },
   "presets": {
     "pageTitle": "Radio Presets",
@@ -765,5 +768,18 @@
     "reboot": "Apparaat herstarten",
     "sent": "Herstartopdracht verzonden",
     "confirmMessage": "{{name}} herstarten? Het apparaat is ongeveer 60 seconden niet beschikbaar."
+  },
+  "dlna": {
+    "server": "Mediaserver",
+    "noServers": "Geen mediaservers gevonden",
+    "discoveryFailed": "Mediaservers konden niet worden gevonden.",
+    "browseFailed": "Mediaserver kon niet worden doorzocht.",
+    "playFailed": "Nummer kon niet worden afgespeeld.",
+    "previous": "Vorige",
+    "play": "Afspelen",
+    "pause": "Pauze",
+    "next": "Volgende",
+    "stereoInfo": "Bij stereoparen en zones moet de masterluidspreker worden geselecteerd om afspelen mogelijk te maken.",
+    "stereoInfoLabel": "Informatie over stereoparen en zones"
   }
 }

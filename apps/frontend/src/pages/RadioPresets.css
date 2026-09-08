@@ -263,3 +263,37 @@
   background: rgba(245, 158, 11, 0.2);
   color: #f59e0b;
 }
+
+/* Radio / media-server mode */
+.media-mode-switch {
+  display: flex;
+  align-self: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--color-bg-darker);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+}
+
+.media-mode-button {
+  padding: 4px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--border-radius-md) - 2px);
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  font-weight: var(--font-weight-medium);
+  opacity: 0.85;
+}
+
+.media-mode-button:hover {
+  color: var(--color-text-primary);
+  opacity: 1;
+}
+
+.media-mode-button.active {
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  opacity: 1;
+}
