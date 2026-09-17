@@ -351,7 +351,11 @@ function completeConfigStep() {
   cy.contains("button", /konfiguration.*ndern/i, { timeout: 8000 }).click({ force: true });
   cy.contains(/bmx\.bose\.com|konfiguration.*geändert|erfolgreich/i, { timeout: 10000 }).should("exist");
   // Wait explicitly for "Weiter" to be enabled (isNextDisabled=false after successful modification)
-  cy.contains("button", /weiter/i, { timeout: 8000 }).should("not.be.disabled").click();
+  cy.contains("button", /weiter/i, { timeout: 8000 })
+    .should("not.be.disabled")
+    .scrollIntoView()
+    .should("be.visible")
+    .click();
   cy.wait(500);
 }
 

@@ -124,16 +124,20 @@ vi.mock("../../src/components/RadioSearch", () => ({
           Close
         </button>
         <button
-          onClick={() =>
-            onStationSelect({
-              stationuuid: "test-uuid",
-              name: "Test Radio",
-              country: "Germany",
-              url: "http://test.com",
-              homepage: "http://test-homepage.com",
-              favicon: "http://test-favicon.com/icon.png",
-            })
-          }
+          onClick={async () => {
+            try {
+              await onStationSelect({
+                stationuuid: "test-uuid",
+                name: "Test Radio",
+                country: "Germany",
+                url: "http://test.com",
+                homepage: "http://test-homepage.com",
+                favicon: "http://test-favicon.com/icon.png",
+              });
+            } catch {
+              // RadioSearch handles assignment errors in its own error dialog.
+            }
+          }}
           data-testid="select-station"
         >
           Select Test Radio
