@@ -391,6 +391,7 @@ export default function RadioSearch({
                     value={manualUrl}
                     onChange={(e) => setManualUrl(e.target.value)}
                     aria-label={t("presets.manualStreamUrlPlaceholder")}
+                    data-test="manual-stream-url"
                     aria-describedby="manual-stream-url-help"
                     autoFocus
                   />
@@ -428,6 +429,7 @@ export default function RadioSearch({
                     value={manualName}
                     onChange={(e) => setManualName(e.target.value)}
                     aria-label={t("presets.manualStationNamePlaceholder")}
+                    data-test="manual-station-name"
                     aria-describedby="manual-station-name-help"
                   />
                   <div id="manual-station-name-help" className="manual-stream-help">
@@ -443,6 +445,7 @@ export default function RadioSearch({
                     value={manualFavicon}
                     onChange={(e) => setManualFavicon(e.target.value)}
                     aria-label={t("presets.manualFaviconPlaceholder")}
+                    data-test="manual-favicon-url"
                     aria-describedby="manual-favicon-help"
                   />
                   <div id="manual-favicon-help" className="manual-stream-help">
@@ -508,6 +511,7 @@ export default function RadioSearch({
                   </button>
                 ))}
                 <button
+                  data-test="manual-stream-mode"
                   className={`search-type-chip${searchMode === "manual" ? " active" : ""}`}
                   onClick={() => {
                     setSearchMode("manual");
