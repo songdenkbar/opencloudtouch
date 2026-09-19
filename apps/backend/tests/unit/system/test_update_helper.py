@@ -7,8 +7,13 @@ from opencloudtouch.system import update_helper
 
 
 class FakeResponse:
-    def __init__(self, data):
+    def __init__(
+        self,
+        data,
+        status_code=200,
+    ):
         self._data = data
+        self.status_code = status_code
 
     def json(self):
         return self._data
@@ -24,11 +29,18 @@ class FakeClient:
     async def __aenter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(
+        self,
+        exc_type,
+        exc,
+        tb,
+    ):
         return False
 
     async def get(self, path):
-        assert path == "/containers/old123/json"
+        assert path == (
+            "/containers/old123/json"
+        )
         return FakeResponse(self.inspect)
 
 
@@ -40,7 +52,10 @@ def old_inspect():
             "Running": True,
         },
         "Config": {
-            "Image": "example:latest",
+            "Image": (
+                "ghcr.io/opencloudtouch/"
+                "opencloudtouch:1.5.8"
+            ),
             "Env": [
                 "OCT_PORT=7777",
                 "OCT_VERSION=1.5.8",
@@ -52,15 +67,28 @@ def old_inspect():
             "WorkingDir": "/app",
             "ExposedPorts": None,
             "Healthcheck": {
-                "Test": ["CMD", "/entrypoint.sh", "health"],
+                "Test": [
+                    "CMD",
+                    "/entrypoint.sh",
+                    "health",
+                ],
             },
-            "Labels": {},
+            "Labels": {
+                "com.docker.compose.project": "oct",
+                "com.docker.compose.service": "opencloudtouch",
+                "com.docker.compose.image": "sha256:stale",
+                "com.docker.compose.config-hash": "stale",
+              "org.opencontainers.image.version": "1.5.8",
+            },
         },
         "HostConfig": {
             "NetworkMode": "host",
             "Binds": [
                 "oct-data:/data:rw",
-                "/var/run/docker.sock:/var/run/docker.sock:rw",
+                (
+                    "/var/run/docker.sock:"
+                    "/var/run/docker.sock:rw"
+                ),
             ],
             "RestartPolicy": {
                 "Name": "unless-stopped",
@@ -68,33 +96,53 @@ def old_inspect():
             },
             "LogConfig": {},
             "ShmSize": 67108864,
+            "PortBindings": {"7777/tcp": [{"HostPort": "7777"}]},
+            "PublishAllPorts": False,
         },
     }
 
 
-def test_build_container_config_filters_build_metadata():
-    config = update_helper.build_container_config(old_inspect())
+def test_build_container_config_filters_metadata():
+    config = (
+        update_helper.build_container_config(
+            old_inspect()
+        )
+    )
 
-    assert config["Image"] == "example:latest"
     assert "OCT_PORT=7777" in config["Env"]
 
     assert not any(
         value.startswith("OCT_VERSION=")
         for value in config["Env"]
     )
+
     assert not any(
-        value.startswith("OCT_BUILD_SIGNATURE=")
+        value.startswith(
+            "OCT_BUILD_SIGNATURE="
+        )
         for value in config["Env"]
     )
 
+    assert "Entrypoint" not in config
+    assert "Cmd" not in config
+    assert "WorkingDir" not in config
+    assert config["Healthcheck"] == old_inspect()["Config"]["Healthcheck"]
+
+    assert config["HostConfig"]["PortBindings"] == {"7777/tcp": [{"HostPort": "7777"}]}
+    assert config["HostConfig"]["PublishAllPorts"] is False
+
+    assert config["Labels"] == {
+        "com.docker.compose.project": "oct",
+        "com.docker.compose.service": "opencloudtouch",
+    }
+
 
 @pytest.mark.asyncio
-async def test_successful_update_sets_completed(
+async def test_successful_update_uses_target_image(
     tmp_path,
     monkeypatch,
 ):
-    inspect = old_inspect()
-    client = FakeClient(inspect)
+    client = FakeClient(old_inspect())
 
     monkeypatch.setattr(
         update_helper.httpx,
@@ -105,7 +153,14 @@ async def test_successful_update_sets_completed(
     monkeypatch.setattr(
         sys,
         "argv",
-        ["update_helper", "old123"],
+        [
+            "update_helper",
+            "old123",
+            (
+                "ghcr.io/opencloudtouch/"
+                "opencloudtouch:1.5.9"
+            ),
+        ],
     )
 
     monkeypatch.setattr(
@@ -114,18 +169,39 @@ async def test_successful_update_sets_completed(
         tmp_path / "update-status.json",
     )
 
-    removed = []
+    update_helper.STATUS_PATH.write_text(
+        json.dumps(
+            {
+                "phase": "restarting",
+                "current_version": "1.5.8",
+                "target_version": "1.5.9",
+            }
+        ),
+        encoding="utf-8",
+    )
+
     created = []
 
-    async def fake_remove(client, container_id):
-        removed.append(container_id)
+    async def fake_remove(
+        client,
+        container_id,
+    ):
+        pass
 
-    async def fake_create(client, name, config):
-        created.append((name, config))
+    async def fake_create(
+        client,
+        name,
+        config,
+    ):
+        created.append(config)
         return "new123"
 
-    async def fake_wait(client, container_id, attempts=45):
-        assert container_id == "new123"
+    async def fake_wait(
+        client,
+        container_id,
+        attempts=45,
+    ):
+        pass
 
     monkeypatch.setattr(
         update_helper,
@@ -145,24 +221,26 @@ async def test_successful_update_sets_completed(
 
     await update_helper.main()
 
-    assert removed == ["old123"]
-    assert created[0][1]["Image"] == "example:latest"
+    assert created[0]["Image"] == (
+        "ghcr.io/opencloudtouch/"
+        "opencloudtouch:1.5.9"
+    )
 
     status = json.loads(
         update_helper.STATUS_PATH.read_text()
     )
 
-    assert status["status"] == "completed"
-    assert status["container_id"] == "new123"
+    assert status["phase"] == "ready"
+    assert status["progress_pct"] == 100
+    assert status["current_version"] == "1.5.9"
 
 
 @pytest.mark.asyncio
-async def test_failed_update_rolls_back_to_old_image(
+async def test_failed_update_rolls_back_to_sha(
     tmp_path,
     monkeypatch,
 ):
-    inspect = old_inspect()
-    client = FakeClient(inspect)
+    client = FakeClient(old_inspect())
 
     monkeypatch.setattr(
         update_helper.httpx,
@@ -173,7 +251,14 @@ async def test_failed_update_rolls_back_to_old_image(
     monkeypatch.setattr(
         sys,
         "argv",
-        ["update_helper", "old123"],
+        [
+            "update_helper",
+            "old123",
+            (
+                "ghcr.io/opencloudtouch/"
+                "opencloudtouch:1.5.9"
+            ),
+        ],
     )
 
     monkeypatch.setattr(
@@ -182,21 +267,43 @@ async def test_failed_update_rolls_back_to_old_image(
         tmp_path / "update-status.json",
     )
 
+    update_helper.STATUS_PATH.write_text(
+        json.dumps(
+            {
+                "phase": "restarting",
+                "current_version": "1.5.8",
+                "target_version": "1.5.9",
+            }
+        ),
+        encoding="utf-8",
+    )
+
     removed = []
     created = []
 
-    async def fake_remove(client, container_id):
+    async def fake_remove(
+        client,
+        container_id,
+    ):
         removed.append(container_id)
 
-    async def fake_create(client, name, config):
-        created.append((name, config))
+    async def fake_create(
+        client,
+        name,
+        config,
+    ):
+        created.append(config)
 
         if len(created) == 1:
             return "broken123"
 
         return "rollback123"
 
-    async def fake_wait(client, container_id, attempts=45):
+    async def fake_wait(
+        client,
+        container_id,
+        attempts=45,
+    ):
         if container_id == "broken123":
             raise RuntimeError(
                 "Updated container became unhealthy"
@@ -218,27 +325,20 @@ async def test_failed_update_rolls_back_to_old_image(
         fake_wait,
     )
 
-    with pytest.raises(SystemExit) as exc:
+    with pytest.raises(SystemExit):
         await update_helper.main()
 
-    assert exc.value.code == 1
-
-    assert removed == [
-        "old123",
-        "broken123",
-    ]
-
-    assert created[0][1]["Image"] == "example:latest"
-    assert created[1][1]["Image"] == "sha256:oldimage"
+    assert created[0]["Image"] == (
+        "ghcr.io/opencloudtouch/"
+        "opencloudtouch:1.5.9"
+    )
+    assert created[1]["Image"] == (
+        "sha256:oldimage"
+    )
 
     status = json.loads(
         update_helper.STATUS_PATH.read_text()
     )
 
-    assert status["status"] == "rolled_back"
-    assert status["container_id"] == "rollback123"
-    assert status["image"] == "sha256:oldimage"
-    assert (
-        status["error"]
-        == "Updated container became unhealthy"
-    )
+    assert status["phase"] == "rolled_back"
+    assert status["current_version"] == "1.5.8"

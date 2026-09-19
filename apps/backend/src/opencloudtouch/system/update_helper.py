@@ -1,11 +1,11 @@
 """External helper for replacing the running OCT container."""
 
 import asyncio
-import copy
 import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import httpx
 
@@ -19,10 +19,35 @@ STATUS_PATH = Path(
 )
 
 
-def set_status(status: str, **extra) -> None:
-    data = {"status": status, **extra}
+def read_status() -> dict[str, Any]:
+    try:
+        return json.loads(
+            STATUS_PATH.read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def set_status(
+    phase: str,
+    *,
+    progress_pct: int,
+    message: str,
+    **extra: Any,
+) -> None:
+    data = {
+        **read_status(),
+        "phase": phase,
+        "progress_pct": progress_pct,
+        "message": message,
+        **extra,
+    }
+
     tmp = STATUS_PATH.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data), encoding="utf-8")
+    tmp.write_text(
+        json.dumps(data),
+        encoding="utf-8",
+    )
     tmp.replace(STATUS_PATH)
 
 
@@ -47,7 +72,10 @@ async def wait_for_health(
                 "Updated container stopped unexpectedly"
             )
 
-        health = state.get("Health", {}).get("Status")
+        health = (
+            state.get("Health", {})
+            .get("Status")
+        )
 
         if health == "healthy":
             return
@@ -62,7 +90,11 @@ async def wait_for_health(
     )
 
 
-def build_container_config(inspect: dict) -> dict:
+def build_container_config(
+    inspect: dict,
+    image: str | None = None,
+) -> dict:
+    # Keep deployment/runtime settings, but inherit image defaults from the selected image.
     env = [
         value
         for value in inspect["Config"].get("Env", [])
@@ -71,23 +103,38 @@ def build_container_config(inspect: dict) -> dict:
         and not value.startswith("OCT_VERSION=")
     ]
 
-    return {
-        "Image": inspect["Config"]["Image"],
+    labels = {
+        key: value
+        for key, value in inspect["Config"].get("Labels", {}).items()
+        if key.startswith("com.docker.compose.")
+        and key not in {
+            "com.docker.compose.image",
+            "com.docker.compose.config-hash",
+        }
+    }
+
+    config = {
+        "Image": image or inspect["Config"]["Image"],
         "Env": env,
-        "Cmd": inspect["Config"].get("Cmd"),
-        "Entrypoint": inspect["Config"].get("Entrypoint"),
-        "WorkingDir": inspect["Config"].get("WorkingDir"),
-        "ExposedPorts": inspect["Config"].get("ExposedPorts"),
-        "Healthcheck": inspect["Config"].get("Healthcheck"),
-        "Labels": inspect["Config"].get("Labels"),
         "HostConfig": {
             "NetworkMode": inspect["HostConfig"]["NetworkMode"],
             "Binds": inspect["HostConfig"].get("Binds"),
             "RestartPolicy": inspect["HostConfig"]["RestartPolicy"],
             "LogConfig": inspect["HostConfig"].get("LogConfig"),
             "ShmSize": inspect["HostConfig"].get("ShmSize"),
+            "PortBindings": inspect["HostConfig"].get("PortBindings"),
+            "PublishAllPorts": inspect["HostConfig"].get("PublishAllPorts"),
         },
     }
+
+    if labels:
+        config["Labels"] = labels
+
+    healthcheck = inspect["Config"].get("Healthcheck")
+    if healthcheck is not None:
+        config["Healthcheck"] = healthcheck
+
+    return config
 
 
 async def remove_container(
@@ -141,56 +188,81 @@ async def create_and_start(
 
 
 async def main() -> None:
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 3:
         raise SystemExit(
-            "Usage: python -m opencloudtouch.system.update_helper "
-            "<container_id>"
+            "Usage: python -m "
+            "opencloudtouch.system.update_helper "
+            "<container_id> <target_image>"
         )
 
     container_id = sys.argv[1]
+    target_image = sys.argv[2]
 
     transport = httpx.AsyncHTTPTransport(
         uds=DOCKER_SOCKET
     )
 
+    timeout = httpx.Timeout(
+        connect=5.0,
+        read=120.0,
+        write=30.0,
+        pool=5.0,
+    )
+
     async with httpx.AsyncClient(
         transport=transport,
         base_url="http://docker",
-        timeout=httpx.Timeout(
-            connect=5.0,
-            read=120.0,
-            write=30.0,
-            pool=5.0,
-        ),
+        timeout=timeout,
     ) as client:
-        response = await client.get(
-            f"/containers/{container_id}/json"
-        )
-        response.raise_for_status()
-        inspect = response.json()
+        try:
+            response = await client.get(
+                f"/containers/{container_id}/json"
+            )
+            response.raise_for_status()
+            inspect = response.json()
 
-        name = inspect["Name"].lstrip("/")
+            name = inspect["Name"].lstrip("/")
+            old_image_id = inspect["Image"]
 
-        # Immutable image ID of the currently running version.
-        # This remains usable even after the image tag is updated.
-        old_image_id = inspect["Image"]
+            status = read_status()
+            previous_version = status.get(
+                "current_version"
+            )
+            target_version = status.get(
+                "target_version"
+            )
 
-        new_config = build_container_config(inspect)
-
-        # Keep a complete rollback configuration, but point it
-        # explicitly at the immutable old image.
-        rollback_config = copy.deepcopy(new_config)
-        rollback_config["Image"] = old_image_id
+            new_config = build_container_config(
+                inspect,
+                target_image,
+            )
+            rollback_config = build_container_config(
+                inspect,
+                old_image_id,
+            )
+        except Exception as preparation_error:
+            set_status(
+                "failed",
+                progress_pct=100,
+                message="Update helper preparation failed",
+                error=str(preparation_error),
+            )
+            raise
 
         new_container_id = None
 
         try:
-            await remove_container(client, container_id)
-
-            new_container_id = await create_and_start(
+            await remove_container(
                 client,
-                name,
-                new_config,
+                container_id,
+            )
+
+            new_container_id = (
+                await create_and_start(
+                    client,
+                    name,
+                    new_config,
+                )
             )
 
             await wait_for_health(
@@ -199,33 +271,44 @@ async def main() -> None:
             )
 
             set_status(
-                "completed",
+                "ready",
+                progress_pct=100,
+                message="Update complete",
                 container_id=new_container_id,
-                image=new_config["Image"],
+                image=target_image,
+                current_version=target_version,
             )
 
             print(
                 f"Replaced {name}: "
-                f"{container_id} -> {new_container_id}"
+                f"{container_id} -> "
+                f"{new_container_id}"
             )
 
         except Exception as update_error:
             set_status(
                 "rolling_back",
+                progress_pct=95,
+                message=(
+                    "Update failed; restoring "
+                    "previous version"
+                ),
                 error=str(update_error),
             )
 
             try:
-                if new_container_id is not None:
-                    await remove_container(
-                        client,
-                        new_container_id,
-                    )
-
-                rollback_container_id = await create_and_start(
+                # Also handles a container that was created but failed to start.
+                await remove_container(
                     client,
                     name,
-                    rollback_config,
+                )
+
+                rollback_container_id = (
+                    await create_and_start(
+                        client,
+                        name,
+                        rollback_config,
+                    )
                 )
 
                 await wait_for_health(
@@ -235,26 +318,41 @@ async def main() -> None:
 
                 set_status(
                     "rolled_back",
-                    container_id=rollback_container_id,
+                    progress_pct=100,
+                    message=(
+                        "Previous version restored"
+                    ),
+                    container_id=(
+                        rollback_container_id
+                    ),
                     image=old_image_id,
+                    current_version=(
+                        previous_version
+                    ),
                     error=str(update_error),
                 )
 
                 print(
-                    f"Rollback completed for {name}: "
+                    "Rollback completed for "
+                    f"{name}: "
                     f"{rollback_container_id}"
                 )
 
             except Exception as rollback_error:
                 set_status(
                     "failed",
+                    progress_pct=100,
+                    message=(
+                        "Update and rollback failed"
+                    ),
                     error=str(update_error),
-                    rollback_error=str(rollback_error),
+                    rollback_error=str(
+                        rollback_error
+                    ),
                 )
                 raise
 
             raise SystemExit(1)
-
 
 if __name__ == "__main__":
     asyncio.run(main())
