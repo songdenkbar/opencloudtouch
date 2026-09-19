@@ -24,6 +24,13 @@ async def get_oct_container():
     return None
 
 
+async def get_container_inspect(container_id: str):
+    async with await get_docker_client() as client:
+        response = await client.get(f"/containers/{container_id}/json")
+        response.raise_for_status()
+        return response.json()
+
+
 async def pull_oct_image(image: str):
     repository, tag = image.rsplit(":", 1)
 
@@ -44,73 +51,55 @@ async def pull_oct_image(image: str):
             return last_status
 
 
-async def get_container_inspect(container_id: str):
-    async with await get_docker_client() as client:
-        response = await client.get(f"/containers/{container_id}/json")
-        response.raise_for_status()
-        return response.json()
-
-
-def build_recreate_config(inspect: dict) -> dict:
-    return {
-        "Image": inspect["Config"]["Image"],
-        "Env": inspect["Config"]["Env"],
-        "Entrypoint": inspect["Config"]["Entrypoint"],
-        "WorkingDir": inspect["Config"]["WorkingDir"],
-        "HostConfig": {
-            "NetworkMode": inspect["HostConfig"]["NetworkMode"],
-            "Binds": inspect["HostConfig"]["Binds"],
-            "RestartPolicy": inspect["HostConfig"]["RestartPolicy"],
-        },
-    }
-
-
-async def create_container(name: str, config: dict):
-    async with await get_docker_client() as client:
-        response = await client.post(
-            "/containers/create",
-            params={"name": name},
-            json=config,
-        )
-        response.raise_for_status()
-        return response.json()
-
-
-async def stop_container(container_id: str):
-    async with await get_docker_client() as client:
-        response = await client.post(f"/containers/{container_id}/stop")
-        response.raise_for_status()
-
-
-async def remove_container(container_id: str):
-    async with await get_docker_client() as client:
-        response = await client.delete(f"/containers/{container_id}")
-        response.raise_for_status()
-
-
-async def start_container(container_id: str):
-    async with await get_docker_client() as client:
-        response = await client.post(f"/containers/{container_id}/start")
-        response.raise_for_status()
-
-
 async def launch_update_helper(target_container_id: str, image: str):
-    helper_config = {
-        "Image": image,
-        "Entrypoint": ["python"],
-        "Cmd": [
-            "/app/opencloudtouch/system/update_helper.py",
-            target_container_id,
-        ],
-        "HostConfig": {
-            "Binds": [
-                "/var/run/docker.sock:/var/run/docker.sock",
-            ],
-            "AutoRemove": True,
-        },
-    }
-
     async with await get_docker_client() as client:
+        inspect_response = await client.get(
+            f"/containers/{target_container_id}/json"
+        )
+        inspect_response.raise_for_status()
+        inspect = inspect_response.json()
+
+        data_mount = next(
+            (
+                mount
+                for mount in inspect.get("Mounts", [])
+                if mount.get("Destination") == "/data"
+            ),
+            None,
+        )
+
+        if data_mount is None:
+            raise RuntimeError("OpenCloudTouch /data mount not found")
+
+        if data_mount["Type"] == "volume":
+            data_bind = f'{data_mount["Name"]}:/oct-update-data:rw'
+        elif data_mount["Type"] == "bind":
+            data_bind = f'{data_mount["Source"]}:/oct-update-data:rw'
+        else:
+            raise RuntimeError(
+                f'Unsupported /data mount type: {data_mount["Type"]}'
+            )
+
+        helper_config = {
+            "Image": image,
+            "Entrypoint": ["python"],
+            "Cmd": [
+                "-m",
+                "opencloudtouch.system.update_helper",
+                target_container_id,
+            ],
+            "Env": [
+                "OCT_UPDATE_STATUS_PATH=/oct-update-data/update-status.json",
+            ],
+            "HostConfig": {
+                "Binds": [
+                    "/var/run/docker.sock:/var/run/docker.sock",
+                    data_bind,
+                ],
+                "AutoRemove": True,
+            },
+        }
+
         response = await client.post(
             "/containers/create",
             params={"name": "oct-update-helper"},
