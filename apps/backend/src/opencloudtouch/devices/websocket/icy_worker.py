@@ -176,6 +176,13 @@ class IcyWorker:
             return None
 
         info = event.now_playing
+        if info.state != "PLAY_STATE":
+            logger.debug(
+                "ICY poll skip: playback state %s for %s",
+                info.state,
+                event.device_id,
+            )
+            return None
         if info.source not in RADIO_SOURCES:
             return None
         if not info.station_name:
