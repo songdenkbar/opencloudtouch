@@ -203,6 +203,23 @@ class TestIcyWorkerOnEvent:
 
 class TestIcyWorkerPollStream:
     @pytest.mark.asyncio
+    async def test_poll_skip_stopped_radio(self):
+        get_url = AsyncMock(return_value="http://stream.example.com/radio")
+        worker = IcyWorker(get_stream_url=get_url)
+
+        with patch(
+            "opencloudtouch.devices.websocket.icy_worker.probe_stream",
+            new_callable=AsyncMock,
+        ) as probe:
+            result = await worker.poll_stream(
+                _event(device_id="D1", np=_np(state="STOP_STATE"))
+            )
+
+        assert result is None
+        get_url.assert_not_awaited()
+        probe.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_poll_skip_no_now_playing(self):
         worker = IcyWorker(get_stream_url=AsyncMock())
         event = _event(np=None)
