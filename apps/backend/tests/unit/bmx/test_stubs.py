@@ -5,6 +5,8 @@ Covers:
 - /bmx/resolve endpoint for stream URL resolution
 """
 
+from unittest.mock import patch
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -25,39 +27,63 @@ def client(app):
 
 
 class TestNowPlayingStub:
-    """Tests for GET /bmx/orion/now-playing stub endpoints."""
+    """Tests for the existing Orion NowPlaying endpoint."""
 
-    def test_now_playing_with_station_id(self, client):
-        """GET /bmx/orion/now-playing/station/{id} returns 200 with stationId."""
-        response = client.get("/bmx/orion/now-playing/station/s123456")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "playing"
-        assert data["stationId"] == "s123456"
-
-    def test_now_playing_without_station_id(self, client):
-        """GET /bmx/orion/now-playing returns 200 with 'custom' stationId."""
+    def test_now_playing_without_proxy_metadata(self, client):
         response = client.get("/bmx/orion/now-playing")
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "playing"
-        assert data["stationId"] == "custom"
+        assert data["track"] == ""
+        assert data["artist"] == ""
+        assert data["askAgainAfter"] == 6
+        assert data["_links"] == {}
+
+    def test_now_playing_uses_proxy_metadata(self, client):
+        from opencloudtouch.streaming.icy_proxy import ProxyMetadata
+
+        metadata = ProxyMetadata(
+            station_name="Test Radio",
+            artist="Paper Satellites",
+            track="Silver rooms",
+            raw_title='"Silver rooms" von Paper Satellites',
+        )
+        with patch(
+            "opencloudtouch.bmx.routes.get_proxy_metadata",
+            return_value=metadata,
+        ):
+            response = client.get("/bmx/orion/now-playing/station/custom")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["track"] == "Silver rooms"
+        assert data["artist"] == "Paper Satellites"
+        assert data["album"] == ""
 
 
 class TestReportingStub:
-    """Tests for POST /bmx/orion/reporting stub endpoints."""
+    """Tests for the existing Orion reporting endpoint."""
 
-    def test_reporting_with_station_id(self, client):
-        """POST /bmx/orion/reporting/station/{id} returns 200."""
-        response = client.post("/bmx/orion/reporting/station/s123456")
-        assert response.status_code == 200
-        assert response.json()["status"] == "ok"
+    def test_reporting_embeds_now_playing(self, client):
+        from opencloudtouch.streaming.icy_proxy import ProxyMetadata
 
-    def test_reporting_without_station_id(self, client):
-        """POST /bmx/orion/reporting returns 200."""
-        response = client.post("/bmx/orion/reporting")
+        metadata = ProxyMetadata(
+            station_name="Test Radio",
+            artist="Artist",
+            track="Track",
+            raw_title="Artist - Track",
+        )
+        with patch(
+            "opencloudtouch.bmx.routes.get_proxy_metadata",
+            return_value=metadata,
+        ):
+            response = client.post("/bmx/orion/reporting")
+
         assert response.status_code == 200
-        assert response.json()["status"] == "ok"
+        data = response.json()
+        assert data["status"] == "ok"
+        assert data["nextReportIn"] == 6
+        assert data["_embedded"]["bmx_nowplaying"]["track"] == "Track"
+        assert data["_embedded"]["bmx_nowplaying"]["artist"] == "Artist"
 
 
 class TestTuneInStubs:
@@ -90,3 +116,86 @@ class TestTuneInStubs:
         response = client.post("/bmx/tunein/v1/favorite/s345678")
         assert response.status_code == 200
         assert response.json()["isFavorite"] is False
+
+
+class TestProxyMetadataFallbacks:
+    def test_now_playing_falls_back_to_raw_title(self, client):
+        from opencloudtouch.streaming.icy_proxy import ProxyMetadata
+
+        metadata = ProxyMetadata(
+            station_name="Harbor Radio",
+            artist=None,
+            track=None,
+            raw_title="Midnight Current",
+        )
+        with patch(
+            "opencloudtouch.bmx.routes.get_proxy_metadata",
+            return_value=metadata,
+        ):
+            response = client.get("/bmx/orion/now-playing")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["track"] == "Midnight Current"
+        assert data["artist"] == ""
+
+    def test_now_playing_falls_back_to_station_name(self, client):
+        from opencloudtouch.streaming.icy_proxy import ProxyMetadata
+
+        metadata = ProxyMetadata(
+            station_name="Harbor Radio",
+            artist=None,
+            track=None,
+            raw_title="",
+        )
+        with patch(
+            "opencloudtouch.bmx.routes.get_proxy_metadata",
+            return_value=metadata,
+        ):
+            response = client.get("/bmx/orion/now-playing")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["track"] == "Harbor Radio"
+        assert data["artist"] == ""
+
+    def test_reporting_returns_empty_metadata_after_proxy_cache_cleared(self, client):
+        with patch(
+            "opencloudtouch.bmx.routes.get_proxy_metadata",
+            return_value=None,
+        ):
+            response = client.post("/bmx/orion/reporting")
+
+        assert response.status_code == 200
+        data = response.json()
+        embedded = data["_embedded"]["bmx_nowplaying"]
+        assert embedded["track"] == ""
+        assert embedded["artist"] == ""
+        assert data["nextReportIn"] == 6
+
+    def test_debug_endpoint_serializes_proxy_snapshot(self, client):
+        from opencloudtouch.streaming.icy_proxy import ProxyMetadata
+
+        snapshot = {
+            "192.0.2.80": ProxyMetadata(
+                station_name="Copper Radio",
+                artist="Lantern Coast",
+                track="Quiet Geometry",
+                raw_title="Lantern Coast - Quiet Geometry",
+            )
+        }
+        with patch(
+            "opencloudtouch.bmx.routes.get_all_proxy_metadata",
+            return_value=snapshot,
+        ):
+            response = client.get("/debug/icy-proxy")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "192.0.2.80": {
+                "station_name": "Copper Radio",
+                "artist": "Lantern Coast",
+                "track": "Quiet Geometry",
+                "raw_title": "Lantern Coast - Quiet Geometry",
+            }
+        }

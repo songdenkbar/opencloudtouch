@@ -12,6 +12,9 @@ to OCT via USB configuration, these endpoints provide:
 import base64
 import json
 import logging
+import os
+
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
@@ -27,10 +30,26 @@ from opencloudtouch.bmx.models import (
 )
 from opencloudtouch.bmx.stream_utils import convert_https_to_http
 from opencloudtouch.bmx.tunein import get_oct_base_url, resolve_tunein_station
+from opencloudtouch.streaming.icy_proxy import (
+    get_all_proxy_metadata,
+    get_proxy_metadata,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["bmx"])
+
+
+def _maybe_proxy_stream_url(stream_url: str, station_name: str = "") -> str:
+    """Wrap a custom radio stream with the optional ICY proxy.
+
+    This is intentionally opt-in. Set OCT_STREAM_PROXY_URL to the proxy
+    endpoint, for example http://<oct-host>:7789/stream.
+    """
+    proxy_url = os.getenv("OCT_STREAM_PROXY_URL", "").strip()
+    if not proxy_url or not stream_url:
+        return stream_url
+    return f"{proxy_url}?{urlencode({'url': stream_url, 'name': station_name})}"
 
 
 # =============================================================================
@@ -38,39 +57,89 @@ router = APIRouter(tags=["bmx"])
 # =============================================================================
 
 
-@router.get("/bmx/orion/now-playing/station/{station_id}")
-@router.get("/bmx/orion/now-playing")
-async def bmx_now_playing_stub(station_id: str | None = None) -> JSONResponse:
-    """Stub endpoint for now-playing data.
+def _proxy_now_playing_payload(request: Request) -> dict:
+    """Build the Orion NowPlaying projection from live proxy metadata."""
+    device_ip = request.client.host if request.client else ""
+    metadata = get_proxy_metadata(device_ip)
 
-    Device calls this to get currently playing track info.
-    Returns minimal valid response to prevent errors.
-    """
-    logger.info(  # NOSONAR — device path param
-        "[BMX NOW-PLAYING] Station: %s", station_id or "custom"
-    )
+    if metadata is None:
+        return {
+            "track": "",
+            "album": "",
+            "artist": "",
+            "askAgainAfter": 6,
+            "imageUrl": "",
+            "_links": {},
+        }
+
+    return {
+        "track": metadata.track or metadata.raw_title or metadata.station_name,
+        "album": "",
+        "artist": metadata.artist or "",
+        "askAgainAfter": 6,
+        "imageUrl": "",
+        "_links": {},
+    }
+
+
+@router.get("/debug/icy-proxy", include_in_schema=False)
+async def debug_icy_proxy() -> JSONResponse:
+    """Return the current ICY proxy metadata cache for development diagnostics."""
+    snapshot = get_all_proxy_metadata()
     return JSONResponse(
         content={
-            "status": "playing",
-            "stationId": station_id or "custom",
+            device_ip: {
+                "station_name": metadata.station_name,
+                "artist": metadata.artist,
+                "track": metadata.track,
+                "raw_title": metadata.raw_title,
+            }
+            for device_ip, metadata in snapshot.items()
         },
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
+
+
+@router.get("/bmx/orion/now-playing/station/{station_id}")
+@router.get("/bmx/orion/now-playing")
+async def bmx_now_playing(
+    request: Request,
+    station_id: str | None = None,
+) -> JSONResponse:
+    """Serve live metadata through the existing Orion NowPlaying endpoint."""
+    payload = _proxy_now_playing_payload(request)
+    logger.info(
+        "[BMX NOW-PLAYING] Station: %s client=%s track=%r artist=%r",
+        station_id or "custom",
+        request.client.host if request.client else "",
+        payload["track"],
+        payload["artist"],
+    )
+    return JSONResponse(
+        content=payload,
         headers={"Access-Control-Allow-Origin": "*"},
     )
 
 
 @router.post("/bmx/orion/reporting/station/{station_id}")
 @router.post("/bmx/orion/reporting")
-async def bmx_reporting_stub(station_id: str | None = None) -> JSONResponse:
-    """Stub endpoint for telemetry reporting.
-
-    Device calls this to report playback events.
-    Returns success to prevent errors.
-    """
-    logger.info(  # NOSONAR — device path param
-        "[BMX REPORTING] Station: %s", station_id or "custom"
+async def bmx_reporting(
+    request: Request,
+    station_id: str | None = None,
+) -> JSONResponse:
+    """Return the same live metadata projection in the reporting response."""
+    now_playing = _proxy_now_playing_payload(request)
+    logger.info(
+        "[BMX REPORTING] Station: %s client=%s",
+        station_id or "custom",
+        request.client.host if request.client else "",
     )
     return JSONResponse(
-        content={"status": "ok"},
+        content={
+            "status": "ok",
+            "nextReportIn": now_playing["askAgainAfter"],
+            "_embedded": {"bmx_nowplaying": now_playing},
+        },
         headers={"Access-Control-Allow-Origin": "*"},
     )
 
@@ -246,7 +315,18 @@ async def custom_stream_playback(request: Request) -> JSONResponse:
         # Convert HTTPS to HTTP - Bose devices can't play HTTPS streams
         stream_url = convert_https_to_http(stream_url)
 
-        logger.info("[BMX ORION] Custom stream: %s → %s", name, stream_url)
+        # Optionally route the final audio URL through the ICY proxy.
+        # The SoundTouch still uses the normal OCT/BMX playback flow; only the
+        # returned audio URL changes. With the variable unset, behavior is unchanged.
+        direct_stream_url = stream_url
+        stream_url = _maybe_proxy_stream_url(stream_url, name)
+
+        logger.info(
+            "[BMX ORION] Custom stream: %s → %s%s",
+            name,
+            stream_url,
+            " (ICY proxy)" if stream_url != direct_stream_url else "",
+        )
 
         stream = BmxStream(streamUrl=stream_url)
         audio = BmxAudio(streamUrl=stream_url, streams=[stream])

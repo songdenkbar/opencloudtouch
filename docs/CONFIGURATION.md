@@ -44,6 +44,14 @@ OpenCloudTouch is configured via `OCT_`-prefixed environment variables (case-ins
 | `OCT_STATE_CACHE_MAX_AGE` | `10.0` | Max age (seconds) for WebSocket-fed state cache before falling back to an HTTP poll |
 | `OCT_STATION_DESCRIPTOR_BASE_URL` | `http://localhost:7777` | Base URL OCT advertises to devices for preset programming. If left as `localhost`, it's automatically replaced with `content.api.bose.io:<port>` (devices resolve this via `/etc/hosts` redirect) since devices can't reach the server's own `localhost`. |
 
+## ICY Stream Proxy
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OCT_STREAM_PROXY_URL` | unset | Optional device-reachable proxy endpoint, e.g. `http://<oct-host>:7789/stream`. When set, OCT starts the embedded ICY stream proxy and routes custom station streams through it so metadata can be extracted from the audio connection. Keep the proxy port on the trusted LAN only. |
+
+See [ICY Stream Proxy](ICY_STREAM_PROXY.md) for architecture, diagnostics, security notes, and limitations.
+
 ## Bug Reports & Production Safety
 
 | Variable | Default | Description |
@@ -65,5 +73,6 @@ See [`deployment/README.md`](../deployment/README.md#build-arguments) for build 
 
 ## Also See
 
+- [ICY Stream Proxy](ICY_STREAM_PROXY.md)
 - [Troubleshooting](TROUBLESHOOTING.md)
 - [`.env` file structure](../ENV-FILES.md) — which `.env` file to use for local dev vs. deployment

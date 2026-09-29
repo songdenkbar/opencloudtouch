@@ -22,6 +22,9 @@ services:
       # Station descriptor URL - auto-detects host IP if set to localhost
       # For manual override, set to your server's IP: http://192.168.1.50:7777
       - OCT_STATION_DESCRIPTOR_BASE_URL=http://localhost:7777
+      # Optional ICY stream proxy. Use the host/IP of the device running OCT that SoundTouch devices can reach.
+      # Do not expose the proxy port to the Internet.
+      # e.g. OCT_STREAM_PROXY_URL=http://192.168.1.50:7789/stream
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "/entrypoint.sh", "health"]
