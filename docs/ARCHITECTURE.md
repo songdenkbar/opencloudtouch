@@ -24,7 +24,8 @@
 │  │  ├─ Bose Device API (bosesoundtouchapi)             │  │
 │  │  ├─ SSDP Discovery (UDP multicast)                  │  │
 │  │  ├─ RadioBrowser (httpx)                            │  │
-│  │  └─ TuneIn (httpx, stream resolution)               │  │
+│  │  ├─ TuneIn (httpx, stream resolution)               │  │
+│  │  └─ ICY stream proxy (optional, raw HTTP audio)      │  │
 │  └────────────────────────────────────────────────────┘  │
 │                                                           │
 │  ┌────────────────────────────────────────────────────┐  │
@@ -52,6 +53,7 @@
 | `recents` | Recently played items |
 | `swupdate` | Firmware update emulation |
 | `discovery` | SSDP/UPnP + manual fallback |
+| `streaming` | ICY metadata parsing and optional audio-stream proxy |
 
 ## Dependency Flow
 
@@ -120,3 +122,6 @@ Browser ← event: completed ←────── FastAPI
 - CORS configurable origins
 - RFC 7807 error responses (no internal details leaked)
 - Stream URL scheme validation (SSRF mitigation)
+- Optional ICY proxy is LAN-only by design; its port must not be Internet-exposed
+
+See [ICY Stream Proxy](ICY_STREAM_PROXY.md) for the stream path, session handling, and security considerations.

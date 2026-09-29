@@ -171,6 +171,9 @@ Alle Konfigurationen nutzen das Präfix `OCT_`:
 | `OCT_DB_PATH` | `./data/oct.db` | SQLite Datenbankpfad |
 | `OCT_DISCOVERY_TIMEOUT` | `10` | SSDP Discovery Timeout (Sekunden) |
 | `OCT_MANUAL_DEVICE_IPS` | `[]` | Manuelle Geräte-IPs (komma-separiert) |
+| `OCT_STREAM_PROXY_URL` | unset | Optionaler ICY-Proxy-Endpunkt, den SoundTouch-Geräte erreichen können, z. B. `http://192.168.1.50:7789/stream` |
+
+Der optionale ICY-Stream-Proxy liest Metadaten aus derselben Verbindung wie das Audio. Details, Netzwerkhinweise und Diagnose: [ICY Stream Proxy](../../docs/ICY_STREAM_PROXY.md).
 
 ### Beispiel .env
 

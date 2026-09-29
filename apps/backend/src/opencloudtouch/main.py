@@ -4,6 +4,7 @@ Iteration 0: Basic setup with /health endpoint
 """
 
 import logging
+import os
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -94,6 +95,19 @@ async def lifespan(app: FastAPI):
     loop.set_default_executor(executor)
     logger.info("Thread pool configured: 30 workers for Bose device I/O")
 
+    # Optional ICY proxy. If OCT_STREAM_PROXY_URL is set, keep the
+    # non-chunked proxy in the same OCT container/process.
+    proxy_url = os.getenv("OCT_STREAM_PROXY_URL", "").strip()
+    if proxy_url:
+        from urllib.parse import urlparse
+
+        from opencloudtouch.streaming.icy_proxy import start_icy_proxy
+
+        parsed_proxy = urlparse(proxy_url)
+        proxy_port = parsed_proxy.port or 7789
+        app.state.icy_proxy_server = await start_icy_proxy(port=proxy_port)
+        logger.info("ICY stream proxy enabled via %s", proxy_url)
+
     # Startup: repositories → services → background tasks
     repos = await _init_repositories(app, cfg, logger)
     await _init_services(app, cfg, repos, logger)
@@ -102,6 +116,11 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     await _shutdown(app, repos, logger)
+    icy_proxy_server = getattr(app.state, "icy_proxy_server", None)
+    if icy_proxy_server is not None:
+        icy_proxy_server.close()
+        await icy_proxy_server.wait_closed()
+        logger.info("ICY stream proxy stopped")
     executor.shutdown(wait=True)
     logger.info("Thread pool shutdown complete")
 

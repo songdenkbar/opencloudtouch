@@ -38,6 +38,13 @@ class TestParseStreamTitle:
         assert result.artist == "Kygo with Khalid"
         assert result.track == "Save my love"
 
+    # --- Quoted-title format with German "von" separator ---
+
+    def test_quoted_title_with_german_von_separator(self):
+        result = parse_stream_title('"Silver rooms" von Paper Satellites')
+        assert result.artist == "Paper Satellites"
+        assert result.track == "Silver rooms"
+
     def test_artist_track_with_parenthetical(self):
         """Track with mix/remix info in parentheses."""
         result = parse_stream_title("Siouxsie and the Banshees - Spellbound (12 mix)")

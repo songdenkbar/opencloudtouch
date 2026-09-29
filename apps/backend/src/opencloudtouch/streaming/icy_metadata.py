@@ -42,6 +42,7 @@ def parse_stream_title(raw_title: str, station_name: str | None = None) -> IcyMe
     Handles these real-world formats (from sample collection):
       - "Kygo with Khalid  - Save my love"  → artist="Kygo with Khalid", track="Save my love"
       - "Save my love / Kygo with Khalid"   → artist="Kygo with Khalid", track="Save my love"
+      - "\"Silver rooms\" von Paper Satellites" → artist="Paper Satellites", track="Silver rooms"
       - "Free The Robots - Jazzhole"         → artist="Free The Robots", track="Jazzhole"
       - "Siouxsie and the Banshees - Spellbound (12 mix)" → preserves parenthetical
       - "Die junge Nacht der ARD"            → artist=None, track="Die junge Nacht der ARD"
@@ -65,6 +66,19 @@ def parse_stream_title(raw_title: str, station_name: str | None = None) -> IcyMe
     # Skip if title is just the station name echoed back
     if station_name and title.lower() == station_name.lower():
         return IcyMetadata(artist=None, track=None, raw_title=raw_title)
+
+    # Quoted-title format with German "von" separator:
+    #   '"Silver rooms" von Paper Satellites'
+    quoted_von_format = re.match(
+        r"^[\"„“](.+?)[\"“]\s+von\s+(.+)$",
+        title,
+        re.IGNORECASE,
+    )
+    if quoted_von_format:
+        track = quoted_von_format.group(1).strip()
+        artist = quoted_von_format.group(2).strip()
+        if track and artist:
+            return IcyMetadata(artist=artist, track=track, raw_title=raw_title)
 
     # Try each separator
     for sep in _SEPARATORS:

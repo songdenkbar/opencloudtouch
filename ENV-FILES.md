@@ -100,6 +100,9 @@ OCT_STATION_DESCRIPTOR_BASE_URL=http://localhost:7777
 OCT_MANUAL_DEVICE_IPS=192.168.1.100,192.168.1.101
 OCT_DEVICE_HTTP_PORT=8090
 OCT_DEVICE_WS_PORT=8080
+# Optional; use the host/IP of the device running OCT that SoundTouch devices can reach.
+# Keep the proxy port on the trusted LAN only.
+# e.g. OCT_STREAM_PROXY_URL=http://192.168.1.50:7789/stream
 ```
 
 ### Deployment (deploy-to-server.ps1)
@@ -115,6 +118,8 @@ REMOTE_LOG_PATH=/mnt/tank/applications/opencloudtouch/logs
 REMOTE_IMAGE_PATH=/tmp
 LOCAL_DATA_PATH=./deployment/data-local
 ```
+
+For details about the optional stream proxy, see [docs/ICY_STREAM_PROXY.md](docs/ICY_STREAM_PROXY.md).
 
 ## 🚀 Quick Start
 
