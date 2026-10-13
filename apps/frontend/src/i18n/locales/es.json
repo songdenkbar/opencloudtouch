@@ -92,7 +92,19 @@
     "loadMore": "Cargar más",
     "loadingMore": "Cargando...",
     "maxReached": "Máximo ({{count}}) alcanzado",
-    "maxReachedTooltip": "Refine su búsqueda para encontrar emisoras específicas"
+    "maxReachedTooltip": "Refine su búsqueda para encontrar emisoras específicas",
+    "manualStreamUrlPlaceholder": "Introducir URL del stream...",
+    "manualStationNamePlaceholder": "Nombre de la emisora",
+    "manualFaviconPlaceholder": "URL del logotipo (opcional)",
+    "manualStreamMode": "URL del stream",
+    "manualUseStation": "Usar emisora",
+    "manualStreamUrlHelp": "Dirección HTTP/HTTPS directa a un stream de audio compatible con el dispositivo SoundTouch. Ejemplo: https://example.com/live.mp3",
+    "manualStationNameHelp": "Ejemplos: SWR3, BBC Radio 1, Radio Paradise",
+    "manualFaviconHelp": "Dirección HTTP/HTTPS directa a un archivo de imagen. Recomendado: cuadrado, de 128×128 a 600×600 px, PNG o JPG/JPEG.",
+    "manualStreamErrorTitle": "Error de stream",
+    "manualStreamUnreachable": "No se puede acceder a la URL del stream.",
+    "manualStreamSaveFailed": "No se pudo guardar la emisora.",
+    "manualStreamErrorOk": "OK"
   },
   "settings": {
     "title": "Ajustes",
@@ -317,7 +329,7 @@
         "instructionStep3Desc": "Espere al menos 10 segundos.",
         "instructionStep4": "Restaurar la alimentación",
         "instructionStep4Desc": "Vuelva a enchufar el adaptador de alimentación.",
-        "instructionStep5": "Esperar (~100 segundos)",
+        "instructionStep5": "Esperar (~60 segundos)",
         "instructionStep5Desc": "El dispositivo se reinicia y lee el archivo remote_services de la unidad USB.",
         "sectionStatus": "Verificar estado",
         "statusWaiting": "Esperando el reinicio del dispositivo...",
@@ -362,7 +374,7 @@
         "troubleshootingTitle": "⚠️ Solución de problemas",
         "troubleshootingItem1": "Compruebe que la unidad USB esté correctamente insertada",
         "troubleshootingItem2": "Asegúrese de que el archivo 'remote_services' sea correcto",
-        "troubleshootingItem3": "Espere al menos 100 segundos después del reinicio",
+        "troubleshootingItem3": "Espere al menos 60 segundos después del reinicio",
         "troubleshootingItem4": "Pruebe otro ciclo de alimentación (pasos 2-5)",
         "troubleshootingItem5": "Compruebe que el dispositivo esté en la misma red",
         "troubleshootingItem6": "Pruebe la conexión SSH manualmente con el comando anterior — si funciona, el dispositivo está listo."
@@ -450,8 +462,8 @@
         "successTitle": "¡Archivo hosts modificado correctamente!",
         "changedEntries": "Entradas modificadas:",
         "backupLabel": "Copia de seg.:",
-        "btnShowChanges": "▶ Mostrar cambios",
-        "btnHideChanges": "▼ Ocultar cambios",
+        "btnShowDiff": "▶ Mostrar diferencias",
+        "btnHideDiff": "▼ Ocultar diferencias",
         "hostsApplied": "Archivo hosts modificado correctamente."
       },
       "step7": {
@@ -764,6 +776,6 @@
   "deviceHeader": {
     "reboot": "Reiniciar dispositivo",
     "sent": "Comando de reinicio enviado",
-    "confirmMessage": "¿Reiniciar {{name}}? El dispositivo no estará disponible durante unos 100 segundos."
+    "confirmMessage": "¿Reiniciar {{name}}? El dispositivo no estará disponible durante unos 60 segundos."
   }
 }
