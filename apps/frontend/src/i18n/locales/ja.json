@@ -92,7 +92,19 @@
     "loadMore": "もっと読み込む",
     "loadingMore": "読み込み中...",
     "maxReached": "最大件数 ({{count}}) に到達",
-    "maxReachedTooltip": "特定のステーションを見つけるには検索を絞り込んでください"
+    "maxReachedTooltip": "特定のステーションを見つけるには検索を絞り込んでください",
+    "manualStreamUrlPlaceholder": "ストリームURLを入力...",
+    "manualStationNamePlaceholder": "局名",
+    "manualFaviconPlaceholder": "ロゴURL（任意）",
+    "manualStreamMode": "ストリームURL",
+    "manualUseStation": "局を使用",
+    "manualStreamUrlHelp": "SoundTouchデバイスが対応するオーディオストリームへのHTTP/HTTPS直接アドレス。例: https://example.com/live.mp3",
+    "manualStationNameHelp": "例: SWR3、BBC Radio 1、Radio Paradise",
+    "manualFaviconHelp": "画像ファイルへのHTTP/HTTPS直接アドレス。推奨: 正方形、128×128～600×600 px、PNGまたはJPG/JPEG。",
+    "manualStreamErrorTitle": "ストリームエラー",
+    "manualStreamUnreachable": "ストリームURLにアクセスできません。",
+    "manualStreamSaveFailed": "局を保存できませんでした。",
+    "manualStreamErrorOk": "OK"
   },
   "settings": {
     "title": "設定",
@@ -317,7 +329,7 @@
         "instructionStep3Desc": "少なくとも10秒間待ちます。",
         "instructionStep4": "電源を復元",
         "instructionStep4Desc": "電源アダプターを再接続します。",
-        "instructionStep5": "待つ（約100秒）",
+        "instructionStep5": "待つ（約60秒）",
         "instructionStep5Desc": "デバイスが再起動してUSBドライブからremote_servicesファイルを読み込みます。",
         "sectionStatus": "ステータスを確認",
         "statusWaiting": "デバイスの再起動を待っています...",
@@ -362,7 +374,7 @@
         "troubleshootingTitle": "⚠️ トラブルシューティング",
         "troubleshootingItem1": "USBドライブが正しく挿入されているか確認",
         "troubleshootingItem2": "「remote_services」ファイルが正しいことを確認",
-        "troubleshootingItem3": "再起動後少なくとも100秒待つ",
+        "troubleshootingItem3": "再起動後少なくとも60秒待つ",
         "troubleshootingItem4": "別の電源サイクルを試す（手順2〜5）",
         "troubleshootingItem5": "デバイスが同じネットワークにあるか確認",
         "troubleshootingItem6": "上記のコマンドでSSH接続を手動でテストしてください — それが機能すれば、デバイスは準備できています。"
@@ -450,8 +462,8 @@
         "successTitle": "hostsファイルが正常に変更されました！",
         "changedEntries": "変更されたエントリ：",
         "backupLabel": "バックアップ：",
-        "btnShowChanges": "▶ 変更を表示",
-        "btnHideChanges": "▼ 変更を非表示",
+        "btnShowDiff": "▶ 差分を表示",
+        "btnHideDiff": "▼ 差分を非表示",
         "hostsApplied": "hostsファイルが正常に変更されました。"
       },
       "step7": {
@@ -764,6 +776,6 @@
   "deviceHeader": {
     "reboot": "デバイスを再起動",
     "sent": "再起動コマンドを送信しました",
-    "confirmMessage": "{{name}}を再起動しますか？デバイスは約100秒間使用できなくなります。"
+    "confirmMessage": "{{name}}を再起動しますか？デバイスは約60秒間使用できなくなります。"
   }
 }
