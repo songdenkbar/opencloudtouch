@@ -476,7 +476,7 @@ describe("RadioSearch Component", () => {
     render(
       <RadioSearch isOpen={true} onStationSelect={mockOnStationSelect} onClose={mockOnClose} />
     );
-    const searchInput = screen.getByPlaceholderText("e.g. SWR3, BBC Radio\\u2026");
+    const searchInput = screen.getByPlaceholderText("e.g. SWR3, BBC Radio\u2026");
     fireEvent.change(searchInput, { target: { value: "BBC" } });
     await waitFor(() => expect(screen.getByText("BBC Radio 1")).toBeInTheDocument(), {
       timeout: 700,
@@ -623,7 +623,7 @@ describe("RadioSearch Component", () => {
       await waitFor(() =>
         expect(mockOnStationSelect).toHaveBeenCalledWith(
           expect.objectContaining({
-            stationuuid: expect.stringMatching(/^manual-\\d+$/),
+            stationuuid: expect.stringMatching(/^manual-\d+$/),
             name: "New Radio",
           })
         )
