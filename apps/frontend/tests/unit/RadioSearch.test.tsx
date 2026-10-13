@@ -472,6 +472,22 @@ describe("RadioSearch Component", () => {
   });
 
 
+  it("updates results when switching search queries in the same dialog", async () => {
+    render(
+      <RadioSearch isOpen={true} onStationSelect={mockOnStationSelect} onClose={mockOnClose} />
+    );
+    const searchInput = screen.getByPlaceholderText("e.g. SWR3, BBC Radio\\u2026");
+    fireEvent.change(searchInput, { target: { value: "BBC" } });
+    await waitFor(() => expect(screen.getByText("BBC Radio 1")).toBeInTheDocument(), {
+      timeout: 700,
+    });
+    fireEvent.change(searchInput, { target: { value: "NPR" } });
+    await waitFor(() => {
+      expect(screen.getByText("NPR (National Public Radio)")).toBeInTheDocument();
+      expect(screen.queryByText("BBC Radio 1")).not.toBeInTheDocument();
+    }, { timeout: 700 });
+  });
+
   describe("Manual stream URL mode", () => {
     it("clears provider search results when switching to manual mode", async () => {
       render(
@@ -563,6 +579,57 @@ describe("RadioSearch Component", () => {
     });
   });
 
+
+  describe("Manual preset identity", () => {
+    it("preserves the UUID when saving an existing manual preset", async () => {
+      render(
+        <RadioSearch
+          isOpen={true}
+          onStationSelect={mockOnStationSelect}
+          onClose={mockOnClose}
+          existingPreset={{
+            station_uuid: "manual-existing-123",
+            station_name: "Saved Radio",
+            station_url: "https://example.com/live.mp3",
+          }}
+        />
+      );
+      fireEvent.change(screen.getByDisplayValue("Saved Radio"), {
+        target: { value: "Renamed Radio" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Use station" }));
+      await waitFor(() =>
+        expect(mockOnStationSelect).toHaveBeenCalledWith(
+          expect.objectContaining({
+            stationuuid: "manual-existing-123",
+            name: "Renamed Radio",
+          })
+        )
+      );
+    });
+
+    it("generates a new manual UUID for a new preset", async () => {
+      render(
+        <RadioSearch isOpen={true} onStationSelect={mockOnStationSelect} onClose={mockOnClose} />
+      );
+      fireEvent.click(screen.getByText("Stream URL"));
+      fireEvent.change(screen.getByPlaceholderText("Enter stream URL..."), {
+        target: { value: "https://example.com/live.mp3" },
+      });
+      fireEvent.change(screen.getByPlaceholderText("Station name"), {
+        target: { value: "New Radio" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Use station" }));
+      await waitFor(() =>
+        expect(mockOnStationSelect).toHaveBeenCalledWith(
+          expect.objectContaining({
+            stationuuid: expect.stringMatching(/^manual-\\d+$/),
+            name: "New Radio",
+          })
+        )
+      );
+    });
+  });
 
   describe("Feature Toggle (HAS_TUNEIN_SUPPORT)", () => {
     it("should hide provider row when HAS_TUNEIN_SUPPORT is false (only 1 provider)", async () => {
