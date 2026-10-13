@@ -92,7 +92,19 @@
     "loadMore": "Mehr anzeigen",
     "loadingMore": "Lädt...",
     "maxReached": "Maximum ({{count}}) erreicht",
-    "maxReachedTooltip": "Grenzen Sie Ihre Suche weiter ein, um bestimmte Sender zu finden"
+    "maxReachedTooltip": "Grenzen Sie Ihre Suche weiter ein, um bestimmte Sender zu finden",
+    "manualStreamUrlPlaceholder": "Stream-URL eingeben...",
+    "manualStationNamePlaceholder": "Sendername",
+    "manualFaviconPlaceholder": "Logo-URL (optional)",
+    "manualStreamMode": "Stream-URL",
+    "manualUseStation": "Sender verwenden",
+    "manualStreamUrlHelp": "Direkte HTTP-/HTTPS-Adresse zu einem vom SoundTouch-Gerät unterstützten Audiostream. Beispiel: https://example.com/live.mp3",
+    "manualStationNameHelp": "Beispiele: SWR3, BBC Radio 1, Radio Paradise",
+    "manualFaviconHelp": "Direkte HTTP-/HTTPS-Adresse zu einer Bilddatei. Empfohlen: quadratisch, 128×128 bis 600×600 px, PNG oder JPG/JPEG.",
+    "manualStreamErrorTitle": "Stream-Fehler",
+    "manualStreamUnreachable": "Die Stream-URL ist nicht erreichbar.",
+    "manualStreamSaveFailed": "Der Sender konnte nicht gespeichert werden.",
+    "manualStreamErrorOk": "OK"
   },
   "settings": {
     "title": "Einstellungen",
@@ -317,7 +329,7 @@
         "instructionStep3Desc": "Warten Sie mindestens 10 Sekunden.",
         "instructionStep4": "Stromversorgung wiederherstellen",
         "instructionStep4Desc": "Stecken Sie das Netzteil wieder ein.",
-        "instructionStep5": "Warten (~100 Sekunden)",
+        "instructionStep5": "Warten (~60 Sekunden)",
         "instructionStep5Desc": "Das Gerät startet neu und liest die remote_services Datei vom USB-Stick.",
         "sectionStatus": "Status überprüfen",
         "statusWaiting": "Warte auf Geräteneustart...",
@@ -362,7 +374,7 @@
         "troubleshootingTitle": "⚠️ Fehlerbehebung",
         "troubleshootingItem1": "Überprüfen Sie, ob der USB-Stick korrekt eingesteckt ist",
         "troubleshootingItem2": "Stellen Sie sicher, dass die Datei 'remote_services' korrekt ist",
-        "troubleshootingItem3": "Warten Sie mindestens 100 Sekunden nach dem Neustart",
+        "troubleshootingItem3": "Warten Sie mindestens 60 Sekunden nach dem Neustart",
         "troubleshootingItem4": "Versuchen Sie einen weiteren Power Cycle (Schritte 2–5)",
         "troubleshootingItem5": "Prüfen Sie, ob das Gerät im gleichen Netzwerk ist",
         "troubleshootingItem6": "Testen Sie die SSH-Verbindung manuell mit dem Befehl oben – wenn das funktioniert, ist das Gerät bereit."
@@ -450,8 +462,8 @@
         "successTitle": "Hosts-Datei erfolgreich geändert!",
         "changedEntries": "Geänderte Einträge:",
         "backupLabel": "Backup:",
-        "btnShowChanges": "▶ Änderungen anzeigen",
-        "btnHideChanges": "▼ Änderungen ausblenden",
+        "btnShowDiff": "▶ Diff anzeigen",
+        "btnHideDiff": "▼ Diff ausblenden",
         "hostsApplied": "Hosts-Datei erfolgreich geändert."
       },
       "step7": {
@@ -764,6 +776,6 @@
   "deviceHeader": {
     "reboot": "Gerät neu starten",
     "sent": "Neustart-Befehl gesendet",
-    "confirmMessage": "{{name}} neu starten? Das Gerät ist für ca. 100 Sekunden nicht erreichbar."
+    "confirmMessage": "{{name}} neu starten? Das Gerät ist für ca. 60 Sekunden nicht erreichbar."
   }
 }
