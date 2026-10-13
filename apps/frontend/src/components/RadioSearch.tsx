@@ -464,7 +464,7 @@ export default function RadioSearch({
                       stationuuid:
                         existingPreset?.station_uuid?.startsWith("manual-")
                           ? existingPreset.station_uuid
-                          : `manual-${crypto.randomUUID()}`,
+                          : `manual-${Date.now()}`,
                       name: manualName.trim(),
                       country: "",
                       url: manualUrl.trim(),
