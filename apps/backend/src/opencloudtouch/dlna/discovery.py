@@ -39,6 +39,8 @@ class DlnaDiscovery:
             if (
                 parsed.scheme not in {"http", "https"}
                 or not parsed.hostname
+                or parsed.hostname.lower() == "localhost"
+                or parsed.hostname.lower().endswith(".localhost")
                 or parsed.username is not None
                 or parsed.password is not None
                 or (expected_host is not None and parsed.hostname.lower() != expected_host.lower())
