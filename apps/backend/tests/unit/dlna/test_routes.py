@@ -3,8 +3,10 @@
 from unittest.mock import AsyncMock
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
 
+from opencloudtouch.core.dependencies import get_dlna_service
 from opencloudtouch.dlna import routes
 from opencloudtouch.dlna.models import DlnaItem, DlnaServer
 
@@ -138,3 +140,18 @@ async def test_browse_dlna_server_error():
 
     assert exc_info.value.status_code == 502
     assert exc_info.value.detail == "DLNA server unavailable"
+
+
+def test_dlna_route_dependency_override():
+    app = FastAPI()
+    app.include_router(routes.router)
+    service = AsyncMock()
+    service.get_servers.return_value = []
+    app.dependency_overrides[get_dlna_service] = lambda: service
+
+    with TestClient(app) as client:
+        response = client.get("/api/dlna/servers")
+
+    assert response.status_code == 200
+    assert response.json() == []
+    service.get_servers.assert_awaited_once()
