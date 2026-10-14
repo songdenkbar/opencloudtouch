@@ -35,7 +35,7 @@ class SSDPDiscovery:
     SEARCH_TARGET = "ssdp:all"  # Broad search, filter by manufacturer later
     MX_DELAY = 2  # Max delay for device responses (seconds)
 
-    def __init__(self, timeout: int = 10):
+    def __init__(self, timeout: int = 10, search_target: str = SEARCH_TARGET):
         """
         Initialize SSDP discovery.
 
@@ -43,6 +43,7 @@ class SSDPDiscovery:
             timeout: Discovery timeout in seconds
         """
         self.timeout = timeout
+        self.search_target = search_target
 
     async def discover(self) -> Dict[str, Dict[str, str]]:
         """
@@ -109,7 +110,7 @@ class SSDPDiscovery:
             f"HOST: {self.SSDP_MULTICAST_ADDR}:{self.SSDP_PORT}\r\n"
             f'MAN: "ssdp:discover"\r\n'
             f"MX: {self.MX_DELAY}\r\n"
-            f"ST: {self.SEARCH_TARGET}\r\n"
+            f"ST: {self.search_target}\r\n"
             f"\r\n"
         ).encode("utf-8")
 
