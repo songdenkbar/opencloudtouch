@@ -11,6 +11,7 @@ import asyncio
 import logging
 import socket
 import time
+from threading import Lock
 from typing import Dict, Optional
 from xml.etree.ElementTree import Element
 
@@ -20,6 +21,9 @@ from defusedxml.ElementTree import fromstring as parse_xml_string
 from opencloudtouch.discovery import SOUNDTOUCH_WEBSERVER_PORT
 
 logger = logging.getLogger(__name__)
+
+# Only one active SSDP socket on UDP 1900 per OCT process.
+_ssdp_search_lock = Lock()
 
 
 class SSDPDiscovery:
@@ -77,6 +81,11 @@ class SSDPDiscovery:
             return {}
 
     def _ssdp_msearch(self) -> list[str]:
+        """Serialize searches sharing the SSDP UDP 1900 receive port."""
+        with _ssdp_search_lock:
+            return self._ssdp_msearch_unlocked()
+
+    def _ssdp_msearch_unlocked(self) -> list[str]:
         """
         Send SSDP M-SEARCH multicast and collect device location URLs.
 
