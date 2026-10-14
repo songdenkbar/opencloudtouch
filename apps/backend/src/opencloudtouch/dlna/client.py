@@ -46,7 +46,9 @@ class DlnaClient:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout, trust_env=False, follow_redirects=False) as client:
+            async with httpx.AsyncClient(
+                timeout=self.timeout, trust_env=False, follow_redirects=False
+            ) as client:
                 response = await client.post(
                     server.control_url,
                     content=body,

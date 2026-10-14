@@ -89,7 +89,6 @@ async def test_browse_unknown_dlna_server():
     service = AsyncMock()
     service.browse.side_effect = LookupError("DLNA server not found: missing")
 
-
     with pytest.raises(HTTPException) as exc_info:
         await routes.browse_dlna_server(
             service=service,

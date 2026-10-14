@@ -33,7 +33,11 @@ class DlnaDiscovery:
 
     @staticmethod
     def _valid_http_url(url: str, expected_host: str | None = None) -> bool:
-        """Check basic endpoint safety without blocking ordinary LAN servers."""
+        """Perform basic URL sanity checks while allowing LAN media servers.
+
+        This is not a complete SSRF defense: DNS hostnames are not resolved
+        or pinned, and DNS rebinding is outside the scope of this check.
+        """
         try:
             parsed = urlsplit(url)
             if (
@@ -43,7 +47,10 @@ class DlnaDiscovery:
                 or parsed.hostname.lower().endswith(".localhost")
                 or parsed.username is not None
                 or parsed.password is not None
-                or (expected_host is not None and parsed.hostname.lower() != expected_host.lower())
+                or (
+                    expected_host is not None
+                    and parsed.hostname.lower() != expected_host.lower()
+                )
             ):
                 return False
             _ = parsed.port  # Raises ValueError for invalid ports.
@@ -53,7 +60,9 @@ class DlnaDiscovery:
                 address = ipaddress.ip_address(parsed.hostname)
             except ValueError:
                 return True
-            return not (address.is_loopback or address.is_multicast or address.is_unspecified)
+            return not (
+                address.is_loopback or address.is_multicast or address.is_unspecified
+            )
         except ValueError:
             return False
 
@@ -65,7 +74,9 @@ class DlnaDiscovery:
         if not locations:
             return []
 
-        async with httpx.AsyncClient(timeout=3.0, trust_env=False, follow_redirects=False) as client:
+        async with httpx.AsyncClient(
+            timeout=3.0, trust_env=False, follow_redirects=False
+        ) as client:
             results = await asyncio.gather(
                 *(
                     self._fetch_and_parse_server(client, location)

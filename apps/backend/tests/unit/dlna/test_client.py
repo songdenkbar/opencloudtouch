@@ -103,3 +103,50 @@ def test_soap_fault_with_http_200_is_not_an_empty_folder():
 def test_missing_browse_response_is_not_empty_folder():
     with pytest.raises(DlnaBrowseError):
         DlnaClient._parse_browse_response("<Envelope><Body/></Envelope>")
+
+
+@pytest.mark.asyncio
+async def test_browse_surfaces_soap_fault_with_http_200():
+    """HTTP 200 with a SOAP fault must raise DlnaBrowseError."""
+    from unittest.mock import patch
+
+    import httpx
+
+    from opencloudtouch.dlna.models import DlnaServer
+
+    server = DlnaServer(
+        id="test-server",
+        name="Test Server",
+        location="http://192.168.55.30:8200/root.xml",
+        control_url="http://192.168.55.30:8200/control",
+    )
+
+    fault = """<?xml version="1.0"?>
+    <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+      <s:Body>
+        <s:Fault>
+          <faultcode>s:Client</faultcode>
+          <faultstring>UPnPError</faultstring>
+          <detail>
+            <UPnPError xmlns="urn:schemas-upnp-org:control-1-0">
+              <errorCode>701</errorCode>
+              <errorDescription>No Such Object</errorDescription>
+            </UPnPError>
+          </detail>
+        </s:Fault>
+      </s:Body>
+    </s:Envelope>"""
+
+    def respond(request):
+        return httpx.Response(200, text=fault)
+
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    with patch(
+        "opencloudtouch.dlna.client.httpx.AsyncClient",
+        return_value=http_client,
+    ):
+        with pytest.raises(DlnaBrowseError) as exc:
+            await DlnaClient().browse(server, "missing")
+
+    assert exc.value.error_code == "701"
+    assert str(exc.value) == "No Such Object"

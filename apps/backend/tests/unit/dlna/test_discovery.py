@@ -37,7 +37,10 @@ def test_parse_location():
         "\r\n"
     )
 
-    assert discovery.ssdp._parse_location(response) == "http://192.0.2.10:8200/rootDesc.xml"
+    assert (
+        discovery.ssdp._parse_location(response)
+        == "http://192.0.2.10:8200/rootDesc.xml"
+    )
 
 
 @pytest.mark.asyncio
@@ -129,3 +132,34 @@ async def test_reject_control_url_to_different_host():
         client, "http://192.168.55.30:8200/root.xml"
     )
     assert server is None
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        ("http://192.168.55.1:49000/MediaServerDevDesc.xml", True),
+        ("http://[fd00::45]:8200/root.xml", True),
+        ("http://nas.local:8200/root.xml", True),
+        ("http://localhost:8200/root.xml", False),
+        ("http://service.localhost:8200/root.xml", False),
+        ("http://127.0.0.1:8200/root.xml", False),
+        ("http://[::1]:8200/root.xml", False),
+        ("http://0.0.0.0:8200/root.xml", False),
+        ("ftp://192.168.55.1/file", False),
+        ("http://user:password@192.168.55.1/root.xml", False),
+    ],
+)
+def test_dlna_url_sanity_checks(url, expected):
+    assert DlnaDiscovery._valid_http_url(url) is expected
+
+
+def test_dlna_control_url_must_match_description_host():
+    assert DlnaDiscovery._valid_http_url(
+        "http://192.168.55.1:49000/MediaServer/ContentDirectory/Control",
+        expected_host="192.168.55.1",
+    )
+
+    assert not DlnaDiscovery._valid_http_url(
+        "http://192.168.55.99:8200/control",
+        expected_host="192.168.55.1",
+    )
