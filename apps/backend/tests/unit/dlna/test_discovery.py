@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from opencloudtouch.dlna.discovery import DlnaDiscovery
+from opencloudtouch.devices.discovery.ssdp import SSDPDiscovery
 
 DEVICE_DESCRIPTION = """<?xml version="1.0"?>
 <root xmlns="urn:schemas-upnp-org:device-1-0">
@@ -36,7 +37,7 @@ def test_parse_location():
         "\r\n"
     )
 
-    assert discovery._parse_location(response) == "http://192.0.2.10:8200/rootDesc.xml"
+    assert discovery.ssdp._parse_location(response) == "http://192.0.2.10:8200/rootDesc.xml"
 
 
 @pytest.mark.asyncio
@@ -86,4 +87,45 @@ async def test_ignore_non_media_server():
         "http://192.0.2.20/device.xml",
     )
 
+    assert server is None
+
+
+def test_dlna_reuses_shared_ssdp_target():
+    discovery = DlnaDiscovery(timeout=7)
+    assert isinstance(discovery.ssdp, SSDPDiscovery)
+    assert discovery.ssdp.timeout == 7
+    assert discovery.ssdp.search_target == discovery.SEARCH_TARGET
+    assert SSDPDiscovery().search_target == "ssdp:all"
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        ("http://192.168.55.45:8200/root.xml", True),
+        ("http://nas.local:8200/root.xml", True),
+        ("http://127.0.0.1/admin", False),
+        ("http://0.0.0.0/", False),
+        ("http://239.255.255.250:1900/", False),
+        ("file:///etc/passwd", False),
+        ("http://user:pass@192.168.55.45/", False),
+        ("http://192.168.55.45:bad/", False),
+    ],
+)
+def test_location_validation(url, expected):
+    assert DlnaDiscovery._valid_http_url(url) is expected
+
+
+@pytest.mark.asyncio
+async def test_reject_control_url_to_different_host():
+    discovery = DlnaDiscovery()
+    response = MagicMock()
+    response.text = DEVICE_DESCRIPTION.replace(
+        "/ContentDirectory/control", "http://127.0.0.1:9999/admin"
+    )
+    response.raise_for_status = MagicMock()
+    client = AsyncMock()
+    client.get.return_value = response
+    server = await discovery._fetch_and_parse_server(
+        client, "http://192.168.55.30:8200/root.xml"
+    )
     assert server is None
