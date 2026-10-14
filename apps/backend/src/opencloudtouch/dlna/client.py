@@ -46,7 +46,7 @@ class DlnaClient:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(timeout=self.timeout, trust_env=False, follow_redirects=False) as client:
                 response = await client.post(
                     server.control_url,
                     content=body,
@@ -62,6 +62,8 @@ class DlnaClient:
 
         try:
             return self._parse_browse_response(response.text)
+        except DlnaBrowseError:
+            raise
         except Exception as exc:
             raise DlnaBrowseError(
                 f"Invalid browse response from DLNA server: {server.name}"
@@ -90,6 +92,19 @@ class DlnaClient:
     def _parse_browse_response(cls, xml: str) -> list[DlnaItem]:
         """Parse the SOAP response and contained DIDL-Lite document."""
         root = parse_xml_string(xml)
+
+        if cls._find_element(root, "Fault") is not None:
+            error_code = cls._find_text(root, "errorCode")
+            description = cls._find_text(root, "errorDescription") or cls._find_text(
+                root, "faultstring"
+            )
+            message = description or (
+                f"DLNA SOAP fault ({error_code})" if error_code else "DLNA SOAP fault"
+            )
+            raise DlnaBrowseError(message, error_code=error_code)
+
+        if cls._find_element(root, "BrowseResponse") is None:
+            raise DlnaBrowseError("Invalid DLNA SOAP BrowseResponse")
 
         result = cls._find_text(root, "Result")
         if not result:
