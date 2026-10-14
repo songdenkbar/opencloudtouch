@@ -21,7 +21,6 @@ async def test_get_dlna_servers():
     service = AsyncMock()
     service.get_servers.return_value = [server]
 
-
     result = await routes.get_dlna_servers(service=service)
 
     assert result == [
@@ -47,7 +46,6 @@ async def test_browse_dlna_server():
 
     service = AsyncMock()
     service.browse.return_value = [item]
-
 
     result = await routes.browse_dlna_server(
         service=service,
@@ -92,6 +90,7 @@ async def test_browse_unknown_dlna_server():
 
     with pytest.raises(HTTPException) as exc_info:
         await routes.browse_dlna_server(
+            service=service,
             server_id="missing",
             object_id="0",
         )
@@ -110,9 +109,9 @@ async def test_browse_missing_dlna_object():
         error_code="701",
     )
 
-
     with pytest.raises(HTTPException) as exc_info:
         await routes.browse_dlna_server(
+            service=service,
             server_id="server-1",
             object_id="does-not-exist",
         )
@@ -130,9 +129,9 @@ async def test_browse_dlna_server_error():
         "DLNA server unavailable",
     )
 
-
     with pytest.raises(HTTPException) as exc_info:
         await routes.browse_dlna_server(
+            service=service,
             server_id="server-1",
             object_id="0",
         )
