@@ -2,14 +2,14 @@
 
 import asyncio
 import logging
-import socket
-import time
-from urllib.parse import urljoin
+import ipaddress
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 from defusedxml.ElementTree import fromstring as parse_xml_string
 
 from opencloudtouch.dlna.models import DlnaServer
+from opencloudtouch.devices.discovery.ssdp import SSDPDiscovery
 
 logger = logging.getLogger(__name__)
 
@@ -17,76 +17,43 @@ logger = logging.getLogger(__name__)
 class DlnaDiscovery:
     """Discover UPnP MediaServer devices and their ContentDirectory service."""
 
-    SSDP_MULTICAST_ADDR = "239.255.255.250"
-    SSDP_PORT = 1900
     SEARCH_TARGET = "urn:schemas-upnp-org:device:MediaServer:1"
-    MX_DELAY = 2
 
     def __init__(self, timeout: int = 5):
-        self.timeout = timeout
+        self.ssdp = SSDPDiscovery(timeout=timeout, search_target=self.SEARCH_TARGET)
 
     async def discover(self) -> list[DlnaServer]:
-        """Discover available DLNA media servers."""
+        """Discover UPnP MediaServers with the shared SSDP implementation."""
         try:
-            locations = await asyncio.to_thread(self._ssdp_msearch)
+            locations = await asyncio.to_thread(self.ssdp._ssdp_msearch)
             return await self._fetch_server_descriptions(locations)
         except Exception:
             logger.exception("DLNA discovery failed")
             return []
 
-    def _ssdp_msearch(self) -> list[str]:
-        """Send an SSDP M-SEARCH and return unique LOCATION URLs."""
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-        deadline = time.monotonic() + self.timeout
-
-        message = (
-            "M-SEARCH * HTTP/1.1\r\n"
-            f"HOST: {self.SSDP_MULTICAST_ADDR}:{self.SSDP_PORT}\r\n"
-            'MAN: "ssdp:discover"\r\n'
-            f"MX: {self.MX_DELAY}\r\n"
-            f"ST: {self.SEARCH_TARGET}\r\n"
-            "\r\n"
-        ).encode("utf-8")
-
-        locations: set[str] = set()
-
-        try:
-            sock.sendto(
-                message,
-                (self.SSDP_MULTICAST_ADDR, self.SSDP_PORT),
-            )
-
-            while time.monotonic() < deadline:
-                remaining = deadline - time.monotonic()
-                sock.settimeout(min(remaining, 0.1))
-
-                try:
-                    data, _ = sock.recvfrom(8192)
-                except socket.timeout:
-                    continue
-
-                response = data.decode("utf-8", errors="ignore")
-                location = self._parse_location(response)
-
-                if location:
-                    locations.add(location)
-        except OSError:
-            logger.exception("DLNA SSDP discovery failed")
-        finally:
-            sock.close()
-
-        return list(locations)
-
     @staticmethod
-    def _parse_location(response: str) -> str | None:
-        """Extract the LOCATION header from an SSDP response."""
-        for line in response.split("\r\n"):
-            if line.lower().startswith("location:"):
-                return line.split(":", 1)[1].strip()
-
-        return None
+    def _valid_http_url(url: str, expected_host: str | None = None) -> bool:
+        """Check basic endpoint safety without blocking ordinary LAN servers."""
+        try:
+            parsed = urlsplit(url)
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or (expected_host is not None and parsed.hostname.lower() != expected_host.lower())
+            ):
+                return False
+            _ = parsed.port  # Raises ValueError for invalid ports.
+            if parsed.port == 0:
+                return False
+            try:
+                address = ipaddress.ip_address(parsed.hostname)
+            except ValueError:
+                return True
+            return not (address.is_loopback or address.is_multicast or address.is_unspecified)
+        except ValueError:
+            return False
 
     async def _fetch_server_descriptions(
         self,
@@ -96,7 +63,7 @@ class DlnaDiscovery:
         if not locations:
             return []
 
-        async with httpx.AsyncClient(timeout=3.0) as client:
+        async with httpx.AsyncClient(timeout=3.0, trust_env=False, follow_redirects=False) as client:
             results = await asyncio.gather(
                 *(
                     self._fetch_and_parse_server(client, location)
@@ -116,6 +83,10 @@ class DlnaDiscovery:
         location: str,
     ) -> DlnaServer | None:
         """Parse a UPnP description and locate its ContentDirectory service."""
+        if not self._valid_http_url(location):
+            logger.debug("Rejected DLNA LOCATION: %s", location)
+            return None
+
         try:
             response = await client.get(location)
             response.raise_for_status()
@@ -136,13 +107,20 @@ class DlnaDiscovery:
             if not control_url:
                 return None
 
+            resolved_control_url = urljoin(location, control_url)
+            if not self._valid_http_url(
+                resolved_control_url, expected_host=urlsplit(location).hostname
+            ):
+                logger.debug("Rejected DLNA control URL: %s", resolved_control_url)
+                return None
+
             server_id = udn.removeprefix("uuid:")
 
             return DlnaServer(
                 id=server_id,
                 name=friendly_name,
                 location=location,
-                control_url=urljoin(location, control_url),
+                control_url=resolved_control_url,
             )
         except Exception as exc:
             logger.debug(
