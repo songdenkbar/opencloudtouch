@@ -10,7 +10,7 @@ from opencloudtouch.dlna.models import DlnaItem, DlnaServer
 
 
 @pytest.mark.asyncio
-async def test_get_dlna_servers(monkeypatch):
+async def test_get_dlna_servers():
     server = DlnaServer(
         id="server-1",
         name="Test Server",
@@ -21,9 +21,8 @@ async def test_get_dlna_servers(monkeypatch):
     service = AsyncMock()
     service.get_servers.return_value = [server]
 
-    monkeypatch.setattr(routes, "_service", service)
 
-    result = await routes.get_dlna_servers()
+    result = await routes.get_dlna_servers(service=service)
 
     assert result == [
         {
@@ -36,7 +35,7 @@ async def test_get_dlna_servers(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_browse_dlna_server(monkeypatch):
+async def test_browse_dlna_server():
     item = DlnaItem(
         id="track-1",
         parent_id="0",
@@ -49,9 +48,9 @@ async def test_browse_dlna_server(monkeypatch):
     service = AsyncMock()
     service.browse.return_value = [item]
 
-    monkeypatch.setattr(routes, "_service", service)
 
     result = await routes.browse_dlna_server(
+        service=service,
         server_id="server-1",
         object_id="music",
     )
@@ -86,11 +85,10 @@ async def test_browse_dlna_server(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_browse_unknown_dlna_server(monkeypatch):
+async def test_browse_unknown_dlna_server():
     service = AsyncMock()
     service.browse.side_effect = LookupError("DLNA server not found: missing")
 
-    monkeypatch.setattr(routes, "_service", service)
 
     with pytest.raises(HTTPException) as exc_info:
         await routes.browse_dlna_server(
@@ -103,7 +101,7 @@ async def test_browse_unknown_dlna_server(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_browse_missing_dlna_object(monkeypatch):
+async def test_browse_missing_dlna_object():
     from opencloudtouch.dlna.client import DlnaBrowseError
 
     service = AsyncMock()
@@ -112,7 +110,6 @@ async def test_browse_missing_dlna_object(monkeypatch):
         error_code="701",
     )
 
-    monkeypatch.setattr(routes, "_service", service)
 
     with pytest.raises(HTTPException) as exc_info:
         await routes.browse_dlna_server(
@@ -125,7 +122,7 @@ async def test_browse_missing_dlna_object(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_browse_dlna_server_error(monkeypatch):
+async def test_browse_dlna_server_error():
     from opencloudtouch.dlna.client import DlnaBrowseError
 
     service = AsyncMock()
@@ -133,7 +130,6 @@ async def test_browse_dlna_server_error(monkeypatch):
         "DLNA server unavailable",
     )
 
-    monkeypatch.setattr(routes, "_service", service)
 
     with pytest.raises(HTTPException) as exc_info:
         await routes.browse_dlna_server(
