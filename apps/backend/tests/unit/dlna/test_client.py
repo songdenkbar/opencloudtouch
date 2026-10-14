@@ -1,6 +1,8 @@
 """Tests for the DLNA ContentDirectory client."""
 
-from opencloudtouch.dlna.client import DlnaClient
+import pytest
+
+from opencloudtouch.dlna.client import DlnaBrowseError, DlnaClient
 
 SOAP_RESPONSE = """<?xml version="1.0"?>
 <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
@@ -78,3 +80,26 @@ def test_parse_empty_result():
     """
 
     assert DlnaClient._parse_browse_response(response) == []
+
+
+def test_soap_fault_with_http_200_is_not_an_empty_folder():
+    soap_fault = """<?xml version="1.0"?>
+    <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+      <s:Body><s:Fault><faultcode>s:Client</faultcode>
+        <faultstring>UPnPError</faultstring><detail>
+          <UPnPError xmlns="urn:schemas-upnp-org:control-1-0">
+            <errorCode>701</errorCode>
+            <errorDescription>No Such Object</errorDescription>
+          </UPnPError>
+        </detail>
+      </s:Fault></s:Body>
+    </s:Envelope>"""
+    with pytest.raises(DlnaBrowseError) as exc:
+        DlnaClient._parse_browse_response(soap_fault)
+    assert exc.value.error_code == "701"
+    assert str(exc.value) == "No Such Object"
+
+
+def test_missing_browse_response_is_not_empty_folder():
+    with pytest.raises(DlnaBrowseError):
+        DlnaClient._parse_browse_response("<Envelope><Body/></Envelope>")
