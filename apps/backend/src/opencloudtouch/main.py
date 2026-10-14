@@ -30,6 +30,7 @@ from opencloudtouch.core.static_files import (
     mount_static_files,
 )
 from opencloudtouch.db import DeviceRepository
+from opencloudtouch.dlna.service import DlnaService
 from opencloudtouch.devices.adapter import get_discovery_adapter
 from opencloudtouch.dlna.routes import router as dlna_router
 from opencloudtouch.devices.api.discovery_routes import discovery_router
@@ -185,6 +186,9 @@ async def _init_services(
     )
     app.state.device_service = device_service
     logger.info("DeviceService initialized")
+
+    app.state.dlna_service = DlnaService()
+    logger.info("DlnaService initialized")
 
     # Zone service (with injected client factory to avoid circular deps)
     from opencloudtouch.devices.adapter import get_device_client
