@@ -45,7 +45,9 @@ class PresetService:
         self._parser = DevicePresetParser()
 
     @staticmethod
-    async def _validate_stream_url(url: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
+    async def _validate_stream_url(
+        url: str,
+    ) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
         """Validate HTTP(S) URL and public DNS target without fetching audio."""
         try:
             parsed = urlsplit(url.strip())
@@ -92,7 +94,9 @@ class PresetService:
             pinned_url = urlunsplit(
                 (parsed.scheme, f"{ip_host}:{port}", parsed.path or "/", parsed.query, "")
             )
-            extensions = {"sni_hostname": parsed.hostname} if parsed.scheme == "https" else {}
+            extensions = (
+                {"sni_hostname": parsed.hostname} if parsed.scheme == "https" else {}
+            )
             try:
                 async with httpx.AsyncClient(
                     timeout=timeout, follow_redirects=False, trust_env=False
