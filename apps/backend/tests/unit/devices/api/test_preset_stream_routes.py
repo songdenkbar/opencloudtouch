@@ -90,6 +90,7 @@ class TestStreamDevicePreset:
             return_value=mock_http_client,
         ), patch(
             "opencloudtouch.presets.service.PresetService._validate_stream_url",
+            new_callable=AsyncMock,
         ):
             with client.stream("GET", "/device/689E194F7D2F/preset/1") as response:
                 assert response.status_code == 200
@@ -136,6 +137,7 @@ class TestStreamDevicePreset:
             return_value=mock_http_client,
         ), patch(
             "opencloudtouch.presets.service.PresetService._validate_stream_url",
+            new_callable=AsyncMock,
         ):
             with client.stream("GET", f"/device/{device_id}/preset/1") as response:
                 body = b"".join(response.iter_bytes())
@@ -164,6 +166,7 @@ class TestStreamDevicePreset:
             return_value=mock_http_client,
         ), patch(
             "opencloudtouch.presets.service.PresetService._validate_stream_url",
+            new_callable=AsyncMock,
         ):
             response = client.get("/device/689E194F7D2F/preset/1")
             assert response.status_code == 502
@@ -187,6 +190,7 @@ class TestStreamDevicePreset:
             return_value=mock_http_client,
         ), patch(
             "opencloudtouch.presets.service.PresetService._validate_stream_url",
+            new_callable=AsyncMock,
         ):
             response = client.get("/device/689E194F7D2F/preset/1")
             assert response.status_code == 502
@@ -201,7 +205,9 @@ class TestGetPresetDescriptor:
         """Test descriptor returns 302 redirect to stream URL."""
         mock_preset_service.get_preset = AsyncMock(return_value=sample_preset)
 
-        with patch.object(mock_preset_service, "_validate_stream_url", new_callable=AsyncMock):
+        with patch.object(
+            mock_preset_service, "_validate_stream_url", new_callable=AsyncMock
+        ):
             response = client.get(
                 "/descriptor/device/689E194F7D2F/preset/1",
                 follow_redirects=False,
