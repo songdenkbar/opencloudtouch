@@ -31,6 +31,7 @@ interface ConfirmDialogProps {
   cancelLabel?: string;
   /** Called when the user confirms */
   onConfirm: () => void;
+  /** Hide Cancel for informational dialogs that only need an OK action. */
   showCancelButton?: boolean;
   /** Called when the user cancels (Escape, overlay click, cancel button) */
   onCancel: () => void;
@@ -107,10 +108,10 @@ export default function ConfirmDialog({
           {showCancelButton && (
             <button
               ref={cancelRef}
-            className="confirm-dialog-btn confirm-dialog-btn--cancel"
-            onClick={onCancel}
-            data-testid="confirm-dialog-cancel"
-          >
+              className="confirm-dialog-btn confirm-dialog-btn--cancel"
+              onClick={onCancel}
+              data-testid="confirm-dialog-cancel"
+            >
               {resolvedCancelLabel}
             </button>
           )}
