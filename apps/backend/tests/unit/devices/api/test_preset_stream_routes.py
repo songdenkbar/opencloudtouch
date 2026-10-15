@@ -89,7 +89,7 @@ class TestStreamDevicePreset:
             "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
             return_value=mock_http_client,
         ), patch(
-            "opencloudtouch.devices.api.preset_stream_routes.validate_stream_url",
+            "opencloudtouch.presets.service.PresetService._validate_stream_url",
         ):
             with client.stream("GET", "/device/689E194F7D2F/preset/1") as response:
                 assert response.status_code == 200
@@ -135,7 +135,7 @@ class TestStreamDevicePreset:
             "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
             return_value=mock_http_client,
         ), patch(
-            "opencloudtouch.devices.api.preset_stream_routes.validate_stream_url",
+            "opencloudtouch.presets.service.PresetService._validate_stream_url",
         ):
             with client.stream("GET", f"/device/{device_id}/preset/1") as response:
                 body = b"".join(response.iter_bytes())
@@ -163,7 +163,7 @@ class TestStreamDevicePreset:
             "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
             return_value=mock_http_client,
         ), patch(
-            "opencloudtouch.devices.api.preset_stream_routes.validate_stream_url",
+            "opencloudtouch.presets.service.PresetService._validate_stream_url",
         ):
             response = client.get("/device/689E194F7D2F/preset/1")
             assert response.status_code == 502
@@ -186,65 +186,10 @@ class TestStreamDevicePreset:
             "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
             return_value=mock_http_client,
         ), patch(
-            "opencloudtouch.devices.api.preset_stream_routes.validate_stream_url",
+            "opencloudtouch.presets.service.PresetService._validate_stream_url",
         ):
             response = client.get("/device/689E194F7D2F/preset/1")
             assert response.status_code == 502
-
-
-class TestValidateStreamUrl:
-    """Tests for validate_stream_url SSRF protection."""
-
-    def test_rejects_ftp_scheme(self):
-        from opencloudtouch.devices.api.preset_stream_routes import validate_stream_url
-
-        with pytest.raises(Exception) as exc_info:
-            validate_stream_url("ftp://evil.com/stream")
-        assert exc_info.value.status_code == 400
-
-    def test_rejects_loopback(self):
-        from opencloudtouch.devices.api.preset_stream_routes import validate_stream_url
-
-        with patch(
-            "opencloudtouch.devices.api.preset_stream_routes.socket.getaddrinfo",
-            return_value=[(None, None, None, None, ("127.0.0.1", 0))],
-        ):
-            with pytest.raises(Exception) as exc_info:
-                validate_stream_url("https://evil.com/stream")
-            assert exc_info.value.status_code == 400
-
-    def test_rejects_link_local(self):
-        from opencloudtouch.devices.api.preset_stream_routes import validate_stream_url
-
-        with patch(
-            "opencloudtouch.devices.api.preset_stream_routes.socket.getaddrinfo",
-            return_value=[(None, None, None, None, ("169.254.1.1", 0))],
-        ):
-            with pytest.raises(Exception) as exc_info:
-                validate_stream_url("https://evil.com/stream")
-            assert exc_info.value.status_code == 400
-
-    def test_rejects_unresolvable_hostname(self):
-        import socket as _socket
-
-        from opencloudtouch.devices.api.preset_stream_routes import validate_stream_url
-
-        with patch(
-            "opencloudtouch.devices.api.preset_stream_routes.socket.getaddrinfo",
-            side_effect=_socket.gaierror("Name resolution failed"),
-        ):
-            with pytest.raises(Exception) as exc_info:
-                validate_stream_url("https://nonexistent.invalid/stream")
-            assert exc_info.value.status_code == 400
-
-    def test_allows_valid_public_url(self):
-        from opencloudtouch.devices.api.preset_stream_routes import validate_stream_url
-
-        with patch(
-            "opencloudtouch.devices.api.preset_stream_routes.socket.getaddrinfo",
-            return_value=[(None, None, None, None, ("93.184.216.34", 0))],
-        ):
-            validate_stream_url("https://stream.example.com/audio.mp3")
 
 
 class TestGetPresetDescriptor:
@@ -256,13 +201,29 @@ class TestGetPresetDescriptor:
         """Test descriptor returns 302 redirect to stream URL."""
         mock_preset_service.get_preset = AsyncMock(return_value=sample_preset)
 
+        with patch.object(mock_preset_service, "_validate_stream_url", new_callable=AsyncMock):
+            response = client.get(
+                "/descriptor/device/689E194F7D2F/preset/1",
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 302
+        assert response.headers["location"] == sample_preset.station_url
+
+
+    def test_descriptor_rejects_invalid_stream_url(
+        self, client, mock_preset_service, sample_preset
+    ):
+        mock_preset_service.get_preset = AsyncMock(return_value=sample_preset)
+        mock_preset_service._validate_stream_url = AsyncMock(
+            side_effect=ValueError("Stream URL resolves to a non-public IP address")
+        )
         response = client.get(
             "/descriptor/device/689E194F7D2F/preset/1",
             follow_redirects=False,
         )
-
-        assert response.status_code == 302
-        assert response.headers["location"] == sample_preset.station_url
+        assert response.status_code == 400
+        assert "location" not in response.headers
 
     def test_descriptor_not_found_returns_404(self, client, mock_preset_service):
         """Test descriptor returns 404 when preset not configured."""
