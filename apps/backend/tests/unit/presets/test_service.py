@@ -528,13 +528,13 @@ async def test_set_preset_manual_unreachable_does_not_save(service):
 
 @pytest.mark.asyncio
 async def test_set_preset_non_manual_skips_stream_validation(service):
-    """Existing provider presets must not trigger manual URL validation."""
+    """Provider presets must not run the manual reachability probe."""
     saved_preset = MagicMock()
     service.repository.set_preset = AsyncMock(return_value=saved_preset)
 
     with patch.object(
         service,
-        "_validate_stream_url",
+        "_check_stream_reachable",
         AsyncMock(),
     ) as mock_validate:
         with patch(
