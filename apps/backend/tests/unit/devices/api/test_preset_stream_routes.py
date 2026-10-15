@@ -5,6 +5,7 @@ Covers:
 - GET /descriptor/device/{device_id}/preset/{preset_id} — XML/redirect descriptor
 """
 
+import socket
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -18,6 +19,7 @@ from opencloudtouch.devices.client import NowPlayingInfo
 from opencloudtouch.devices.state import DeviceStateManager
 from opencloudtouch.main import app
 from opencloudtouch.presets.models import Preset
+from opencloudtouch.presets.service import PresetService
 
 
 @pytest.fixture
@@ -212,6 +214,78 @@ class TestStreamDevicePreset:
             sample_preset.station_url
         )
         client_cls.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "is_descriptor"),
+    [
+        ("/device/689E194F7D2F/preset/1", False),
+        ("/descriptor/device/689E194F7D2F/preset/1", True),
+    ],
+)
+@pytest.mark.parametrize(
+    ("resolved_ip", "allowed"),
+    [("1.1.1.1", True), ("192.168.1.50", False)],
+)
+def test_radiobrowser_preset_uses_real_shared_url_validator(
+    client, mock_preset_service, sample_preset, endpoint, is_descriptor,
+    resolved_ip, allowed,
+):
+    """Exercise the actual DNS/IP policy for a normal RadioBrowser preset.
+
+    Only DNS and the audio transport are mocked, not _validate_stream_url.
+    No external network connections are made.
+    """
+    assert not sample_preset.station_uuid.startswith("manual-")
+    mock_preset_service.get_preset = AsyncMock(return_value=sample_preset)
+    mock_preset_service._validate_stream_url = PresetService._validate_stream_url
+
+    upstream = MagicMock()
+    upstream.status_code = 200
+    upstream.headers = {"content-type": "audio/mpeg"}
+    upstream.aclose = AsyncMock()
+
+    async def audio_chunks(chunk_size=8192):
+        yield b"radiobrowser_audio"
+
+    upstream.aiter_bytes = audio_chunks
+    http_client = MagicMock()
+    http_client.send = AsyncMock(return_value=upstream)
+    http_client.aclose = AsyncMock()
+
+    address = (
+        socket.AF_INET,
+        socket.SOCK_STREAM,
+        6,
+        "",
+        (resolved_ip, 443),
+    )
+    with patch(
+        "asyncio.BaseEventLoop.getaddrinfo",
+        new_callable=AsyncMock,
+        return_value=[address],
+    ) as resolve, patch(
+        "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
+        return_value=http_client,
+    ) as client_cls:
+        response = client.get(endpoint, follow_redirects=False)
+
+    resolve.assert_awaited_once()
+    assert resolve.await_args.args[0] == "stream.absolutradio.de"
+
+    if not allowed:
+        assert response.status_code == 400
+        assert "non-public" in response.json()["detail"]
+        client_cls.assert_not_called()
+    elif is_descriptor:
+        assert response.status_code == 302
+        assert response.headers["location"] == sample_preset.station_url
+        client_cls.assert_not_called()
+    else:
+        assert response.status_code == 200
+        assert response.content == b"radiobrowser_audio"
+        http_client.send.assert_awaited_once()
+        http_client.aclose.assert_awaited_once()
 
 
 class TestGetPresetDescriptor:
