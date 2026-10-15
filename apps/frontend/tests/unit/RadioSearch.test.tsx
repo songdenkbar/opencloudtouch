@@ -580,10 +580,11 @@ describe("RadioSearch Component", () => {
       });
       fireEvent.click(screen.getByRole("button", { name: "Use station" }));
 
-      const errorDialog = await screen.findByRole("alertdialog");
-      expect(screen.getByRole("button", { name: "OK" })).toHaveFocus();
+      await screen.findByRole("alertdialog");
+      const okButton = screen.getByRole("button", { name: "OK" });
+      expect(okButton).toHaveFocus();
 
-      fireEvent.keyDown(errorDialog, { key: "Escape" });
+      fireEvent.keyDown(okButton, { key: "Escape" });
 
       await waitFor(() =>
         expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
