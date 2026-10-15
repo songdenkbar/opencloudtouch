@@ -90,10 +90,15 @@ class TestStreamDevicePreset:
             return_value=mock_http_client,
         ), patch.object(
             mock_preset_service, "_validate_stream_url", new_callable=AsyncMock
-        ):
+        ) as validator:
             with client.stream("GET", "/device/689E194F7D2F/preset/1") as response:
                 assert response.status_code == 200
                 assert "audio" in response.headers.get("content-type", "")
+
+        # The shared reachability probe precedes the existing audio fetch.
+        # Their separate HTTP connections are a known trade-off of this small fix.
+        validator.assert_awaited_once_with(sample_preset.station_url)
+        mock_http_client.send.assert_awaited_once()
 
     def test_stream_stops_when_device_no_longer_playing(
         self, client, mock_preset_service, sample_preset, state_manager
