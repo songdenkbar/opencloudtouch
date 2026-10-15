@@ -95,8 +95,7 @@ class TestStreamDevicePreset:
                 assert response.status_code == 200
                 assert "audio" in response.headers.get("content-type", "")
 
-        # The shared reachability probe precedes the existing audio fetch.
-        # Their separate HTTP connections are a known trade-off of this small fix.
+        # Address validation precedes the audio fetch without an extra HTTP GET.
         validator.assert_awaited_once_with(sample_preset.station_url)
         mock_http_client.send.assert_awaited_once()
 
@@ -195,7 +194,6 @@ class TestStreamDevicePreset:
         ):
             response = client.get("/device/689E194F7D2F/preset/1")
             assert response.status_code == 502
-
 
     def test_proxy_rejects_invalid_stream_url_before_fetch(
         self, client, mock_preset_service, sample_preset
