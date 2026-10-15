@@ -727,10 +727,10 @@ async def test_common_url_validation_does_not_open_http_connection(service, monk
         {"radio.example.org": ["1.1.1.1"]},
         lambda request: (_ for _ in ()).throw(AssertionError("Unexpected HTTP GET")),
     )
-    await service._validate_stream_url("https://radio.example.org/live")
+    with patch("opencloudtouch.presets.service.httpx.AsyncClient") as client:
+        await service._validate_stream_url("https://radio.example.org/live")
+    client.assert_not_called()
     lookup.assert_awaited_once()
-
-
 
 
 @pytest.mark.asyncio
