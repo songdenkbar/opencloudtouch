@@ -88,9 +88,8 @@ class TestStreamDevicePreset:
         with patch(
             "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
             return_value=mock_http_client,
-        ), patch(
-            "opencloudtouch.presets.service.PresetService._validate_stream_url",
-            new_callable=AsyncMock,
+        ), patch.object(
+            mock_preset_service, "_validate_stream_url", new_callable=AsyncMock
         ):
             with client.stream("GET", "/device/689E194F7D2F/preset/1") as response:
                 assert response.status_code == 200
@@ -135,9 +134,8 @@ class TestStreamDevicePreset:
         with patch(
             "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
             return_value=mock_http_client,
-        ), patch(
-            "opencloudtouch.presets.service.PresetService._validate_stream_url",
-            new_callable=AsyncMock,
+        ), patch.object(
+            mock_preset_service, "_validate_stream_url", new_callable=AsyncMock
         ):
             with client.stream("GET", f"/device/{device_id}/preset/1") as response:
                 body = b"".join(response.iter_bytes())
@@ -164,9 +162,8 @@ class TestStreamDevicePreset:
         with patch(
             "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
             return_value=mock_http_client,
-        ), patch(
-            "opencloudtouch.presets.service.PresetService._validate_stream_url",
-            new_callable=AsyncMock,
+        ), patch.object(
+            mock_preset_service, "_validate_stream_url", new_callable=AsyncMock
         ):
             response = client.get("/device/689E194F7D2F/preset/1")
             assert response.status_code == 502
@@ -188,12 +185,30 @@ class TestStreamDevicePreset:
         with patch(
             "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
             return_value=mock_http_client,
-        ), patch(
-            "opencloudtouch.presets.service.PresetService._validate_stream_url",
-            new_callable=AsyncMock,
+        ), patch.object(
+            mock_preset_service, "_validate_stream_url", new_callable=AsyncMock
         ):
             response = client.get("/device/689E194F7D2F/preset/1")
             assert response.status_code == 502
+
+
+    def test_proxy_rejects_invalid_stream_url_before_fetch(
+        self, client, mock_preset_service, sample_preset
+    ):
+        mock_preset_service.get_preset = AsyncMock(return_value=sample_preset)
+        mock_preset_service._validate_stream_url = AsyncMock(
+            side_effect=ValueError("Stream URL resolves to a non-public IP address")
+        )
+        with patch(
+            "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient"
+        ) as client_cls:
+            response = client.get("/device/689E194F7D2F/preset/1")
+
+        assert response.status_code == 400
+        mock_preset_service._validate_stream_url.assert_awaited_once_with(
+            sample_preset.station_url
+        )
+        client_cls.assert_not_called()
 
 
 class TestGetPresetDescriptor:
@@ -215,7 +230,6 @@ class TestGetPresetDescriptor:
 
         assert response.status_code == 302
         assert response.headers["location"] == sample_preset.station_url
-
 
     def test_descriptor_rejects_invalid_stream_url(
         self, client, mock_preset_service, sample_preset
