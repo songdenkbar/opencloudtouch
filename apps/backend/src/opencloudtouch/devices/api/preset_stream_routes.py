@@ -45,8 +45,6 @@ def _should_keep_streaming(
     return True
 
 
-
-
 router = APIRouter(prefix="/device", tags=["device-presets"])
 descriptor_router = APIRouter(prefix="/descriptor/device", tags=["device-descriptors"])
 
