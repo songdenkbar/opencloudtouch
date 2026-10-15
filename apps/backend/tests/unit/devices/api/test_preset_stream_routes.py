@@ -87,12 +87,15 @@ class TestStreamDevicePreset:
         mock_http_client.send = AsyncMock(return_value=mock_response)
         mock_http_client.aclose = AsyncMock()
 
-        with patch(
-            "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
-            return_value=mock_http_client,
-        ), patch.object(
-            mock_preset_service, "_validate_stream_url", new_callable=AsyncMock
-        ) as validator:
+        with (
+            patch(
+                "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
+                return_value=mock_http_client,
+            ),
+            patch.object(
+                mock_preset_service, "_validate_stream_url", new_callable=AsyncMock
+            ) as validator,
+        ):
             with client.stream("GET", "/device/689E194F7D2F/preset/1") as response:
                 assert response.status_code == 200
                 assert "audio" in response.headers.get("content-type", "")
@@ -137,11 +140,14 @@ class TestStreamDevicePreset:
         mock_http_client.send = AsyncMock(return_value=mock_response)
         mock_http_client.aclose = AsyncMock()
 
-        with patch(
-            "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
-            return_value=mock_http_client,
-        ), patch.object(
-            mock_preset_service, "_validate_stream_url", new_callable=AsyncMock
+        with (
+            patch(
+                "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
+                return_value=mock_http_client,
+            ),
+            patch.object(
+                mock_preset_service, "_validate_stream_url", new_callable=AsyncMock
+            ),
         ):
             with client.stream("GET", f"/device/{device_id}/preset/1") as response:
                 body = b"".join(response.iter_bytes())
@@ -165,11 +171,14 @@ class TestStreamDevicePreset:
         mock_http_client.send = AsyncMock(return_value=mock_response)
         mock_http_client.aclose = AsyncMock()
 
-        with patch(
-            "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
-            return_value=mock_http_client,
-        ), patch.object(
-            mock_preset_service, "_validate_stream_url", new_callable=AsyncMock
+        with (
+            patch(
+                "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
+                return_value=mock_http_client,
+            ),
+            patch.object(
+                mock_preset_service, "_validate_stream_url", new_callable=AsyncMock
+            ),
         ):
             response = client.get("/device/689E194F7D2F/preset/1")
             assert response.status_code == 502
@@ -188,11 +197,14 @@ class TestStreamDevicePreset:
         )
         mock_http_client.aclose = AsyncMock()
 
-        with patch(
-            "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
-            return_value=mock_http_client,
-        ), patch.object(
-            mock_preset_service, "_validate_stream_url", new_callable=AsyncMock
+        with (
+            patch(
+                "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
+                return_value=mock_http_client,
+            ),
+            patch.object(
+                mock_preset_service, "_validate_stream_url", new_callable=AsyncMock
+            ),
         ):
             response = client.get("/device/689E194F7D2F/preset/1")
             assert response.status_code == 502
@@ -228,8 +240,13 @@ class TestStreamDevicePreset:
     [("1.1.1.1", True), ("192.168.1.50", False)],
 )
 def test_radiobrowser_preset_uses_real_shared_url_validator(
-    client, mock_preset_service, sample_preset, endpoint, is_descriptor,
-    resolved_ip, allowed,
+    client,
+    mock_preset_service,
+    sample_preset,
+    endpoint,
+    is_descriptor,
+    resolved_ip,
+    allowed,
 ):
     """Exercise the actual DNS/IP policy for a normal RadioBrowser preset.
 
@@ -260,14 +277,17 @@ def test_radiobrowser_preset_uses_real_shared_url_validator(
         "",
         (resolved_ip, 443),
     )
-    with patch(
-        "asyncio.BaseEventLoop.getaddrinfo",
-        new_callable=AsyncMock,
-        return_value=[address],
-    ) as resolve, patch(
-        "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
-        return_value=http_client,
-    ) as client_cls:
+    with (
+        patch(
+            "asyncio.BaseEventLoop.getaddrinfo",
+            new_callable=AsyncMock,
+            return_value=[address],
+        ) as resolve,
+        patch(
+            "opencloudtouch.devices.api.preset_stream_routes.httpx.AsyncClient",
+            return_value=http_client,
+        ) as client_cls,
+    ):
         response = client.get(endpoint, follow_redirects=False)
 
     resolve.assert_awaited_once()

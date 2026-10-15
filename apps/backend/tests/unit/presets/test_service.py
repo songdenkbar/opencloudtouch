@@ -594,7 +594,9 @@ def _mock_stream_network(monkeypatch, dns_records, handler):
 
 
 @pytest.mark.asyncio
-async def test_stream_validation_pins_public_ip_with_https_hostname(service, monkeypatch):
+async def test_stream_validation_pins_public_ip_with_https_hostname(
+    service, monkeypatch
+):
     """GET uses the verified IP but original Host and TLS certificate hostname."""
     requests = []
     lookup = _mock_stream_network(
@@ -650,7 +652,9 @@ async def test_stream_validation_blocks_non_public_addresses(service, monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_stream_validation_rechecks_and_pins_public_redirect(service, monkeypatch):
+async def test_stream_validation_rechecks_and_pins_public_redirect(
+    service, monkeypatch
+):
     requests = []
 
     def respond(req):
@@ -718,9 +722,10 @@ async def test_stream_validation_limits_redirects(service, monkeypatch):
     assert len(requests) == 6
 
 
-
 @pytest.mark.asyncio
-async def test_common_url_validation_does_not_open_http_connection(service, monkeypatch):
+async def test_common_url_validation_does_not_open_http_connection(
+    service, monkeypatch
+):
     """Preset playback and descriptors only resolve/check the URL."""
     lookup = _mock_stream_network(
         monkeypatch,

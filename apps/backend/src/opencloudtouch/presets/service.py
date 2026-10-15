@@ -92,7 +92,13 @@ class PresetService:
             port = parsed.port or (443 if parsed.scheme == "https" else 80)
             ip_host = f"[{ip}]" if ip.version == 6 else str(ip)
             pinned_url = urlunsplit(
-                (parsed.scheme, f"{ip_host}:{port}", parsed.path or "/", parsed.query, "")
+                (
+                    parsed.scheme,
+                    f"{ip_host}:{port}",
+                    parsed.path or "/",
+                    parsed.query,
+                    "",
+                )
             )
             extensions = (
                 {"sni_hostname": parsed.hostname} if parsed.scheme == "https" else {}
