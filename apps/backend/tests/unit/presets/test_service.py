@@ -481,7 +481,7 @@ async def test_set_preset_manual_stream_validates_before_saving(service):
 
     with patch.object(
         service,
-        "_validate_stream_url",
+        "_check_stream_reachable",
         AsyncMock(return_value=None),
     ) as mock_validate:
         with patch(
@@ -510,7 +510,7 @@ async def test_set_preset_manual_unreachable_does_not_save(service):
     """An unreachable manual stream must not be persisted."""
     with patch.object(
         service,
-        "_validate_stream_url",
+        "_check_stream_reachable",
         AsyncMock(side_effect=ValueError("Stream URL is not reachable")),
     ) as mock_validate:
         with pytest.raises(ValueError, match="Stream URL is not reachable"):
@@ -561,7 +561,7 @@ async def test_set_preset_non_manual_skips_stream_validation(service):
 async def test_validate_stream_url_rejects_non_http_scheme(service):
     """Manual streams only accept HTTP and HTTPS URLs."""
     with pytest.raises(ValueError, match="HTTP or HTTPS"):
-        await service._validate_stream_url("file:///tmp/radio.mp3")
+        await service._check_stream_reachable("file:///tmp/radio.mp3")
 
 
 def _mock_stream_network(monkeypatch, dns_records, handler):
@@ -603,7 +603,7 @@ async def test_stream_validation_pins_public_ip_with_https_hostname(service, mon
         lambda req: (requests.append(req), httpx.Response(200))[1],
     )
 
-    await service._validate_stream_url("https://radio.example.org/live?quality=high")
+    await service._check_stream_reachable("https://radio.example.org/live?quality=high")
 
     assert len(requests) == 1
     assert str(requests[0].url) == "https://1.1.1.1/live?quality=high"
@@ -645,7 +645,7 @@ async def test_stream_validation_blocks_non_public_addresses(service, monkeypatc
     )
 
     with pytest.raises(ValueError, match="non-public"):
-        await service._validate_stream_url(url)
+        await service._check_stream_reachable(url)
     assert not requests
 
 
@@ -670,7 +670,7 @@ async def test_stream_validation_rechecks_and_pins_public_redirect(service, monk
         respond,
     )
 
-    await service._validate_stream_url("https://radio.example.org/start")
+    await service._check_stream_reachable("https://radio.example.org/start")
 
     assert len(requests) == 2
     assert lookup.await_count == 2
@@ -697,7 +697,7 @@ async def test_stream_validation_rejects_private_redirect(service, monkeypatch):
     )
 
     with pytest.raises(ValueError, match="non-public"):
-        await service._validate_stream_url("http://radio.example.org/start")
+        await service._check_stream_reachable("http://radio.example.org/start")
     assert len(requests) == 1
 
 
@@ -714,8 +714,23 @@ async def test_stream_validation_limits_redirects(service, monkeypatch):
     )
 
     with pytest.raises(ValueError, match="Too many"):
-        await service._validate_stream_url("http://radio.example.org/start")
+        await service._check_stream_reachable("http://radio.example.org/start")
     assert len(requests) == 6
+
+
+
+@pytest.mark.asyncio
+async def test_common_url_validation_does_not_open_http_connection(service, monkeypatch):
+    """Preset playback and descriptors only resolve/check the URL."""
+    lookup = _mock_stream_network(
+        monkeypatch,
+        {"radio.example.org": ["1.1.1.1"]},
+        lambda request: (_ for _ in ()).throw(AssertionError("Unexpected HTTP GET")),
+    )
+    await service._validate_stream_url("https://radio.example.org/live")
+    lookup.assert_awaited_once()
+
+
 
 
 @pytest.mark.asyncio
