@@ -1,13 +1,11 @@
 import json
-import os
 from pathlib import Path
 from typing import Any
 
 from opencloudtouch import __version__
 
 
-DB_PATH = Path(os.getenv("OCT_DB_PATH", "/data/oct.db"))
-STATUS_PATH = DB_PATH.parent / "update-status.json"
+STATUS_PATH = Path("/data/update-status.json")  # Persistent volume shared with update helper
 
 
 def set_update_status(
