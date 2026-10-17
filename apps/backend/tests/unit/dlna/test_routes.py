@@ -230,7 +230,6 @@ async def test_dlna_playback_controls(monkeypatch):
     service.next.return_value = item
     service.previous.return_value = item
 
-
     class Device:
         ip = "192.168.1.10"
 

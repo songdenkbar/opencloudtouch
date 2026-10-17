@@ -205,7 +205,10 @@ async def test_play_uses_cached_server_and_closes_subscriptions():
         control_url="http://192.0.2.10/control",
     )
     item = DlnaItem(
-        id="track-1", parent_id="folder", title="Song", is_container=False,
+        id="track-1",
+        parent_id="folder",
+        title="Song",
+        is_container=False,
         resource_url="http://192.0.2.10/song.mp3",
     )
     discovery = AsyncMock()

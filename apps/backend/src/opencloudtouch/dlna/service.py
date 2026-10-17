@@ -60,9 +60,7 @@ class DlnaService:
             raise LookupError(f"DLNA server not found: {server_id}")
         return server
 
-    async def browse(
-        self, server_id: str, object_id: str = "0"
-    ) -> list[DlnaItem]:
+    async def browse(self, server_id: str, object_id: str = "0") -> list[DlnaItem]:
         """Browse a cached server without repeated SSDP searches."""
         server = await self.get_server(server_id)
         return await self.client.browse(server, object_id)
