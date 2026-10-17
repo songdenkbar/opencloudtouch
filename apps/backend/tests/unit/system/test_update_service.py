@@ -4,6 +4,12 @@ import pytest
 from opencloudtouch.system import update_service
 
 
+
+@pytest.fixture(autouse=True)
+def reset_release_cache(monkeypatch):
+    monkeypatch.setattr(update_service, "_release_cache", None)
+    monkeypatch.setattr(update_service, "_release_cache_time", 0.0)
+
 class FakeResponse:
     def __init__(self, data=None, status_code=200):
         self._data = data
