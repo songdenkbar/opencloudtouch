@@ -659,3 +659,41 @@ async def test_launch_helper_requires_data_mount(monkeypatch):
             "old123",
             "ghcr.io/opencloudtouch/opencloudtouch:1.5.9",
         )
+
+
+@pytest.mark.asyncio
+async def test_release_cache_reuses_response(monkeypatch):
+    calls = 0
+
+    async def fetch():
+        nonlocal calls
+        calls += 1
+        return {"latest": "1.5.9", "release_url": "https://example.test/release"}
+
+    monkeypatch.setattr(update_service, "_fetch_latest_release", fetch)
+    monkeypatch.setattr(update_service, "_release_cache", None)
+    monkeypatch.setattr(update_service, "_release_cache_time", 0.0)
+
+    first = await update_service.get_latest_release()
+    second = await update_service.get_latest_release()
+    assert first == second
+    assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_release_cache_refreshes_after_expiry(monkeypatch):
+    calls = 0
+
+    async def fetch():
+        nonlocal calls
+        calls += 1
+        return {"latest": "1.5.9", "release_url": "https://example.test/release"}
+
+    monkeypatch.setattr(update_service, "_fetch_latest_release", fetch)
+    monkeypatch.setattr(update_service, "_release_cache", None)
+    monkeypatch.setattr(update_service, "_release_cache_time", 0.0)
+    monkeypatch.setattr(update_service.time, "monotonic", lambda: 10000.0)
+    await update_service.get_latest_release()
+    monkeypatch.setattr(update_service.time, "monotonic", lambda: 12000.0)
+    await update_service.get_latest_release()
+    assert calls == 2
