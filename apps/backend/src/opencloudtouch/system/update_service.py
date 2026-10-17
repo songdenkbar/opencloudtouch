@@ -1,4 +1,6 @@
+import asyncio
 import json
+import time
 import re
 from collections.abc import Callable
 from typing import Any
@@ -10,6 +12,11 @@ from opencloudtouch import __version__, is_official_build
 
 DOCKER_SOCKET = "/var/run/docker.sock"
 DOCKER_BASE_URL = "http://docker"
+
+_release_cache = None
+_release_cache_time = 0.0
+_release_lock = asyncio.Lock()
+_RELEASE_CACHE_TTL = 1800
 
 GITHUB_RELEASE_URL = (
     "https://api.github.com/repos/opencloudtouch/"
@@ -43,6 +50,18 @@ def target_image_for_version(version: str) -> str:
 
 
 async def get_latest_release() -> dict[str, str]:
+    global _release_cache, _release_cache_time
+    async with _release_lock:
+        now = time.monotonic()
+        if _release_cache is not None and now - _release_cache_time < _RELEASE_CACHE_TTL:
+            return _release_cache.copy()
+        release = await _fetch_latest_release()
+        _release_cache = release.copy()
+        _release_cache_time = time.monotonic()
+        return release
+
+
+async def _fetch_latest_release() -> dict[str, str]:
     timeout = httpx.Timeout(
         connect=5.0,
         read=10.0,
