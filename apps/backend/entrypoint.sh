@@ -144,16 +144,11 @@ main() {
     if [ "$(id -u)" = "0" ]; then
         log_info "Dropping privileges to oct user"
 
+        # Grant access to oct only, never to the socket's owning group.
         if [ -S /var/run/docker.sock ]; then
-            docker_gid="$(stat -c '%g' /var/run/docker.sock)"
-            docker_group="$(getent group "$docker_gid" | cut -d: -f1 || true)"
-
-            if [ -z "$docker_group" ]; then
-                docker_group="docker-host"
-                groupadd -g "$docker_gid" "$docker_group"
+            if ! setfacl -m u:oct:rw /var/run/docker.sock; then
+                log_warn "Could not grant Docker socket access; self-update unavailable."
             fi
-
-            usermod -aG "$docker_group" oct
         fi
 
         exec gosu oct "$0" "$@"
