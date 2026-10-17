@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import pwd
 import sys
 from pathlib import Path
 from typing import Any
@@ -21,9 +22,7 @@ STATUS_PATH = Path(
 
 def read_status() -> dict[str, Any]:
     try:
-        return json.loads(
-            STATUS_PATH.read_text(encoding="utf-8")
-        )
+        return json.loads(STATUS_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
 
@@ -48,6 +47,11 @@ def set_status(
         json.dumps(data),
         encoding="utf-8",
     )
+    # Keep the status file writable by the non-root OCT server after replacement.
+    if os.geteuid() == 0:
+        oct_user = pwd.getpwnam("oct")
+        os.chown(tmp, oct_user.pw_uid, oct_user.pw_gid)
+
     tmp.replace(STATUS_PATH)
 
 
@@ -59,35 +63,24 @@ async def wait_for_health(
     for _ in range(attempts):
         await asyncio.sleep(2)
 
-        response = await client.get(
-            f"/containers/{container_id}/json"
-        )
+        response = await client.get(f"/containers/{container_id}/json")
         response.raise_for_status()
 
         inspect = response.json()
         state = inspect["State"]
 
         if not state.get("Running"):
-            raise RuntimeError(
-                "Updated container stopped unexpectedly"
-            )
+            raise RuntimeError("Updated container stopped unexpectedly")
 
-        health = (
-            state.get("Health", {})
-            .get("Status")
-        )
+        health = state.get("Health", {}).get("Status")
 
         if health == "healthy":
             return
 
         if health == "unhealthy":
-            raise RuntimeError(
-                "Updated container became unhealthy"
-            )
+            raise RuntimeError("Updated container became unhealthy")
 
-    raise RuntimeError(
-        "Timed out waiting for updated container health"
-    )
+    raise RuntimeError("Timed out waiting for updated container health")
 
 
 def build_container_config(
@@ -107,7 +100,8 @@ def build_container_config(
         key: value
         for key, value in inspect["Config"].get("Labels", {}).items()
         if key.startswith("com.docker.compose.")
-        and key not in {
+        and key
+        not in {
             "com.docker.compose.image",
             "com.docker.compose.config-hash",
         }
@@ -130,10 +124,6 @@ def build_container_config(
     if labels:
         config["Labels"] = labels
 
-    healthcheck = inspect["Config"].get("Healthcheck")
-    if healthcheck is not None:
-        config["Healthcheck"] = healthcheck
-
     return config
 
 
@@ -141,9 +131,7 @@ async def remove_container(
     client: httpx.AsyncClient,
     container_id: str,
 ) -> None:
-    inspect_response = await client.get(
-        f"/containers/{container_id}/json"
-    )
+    inspect_response = await client.get(f"/containers/{container_id}/json")
 
     if inspect_response.status_code == 404:
         return
@@ -179,9 +167,7 @@ async def create_and_start(
 
     container_id = response.json()["Id"]
 
-    response = await client.post(
-        f"/containers/{container_id}/start"
-    )
+    response = await client.post(f"/containers/{container_id}/start")
     response.raise_for_status()
 
     return container_id
@@ -198,9 +184,7 @@ async def main() -> None:
     container_id = sys.argv[1]
     target_image = sys.argv[2]
 
-    transport = httpx.AsyncHTTPTransport(
-        uds=DOCKER_SOCKET
-    )
+    transport = httpx.AsyncHTTPTransport(uds=DOCKER_SOCKET)
 
     timeout = httpx.Timeout(
         connect=5.0,
@@ -215,9 +199,7 @@ async def main() -> None:
         timeout=timeout,
     ) as client:
         try:
-            response = await client.get(
-                f"/containers/{container_id}/json"
-            )
+            response = await client.get(f"/containers/{container_id}/json")
             response.raise_for_status()
             inspect = response.json()
 
@@ -225,12 +207,8 @@ async def main() -> None:
             old_image_id = inspect["Image"]
 
             status = read_status()
-            previous_version = status.get(
-                "current_version"
-            )
-            target_version = status.get(
-                "target_version"
-            )
+            previous_version = status.get("current_version")
+            target_version = status.get("target_version")
 
             new_config = build_container_config(
                 inspect,
@@ -257,12 +235,10 @@ async def main() -> None:
                 container_id,
             )
 
-            new_container_id = (
-                await create_and_start(
-                    client,
-                    name,
-                    new_config,
-                )
+            new_container_id = await create_and_start(
+                client,
+                name,
+                new_config,
             )
 
             await wait_for_health(
@@ -279,20 +255,13 @@ async def main() -> None:
                 current_version=target_version,
             )
 
-            print(
-                f"Replaced {name}: "
-                f"{container_id} -> "
-                f"{new_container_id}"
-            )
+            print(f"Replaced {name}: {container_id} -> {new_container_id}")
 
         except Exception as update_error:
             set_status(
                 "rolling_back",
                 progress_pct=95,
-                message=(
-                    "Update failed; restoring "
-                    "previous version"
-                ),
+                message=("Update failed; restoring previous version"),
                 error=str(update_error),
             )
 
@@ -303,12 +272,10 @@ async def main() -> None:
                     name,
                 )
 
-                rollback_container_id = (
-                    await create_and_start(
-                        client,
-                        name,
-                        rollback_config,
-                    )
+                rollback_container_id = await create_and_start(
+                    client,
+                    name,
+                    rollback_config,
                 )
 
                 await wait_for_health(
@@ -319,40 +286,27 @@ async def main() -> None:
                 set_status(
                     "rolled_back",
                     progress_pct=100,
-                    message=(
-                        "Previous version restored"
-                    ),
-                    container_id=(
-                        rollback_container_id
-                    ),
+                    message=("Previous version restored"),
+                    container_id=(rollback_container_id),
                     image=old_image_id,
-                    current_version=(
-                        previous_version
-                    ),
+                    current_version=(previous_version),
                     error=str(update_error),
                 )
 
-                print(
-                    "Rollback completed for "
-                    f"{name}: "
-                    f"{rollback_container_id}"
-                )
+                print(f"Rollback completed for {name}: {rollback_container_id}")
 
             except Exception as rollback_error:
                 set_status(
                     "failed",
                     progress_pct=100,
-                    message=(
-                        "Update and rollback failed"
-                    ),
+                    message=("Update and rollback failed"),
                     error=str(update_error),
-                    rollback_error=str(
-                        rollback_error
-                    ),
+                    rollback_error=str(rollback_error),
                 )
                 raise
 
             raise SystemExit(1)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

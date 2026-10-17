@@ -19,14 +19,11 @@ _release_lock = asyncio.Lock()
 _RELEASE_CACHE_TTL = 1800
 
 GITHUB_RELEASE_URL = (
-    "https://api.github.com/repos/opencloudtouch/"
-    "opencloudtouch/releases/latest"
+    "https://api.github.com/repos/opencloudtouch/opencloudtouch/releases/latest"
 )
 OFFICIAL_IMAGE_REPOSITORY = "ghcr.io/opencloudtouch/opencloudtouch"
 
-_VERSION_RE = re.compile(
-    r"^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$"
-)
+_VERSION_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$")
 
 
 class UpdateCheckError(RuntimeError):
@@ -53,7 +50,10 @@ async def get_latest_release() -> dict[str, str]:
     global _release_cache, _release_cache_time
     async with _release_lock:
         now = time.monotonic()
-        if _release_cache is not None and now - _release_cache_time < _RELEASE_CACHE_TTL:
+        if (
+            _release_cache is not None
+            and now - _release_cache_time < _RELEASE_CACHE_TTL
+        ):
             return _release_cache.copy()
         release = await _fetch_latest_release()
         _release_cache = release.copy()
@@ -80,9 +80,7 @@ async def _fetch_latest_release() -> dict[str, str]:
             response = await client.get(GITHUB_RELEASE_URL)
             response.raise_for_status()
     except httpx.HTTPError as exc:
-        raise UpdateCheckError(
-            f"Failed to check GitHub Releases: {exc}"
-        ) from exc
+        raise UpdateCheckError(f"Failed to check GitHub Releases: {exc}") from exc
 
     release: dict[str, Any] = response.json()
 
@@ -90,14 +88,10 @@ async def _fetch_latest_release() -> dict[str, str]:
     release_url = release.get("html_url")
 
     if not isinstance(tag_name, str) or not tag_name:
-        raise UpdateCheckError(
-            "GitHub release response has no valid tag_name"
-        )
+        raise UpdateCheckError("GitHub release response has no valid tag_name")
 
     if not isinstance(release_url, str) or not release_url:
-        raise UpdateCheckError(
-            "GitHub release response has no valid html_url"
-        )
+        raise UpdateCheckError("GitHub release response has no valid html_url")
 
     latest = tag_name.removeprefix("v")
 
@@ -162,9 +156,7 @@ async def get_oct_container():
 
 async def get_container_inspect(container_id: str):
     async with await get_docker_client() as client:
-        response = await client.get(
-            f"/containers/{container_id}/json"
-        )
+        response = await client.get(f"/containers/{container_id}/json")
         response.raise_for_status()
         return response.json()
 
@@ -235,23 +227,13 @@ async def pull_oct_image(
                         total,
                     )
 
-                    downloaded = sum(
-                        value[0]
-                        for value in layer_progress.values()
-                    )
-                    total_size = sum(
-                        value[1]
-                        for value in layer_progress.values()
-                    )
+                    downloaded = sum(value[0] for value in layer_progress.values())
+                    total_size = sum(value[1] for value in layer_progress.values())
 
                     if total_size > 0:
                         progress = min(
                             89,
-                            5 + int(
-                                downloaded
-                                / total_size
-                                * 84
-                            ),
+                            5 + int(downloaded / total_size * 84),
                         )
 
                         if (
@@ -278,9 +260,7 @@ async def launch_update_helper(
     target_image: str,
 ):
     async with await get_docker_client() as client:
-        inspect_response = await client.get(
-            f"/containers/{target_container_id}/json"
-        )
+        inspect_response = await client.get(f"/containers/{target_container_id}/json")
         inspect_response.raise_for_status()
         inspect = inspect_response.json()
 
@@ -294,25 +274,14 @@ async def launch_update_helper(
         )
 
         if data_mount is None:
-            raise RuntimeError(
-                "OpenCloudTouch /data mount not found"
-            )
+            raise RuntimeError("OpenCloudTouch /data mount not found")
 
         if data_mount["Type"] == "volume":
-            data_bind = (
-                f'{data_mount["Name"]}:'
-                "/oct-update-data:rw"
-            )
+            data_bind = f"{data_mount['Name']}:/oct-update-data:rw"
         elif data_mount["Type"] == "bind":
-            data_bind = (
-                f'{data_mount["Source"]}:'
-                "/oct-update-data:rw"
-            )
+            data_bind = f"{data_mount['Source']}:/oct-update-data:rw"
         else:
-            raise RuntimeError(
-                "Unsupported /data mount type: "
-                f'{data_mount["Type"]}'
-            )
+            raise RuntimeError(f"Unsupported /data mount type: {data_mount['Type']}")
 
         # Run the helper from the currently working immutable image.
         # The helper can therefore recover even if the new image is broken.
@@ -328,13 +297,11 @@ async def launch_update_helper(
                 target_image,
             ],
             "Env": [
-                "OCT_UPDATE_STATUS_PATH="
-                "/oct-update-data/update-status.json",
+                "OCT_UPDATE_STATUS_PATH=/oct-update-data/update-status.json",
             ],
             "HostConfig": {
                 "Binds": [
-                    "/var/run/docker.sock:"
-                    "/var/run/docker.sock",
+                    "/var/run/docker.sock:/var/run/docker.sock",
                     data_bind,
                 ],
                 "AutoRemove": True,
@@ -349,9 +316,7 @@ async def launch_update_helper(
 
         helper_id = response.json()["Id"]
 
-        response = await client.post(
-            f"/containers/{helper_id}/start"
-        )
+        response = await client.post(f"/containers/{helper_id}/start")
         response.raise_for_status()
 
         return helper_id

@@ -3287,7 +3287,14 @@ paths:
       tags:
       - System
       summary: Update Status
-      operationId: update_status_api_system_update_status_getcomponents:
+      operationId: update_status_api_system_update_status_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+components:
   schemas:
     AuditBatchRequest:
       properties:

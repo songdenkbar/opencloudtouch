@@ -38,9 +38,7 @@ class FakeClient:
         return False
 
     async def get(self, path):
-        assert path == (
-            "/containers/old123/json"
-        )
+        assert path == ("/containers/old123/json")
         return FakeResponse(self.inspect)
 
 
@@ -52,10 +50,7 @@ def old_inspect():
             "Running": True,
         },
         "Config": {
-            "Image": (
-                "ghcr.io/opencloudtouch/"
-                "opencloudtouch:1.5.8"
-            ),
+            "Image": ("ghcr.io/opencloudtouch/opencloudtouch:1.5.8"),
             "Env": [
                 "OCT_PORT=7777",
                 "OCT_VERSION=1.5.8",
@@ -78,17 +73,14 @@ def old_inspect():
                 "com.docker.compose.service": "opencloudtouch",
                 "com.docker.compose.image": "sha256:stale",
                 "com.docker.compose.config-hash": "stale",
-              "org.opencontainers.image.version": "1.5.8",
+                "org.opencontainers.image.version": "1.5.8",
             },
         },
         "HostConfig": {
             "NetworkMode": "host",
             "Binds": [
                 "oct-data:/data:rw",
-                (
-                    "/var/run/docker.sock:"
-                    "/var/run/docker.sock:rw"
-                ),
+                ("/var/run/docker.sock:/var/run/docker.sock:rw"),
             ],
             "RestartPolicy": {
                 "Name": "unless-stopped",
@@ -103,30 +95,18 @@ def old_inspect():
 
 
 def test_build_container_config_filters_metadata():
-    config = (
-        update_helper.build_container_config(
-            old_inspect()
-        )
-    )
+    config = update_helper.build_container_config(old_inspect())
 
     assert "OCT_PORT=7777" in config["Env"]
 
-    assert not any(
-        value.startswith("OCT_VERSION=")
-        for value in config["Env"]
-    )
+    assert not any(value.startswith("OCT_VERSION=") for value in config["Env"])
 
-    assert not any(
-        value.startswith(
-            "OCT_BUILD_SIGNATURE="
-        )
-        for value in config["Env"]
-    )
+    assert not any(value.startswith("OCT_BUILD_SIGNATURE=") for value in config["Env"])
 
     assert "Entrypoint" not in config
     assert "Cmd" not in config
     assert "WorkingDir" not in config
-    assert config["Healthcheck"] == old_inspect()["Config"]["Healthcheck"]
+    assert "Healthcheck" not in config
 
     assert config["HostConfig"]["PortBindings"] == {"7777/tcp": [{"HostPort": "7777"}]}
     assert config["HostConfig"]["PublishAllPorts"] is False
@@ -156,10 +136,7 @@ async def test_successful_update_uses_target_image(
         [
             "update_helper",
             "old123",
-            (
-                "ghcr.io/opencloudtouch/"
-                "opencloudtouch:1.5.9"
-            ),
+            ("ghcr.io/opencloudtouch/opencloudtouch:1.5.9"),
         ],
     )
 
@@ -221,14 +198,9 @@ async def test_successful_update_uses_target_image(
 
     await update_helper.main()
 
-    assert created[0]["Image"] == (
-        "ghcr.io/opencloudtouch/"
-        "opencloudtouch:1.5.9"
-    )
+    assert created[0]["Image"] == ("ghcr.io/opencloudtouch/opencloudtouch:1.5.9")
 
-    status = json.loads(
-        update_helper.STATUS_PATH.read_text()
-    )
+    status = json.loads(update_helper.STATUS_PATH.read_text())
 
     assert status["phase"] == "ready"
     assert status["progress_pct"] == 100
@@ -254,10 +226,7 @@ async def test_failed_update_rolls_back_to_sha(
         [
             "update_helper",
             "old123",
-            (
-                "ghcr.io/opencloudtouch/"
-                "opencloudtouch:1.5.9"
-            ),
+            ("ghcr.io/opencloudtouch/opencloudtouch:1.5.9"),
         ],
     )
 
@@ -305,9 +274,7 @@ async def test_failed_update_rolls_back_to_sha(
         attempts=45,
     ):
         if container_id == "broken123":
-            raise RuntimeError(
-                "Updated container became unhealthy"
-            )
+            raise RuntimeError("Updated container became unhealthy")
 
     monkeypatch.setattr(
         update_helper,
@@ -328,17 +295,10 @@ async def test_failed_update_rolls_back_to_sha(
     with pytest.raises(SystemExit):
         await update_helper.main()
 
-    assert created[0]["Image"] == (
-        "ghcr.io/opencloudtouch/"
-        "opencloudtouch:1.5.9"
-    )
-    assert created[1]["Image"] == (
-        "sha256:oldimage"
-    )
+    assert created[0]["Image"] == ("ghcr.io/opencloudtouch/opencloudtouch:1.5.9")
+    assert created[1]["Image"] == ("sha256:oldimage")
 
-    status = json.loads(
-        update_helper.STATUS_PATH.read_text()
-    )
+    status = json.loads(update_helper.STATUS_PATH.read_text())
 
     assert status["phase"] == "rolled_back"
     assert status["current_version"] == "1.5.8"
@@ -351,6 +311,7 @@ class HealthClient:
     async def get(self, path):
         return FakeResponse({"State": next(self.states)})
 
+
 @pytest.mark.asyncio
 async def test_wait_for_health_accepts_healthy(monkeypatch):
     async def no_sleep(_):
@@ -358,11 +319,10 @@ async def test_wait_for_health_accepts_healthy(monkeypatch):
 
     monkeypatch.setattr(update_helper.asyncio, "sleep", no_sleep)
 
-    client = HealthClient(
-        [{"Running": True, "Health": {"Status": "healthy"}}]
-    )
+    client = HealthClient([{"Running": True, "Health": {"Status": "healthy"}}])
 
     await update_helper.wait_for_health(client, "abc", attempts=1)
+
 
 @pytest.mark.asyncio
 async def test_wait_for_health_rejects_stopped_container(monkeypatch):
@@ -376,6 +336,7 @@ async def test_wait_for_health_rejects_stopped_container(monkeypatch):
     with pytest.raises(RuntimeError, match="stopped unexpectedly"):
         await update_helper.wait_for_health(client, "abc", attempts=1)
 
+
 @pytest.mark.asyncio
 async def test_wait_for_health_rejects_unhealthy(monkeypatch):
     async def no_sleep(_):
@@ -383,12 +344,11 @@ async def test_wait_for_health_rejects_unhealthy(monkeypatch):
 
     monkeypatch.setattr(update_helper.asyncio, "sleep", no_sleep)
 
-    client = HealthClient(
-        [{"Running": True, "Health": {"Status": "unhealthy"}}]
-    )
+    client = HealthClient([{"Running": True, "Health": {"Status": "unhealthy"}}])
 
     with pytest.raises(RuntimeError, match="became unhealthy"):
         await update_helper.wait_for_health(client, "abc", attempts=1)
+
 
 @pytest.mark.asyncio
 async def test_wait_for_health_times_out(monkeypatch):
@@ -397,12 +357,11 @@ async def test_wait_for_health_times_out(monkeypatch):
 
     monkeypatch.setattr(update_helper.asyncio, "sleep", no_sleep)
 
-    client = HealthClient(
-        [{"Running": True, "Health": {"Status": "starting"}}]
-    )
+    client = HealthClient([{"Running": True, "Health": {"Status": "starting"}}])
 
     with pytest.raises(RuntimeError, match="Timed out"):
         await update_helper.wait_for_health(client, "abc", attempts=1)
+
 
 def test_helper_read_status_handles_invalid_json(tmp_path, monkeypatch):
     path = tmp_path / "update-status.json"
@@ -411,6 +370,7 @@ def test_helper_read_status_handles_invalid_json(tmp_path, monkeypatch):
     monkeypatch.setattr(update_helper, "STATUS_PATH", path)
 
     assert update_helper.read_status() == {}
+
 
 @pytest.mark.asyncio
 async def test_remove_container_ignores_missing_container():
@@ -422,6 +382,7 @@ async def test_remove_container_ignores_missing_container():
         Client(),
         "missing123",
     )
+
 
 @pytest.mark.asyncio
 async def test_remove_running_container():
@@ -460,6 +421,7 @@ async def test_remove_running_container():
         "/containers/abc123",
     ) in calls
 
+
 @pytest.mark.asyncio
 async def test_create_and_start_container():
     calls = []
@@ -484,6 +446,7 @@ async def test_create_and_start_container():
         "/containers/create",
         "/containers/new123/start",
     ]
+
 
 @pytest.mark.asyncio
 async def test_failed_rollback_sets_failed_status(
@@ -548,9 +511,7 @@ async def test_failed_rollback_sets_failed_status(
         raise RuntimeError("rollback create failed")
 
     async def wait(*args, **kwargs):
-        raise RuntimeError(
-            "Updated container became unhealthy"
-        )
+        raise RuntimeError("Updated container became unhealthy")
 
     monkeypatch.setattr(
         update_helper,
@@ -574,17 +535,11 @@ async def test_failed_rollback_sets_failed_status(
     ):
         await update_helper.main()
 
-    status = json.loads(
-        update_helper.STATUS_PATH.read_text(
-            encoding="utf-8"
-        )
-    )
+    status = json.loads(update_helper.STATUS_PATH.read_text(encoding="utf-8"))
 
     assert status["phase"] == "failed"
-    assert (
-        status["rollback_error"]
-        == "rollback create failed"
-    )
+    assert status["rollback_error"] == "rollback create failed"
+
 
 @pytest.mark.asyncio
 async def test_helper_preparation_failure_sets_failed(
@@ -627,16 +582,11 @@ async def test_helper_preparation_failure_sets_failed(
     ):
         await update_helper.main()
 
-    status = json.loads(
-        update_helper.STATUS_PATH.read_text(
-            encoding="utf-8"
-        )
-    )
+    status = json.loads(update_helper.STATUS_PATH.read_text(encoding="utf-8"))
 
     assert status["phase"] == "failed"
-    assert status["message"] == (
-        "Update helper preparation failed"
-    )
+    assert status["message"] == ("Update helper preparation failed")
+
 
 @pytest.mark.asyncio
 async def test_start_failure_rolls_back_by_container_name(
@@ -727,12 +677,38 @@ async def test_start_failure_rolls_back_by_container_name(
     ]
     assert create_count == 2
 
-    status = json.loads(
-        update_helper.STATUS_PATH.read_text(
-            encoding="utf-8"
-        )
-    )
+    status = json.loads(update_helper.STATUS_PATH.read_text(encoding="utf-8"))
 
     assert status["phase"] == "rolled_back"
     assert status["current_version"] == "1.5.8"
     assert status["error"] == "container start failed"
+
+
+def test_set_status_preserves_oct_ownership(tmp_path, monkeypatch):
+
+    path = tmp_path / "update-status.json"
+    monkeypatch.setattr(update_helper, "STATUS_PATH", path)
+    monkeypatch.setattr(update_helper.os, "geteuid", lambda: 0)
+
+    def fake_getpwnam(name):
+        assert name == "oct"
+        return type("User", (), {"pw_uid": 1000, "pw_gid": 1000})()
+
+    monkeypatch.setattr(update_helper.pwd, "getpwnam", fake_getpwnam)
+
+    chown_calls = []
+
+    def fake_chown(file_path, uid, gid):
+        chown_calls.append((file_path, uid, gid))
+
+    monkeypatch.setattr(update_helper.os, "chown", fake_chown)
+
+    update_helper.set_status(
+        "ready",
+        progress_pct=100,
+        message="Update complete",
+    )
+
+    assert path.exists()
+    assert chown_calls
+    assert chown_calls == [(path.with_suffix(".tmp"), 1000, 1000)]

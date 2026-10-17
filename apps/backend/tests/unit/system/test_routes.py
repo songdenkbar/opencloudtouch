@@ -34,9 +34,7 @@ async def test_update_status(monkeypatch):
         lambda: {"phase": "ready"},
     )
 
-    assert await routes.update_status() == {
-        "phase": "ready"
-    }
+    assert await routes.update_status() == {"phase": "ready"}
 
 
 @pytest.mark.asyncio
@@ -81,9 +79,7 @@ async def test_update_uses_target_release(
         return "helper123"
 
     def fake_status(phase, **kwargs):
-        statuses.append(
-            (phase, kwargs)
-        )
+        statuses.append((phase, kwargs))
 
     monkeypatch.setattr(
         routes,
@@ -118,10 +114,7 @@ async def test_update_uses_target_release(
         "target_version": "1.5.9",
     }
 
-    assert any(
-        phase == "pulling"
-        for phase, _ in statuses
-    )
+    assert any(phase == "pulling" for phase, _ in statuses)
 
     assert statuses[-1][0] == "restarting"
 
@@ -133,9 +126,7 @@ async def test_update_returns_409_when_active(
     monkeypatch.setattr(
         routes,
         "get_update_status",
-        lambda: {
-            "phase": "restarting"
-        },
+        lambda: {"phase": "restarting"},
     )
 
     with pytest.raises(HTTPException) as exc:
@@ -201,9 +192,7 @@ async def test_update_docker_failure_returns_503(monkeypatch):
     monkeypatch.setattr(
         routes,
         "set_update_status",
-        lambda phase, **kwargs: statuses.append(
-            (phase, kwargs)
-        ),
+        lambda phase, **kwargs: statuses.append((phase, kwargs)),
     )
 
     with pytest.raises(HTTPException) as exc:
@@ -212,6 +201,7 @@ async def test_update_docker_failure_returns_503(monkeypatch):
     assert exc.value.status_code == 503
     assert statuses[-1][0] == "failed"
     assert statuses[-1][1]["error"] == "Docker unavailable"
+
 
 @pytest.mark.asyncio
 async def test_check_update_maps_release_failure_to_503(monkeypatch):
@@ -224,6 +214,7 @@ async def test_check_update_maps_release_failure_to_503(monkeypatch):
         await routes.check_update()
 
     assert exc.value.status_code == 503
+
 
 @pytest.mark.asyncio
 async def test_update_returns_404_without_container(monkeypatch):

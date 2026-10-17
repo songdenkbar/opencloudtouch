@@ -71,9 +71,7 @@ async def update():
 
             target_version = update_info["latest"]
             current_version = update_info["current"]
-            target_image = target_image_for_version(
-                target_version
-            )
+            target_image = target_image_for_version(target_version)
 
             container = await get_oct_container()
 

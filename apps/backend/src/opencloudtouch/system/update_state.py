@@ -5,7 +5,9 @@ from typing import Any
 from opencloudtouch import __version__
 
 
-STATUS_PATH = Path("/data/update-status.json")  # Persistent volume shared with update helper
+STATUS_PATH = Path(
+    "/data/update-status.json"
+)  # Persistent volume shared with update helper
 
 
 def set_update_status(
@@ -42,9 +44,7 @@ def get_update_status() -> dict[str, Any]:
         }
 
     try:
-        data = json.loads(
-            STATUS_PATH.read_text(encoding="utf-8")
-        )
+        data = json.loads(STATUS_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {
             "phase": "unknown",

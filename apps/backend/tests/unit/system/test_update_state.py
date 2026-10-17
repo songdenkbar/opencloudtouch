@@ -108,9 +108,7 @@ def test_set_update_status_writes_valid_json(
         target_version="1.5.9",
     )
 
-    data = json.loads(
-        status_path.read_text(encoding="utf-8")
-    )
+    data = json.loads(status_path.read_text(encoding="utf-8"))
 
     assert data["phase"] == "pulling"
     assert data["progress_pct"] == 25
