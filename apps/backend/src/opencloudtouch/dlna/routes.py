@@ -91,8 +91,8 @@ async def play_dlna_item(
     server_id: str,
     object_id: str,
     device_id: str,
-    parent_id: str = Query(...),
     service: DlnaServiceDep,
+    parent_id: str = Query(...),
 ) -> dict:
     """Play a media server item directly on a SoundTouch device."""
     device_ip = await _get_device_ip(request, device_id)
