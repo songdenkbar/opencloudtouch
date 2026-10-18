@@ -68,6 +68,8 @@ class DlnaEventSubscriptions:
     def __init__(self, renderer: DlnaRenderer):
         self.renderer = renderer
         self._subscriptions: dict[str, DlnaSubscription] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
+        self._closed = False
 
     async def ensure(
         self,
@@ -75,60 +77,59 @@ class DlnaEventSubscriptions:
         device_ip: str,
         callback_url: str,
     ) -> None:
-        """Ensure that a device has an active AVTransport subscription."""
-        existing = self._subscriptions.get(device_id)
+        """Ensure one active subscription per device, even with concurrent callers."""
+        async with self._locks.setdefault(device_id, asyncio.Lock()):
+            if self._closed:
+                return
+            existing = self._subscriptions.get(device_id)
+            if (
+                existing is not None
+                and existing.device_ip == device_ip
+                and existing.callback_url == callback_url
+                and existing.renewal_task is not None
+                and not existing.renewal_task.done()
+            ):
+                return
 
-        if (
-            existing is not None
-            and existing.device_ip == device_ip
-            and existing.callback_url == callback_url
-            and existing.renewal_task is not None
-            and not existing.renewal_task.done()
-        ):
-            return
+            if existing is not None:
+                await self._remove_locked(device_id)
 
-        if existing is not None:
-            await self.remove(device_id)
-
-        sid, timeout_seconds = await self.renderer.subscribe(
-            device_ip,
-            callback_url,
-        )
-
-        subscription = DlnaSubscription(
-            device_id=device_id,
-            device_ip=device_ip,
-            callback_url=callback_url,
-            sid=sid,
-            timeout_seconds=timeout_seconds,
-        )
-        self._subscriptions[device_id] = subscription
-        subscription.renewal_task = asyncio.create_task(self._renew_loop(subscription))
-
-        logger.info(
-            "DLNA AVTransport subscribed: device=%s timeout=%ss",
-            device_id,
-            timeout_seconds,
-        )
+            sid, timeout_seconds = await self.renderer.subscribe(
+                device_ip, callback_url
+            )
+            subscription = DlnaSubscription(
+                device_id=device_id,
+                device_ip=device_ip,
+                callback_url=callback_url,
+                sid=sid,
+                timeout_seconds=timeout_seconds,
+            )
+            self._subscriptions[device_id] = subscription
+            subscription.renewal_task = asyncio.create_task(
+                self._renew_loop(subscription)
+            )
+            logger.info(
+                "DLNA AVTransport subscribed: device=%s timeout=%ss",
+                device_id,
+                timeout_seconds,
+            )
 
     async def remove(self, device_id: str) -> None:
-        """Remove and unsubscribe an active subscription."""
+        """Remove and unsubscribe a device without racing with ensure."""
+        async with self._locks.setdefault(device_id, asyncio.Lock()):
+            await self._remove_locked(device_id)
+
+    async def _remove_locked(self, device_id: str) -> None:
         subscription = self._subscriptions.pop(device_id, None)
         if subscription is None:
             return
-
-        current_task = asyncio.current_task()
-        if (
-            subscription.renewal_task is not None
-            and subscription.renewal_task is not current_task
-        ):
-            subscription.renewal_task.cancel()
+        task = subscription.renewal_task
+        if task is not None and task is not asyncio.current_task():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
         try:
-            await self.renderer.unsubscribe(
-                subscription.device_ip,
-                subscription.sid,
-            )
+            await self.renderer.unsubscribe(subscription.device_ip, subscription.sid)
         except Exception:
             logger.debug(
                 "DLNA AVTransport unsubscribe failed: device=%s",
@@ -137,26 +138,54 @@ class DlnaEventSubscriptions:
             )
 
     async def close(self) -> None:
-        """Close all active subscriptions."""
+        """Stop renewals and prevent new subscriptions during shutdown."""
+        self._closed = True
         for device_id in list(self._subscriptions):
             await self.remove(device_id)
 
     async def _renew_loop(self, subscription: DlnaSubscription) -> None:
-        """Renew a subscription before the renderer expires it."""
+        """Renew periodically, re-subscribing after transient renewal failures."""
         try:
             while True:
                 delay = max(1, int(subscription.timeout_seconds * 0.8))
                 await asyncio.sleep(delay)
-
-                sid, timeout_seconds = await self.renderer.renew_subscription(
-                    subscription.device_ip,
-                    subscription.sid,
-                    subscription.timeout_seconds,
-                )
+                try:
+                    sid, timeout_seconds = await self.renderer.renew_subscription(
+                        subscription.device_ip,
+                        subscription.sid,
+                        subscription.timeout_seconds,
+                    )
+                except Exception:
+                    logger.warning(
+                        "DLNA AVTransport renewal failed; trying a fresh subscription: device=%s",
+                        subscription.device_id,
+                        exc_info=True,
+                    )
+                    # No busy loop: retry at most three times with backoff.
+                    for attempt in range(3):
+                        await asyncio.sleep(2 ** attempt)
+                        try:
+                            sid, timeout_seconds = await self.renderer.subscribe(
+                                subscription.device_ip, subscription.callback_url
+                            )
+                            break
+                        except Exception:
+                            logger.warning(
+                                "DLNA AVTransport re-subscription attempt %s failed: device=%s",
+                                attempt + 1, subscription.device_id,
+                                exc_info=True,
+                            )
+                    else:
+                        logger.warning(
+                            "DLNA AVTransport recovery exhausted: device=%s",
+                            subscription.device_id,
+                        )
+                        if self._subscriptions.get(subscription.device_id) is subscription:
+                            self._subscriptions.pop(subscription.device_id, None)
+                        return
 
                 subscription.sid = sid
                 subscription.timeout_seconds = timeout_seconds
-
                 logger.debug(
                     "DLNA AVTransport subscription renewed: device=%s timeout=%ss",
                     subscription.device_id,
@@ -164,10 +193,3 @@ class DlnaEventSubscriptions:
                 )
         except asyncio.CancelledError:
             raise
-        except Exception:
-            logger.warning(
-                "DLNA AVTransport subscription renewal failed: device=%s",
-                subscription.device_id,
-                exc_info=True,
-            )
-            self._subscriptions.pop(subscription.device_id, None)
