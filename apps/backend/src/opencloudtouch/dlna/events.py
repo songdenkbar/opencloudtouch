@@ -163,7 +163,7 @@ class DlnaEventSubscriptions:
                     )
                     # No busy loop: retry at most three times with backoff.
                     for attempt in range(3):
-                        await asyncio.sleep(2 ** attempt)
+                        await asyncio.sleep(2**attempt)
                         try:
                             sid, timeout_seconds = await self.renderer.subscribe(
                                 subscription.device_ip, subscription.callback_url
@@ -184,7 +184,8 @@ class DlnaEventSubscriptions:
                         except Exception:
                             logger.warning(
                                 "DLNA AVTransport re-subscription attempt %s failed: device=%s",
-                                attempt + 1, subscription.device_id,
+                                attempt + 1,
+                                subscription.device_id,
                                 exc_info=True,
                             )
                     else:
@@ -192,7 +193,10 @@ class DlnaEventSubscriptions:
                             "DLNA AVTransport recovery exhausted: device=%s",
                             subscription.device_id,
                         )
-                        if self._subscriptions.get(subscription.device_id) is subscription:
+                        if (
+                            self._subscriptions.get(subscription.device_id)
+                            is subscription
+                        ):
                             self._subscriptions.pop(subscription.device_id, None)
                         return
 

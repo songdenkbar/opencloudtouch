@@ -177,10 +177,12 @@ async def test_concurrent_ensure_creates_only_one_subscription():
 async def test_failed_renewal_recovers_with_fresh_subscription(monkeypatch):
     renderer = AsyncMock()
     renderer.subscribe.side_effect = [
-        ("uuid:old", 300), ("uuid:recovered", 300),
+        ("uuid:old", 300),
+        ("uuid:recovered", 300),
     ]
     renderer.renew_subscription.side_effect = [
-        RuntimeError("renewal failed"), asyncio.CancelledError(),
+        RuntimeError("renewal failed"),
+        asyncio.CancelledError(),
     ]
     subscriptions = DlnaEventSubscriptions(renderer)
 
