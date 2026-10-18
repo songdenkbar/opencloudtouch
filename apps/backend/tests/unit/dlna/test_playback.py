@@ -21,7 +21,6 @@ def make_track(track_id: str, url: str) -> DlnaItem:
     )
 
 
-
 def make_tracks(count: int) -> list[DlnaItem]:
     """Build a queue with predictable track IDs and resource URLs."""
     return [make_track(f"track-{i}", f"http://server/{i}.mp3") for i in range(1, count + 1)]
