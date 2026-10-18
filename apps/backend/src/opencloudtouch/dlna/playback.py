@@ -122,9 +122,7 @@ class DlnaPlaybackService:
         """Play the previous item in the current queue."""
         return await self._skip(device_id, device_ip, offset=-1)
 
-    async def _skip(
-        self, device_id: str, device_ip: str, offset: int
-    ) -> DlnaItem:
+    async def _skip(self, device_id: str, device_ip: str, offset: int) -> DlnaItem:
         """Change track without updating queue state if playback fails."""
         async with self._lock_for(device_id):
             self._cancel_advance(device_id)
@@ -189,7 +187,9 @@ class DlnaPlaybackService:
                 return None
 
             self._cancel_advance(device_id)
-            task = asyncio.create_task(self._advance_if_source_matches(device_id, state))
+            task = asyncio.create_task(
+                self._advance_if_source_matches(device_id, state)
+            )
             self._advance_tasks[device_id] = task
             return None
 
