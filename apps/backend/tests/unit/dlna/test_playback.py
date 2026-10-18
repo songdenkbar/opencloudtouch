@@ -132,6 +132,38 @@ async def test_pause_and_resume():
 
 
 @pytest.mark.asyncio
+async def test_resume_after_oct_pause_event():
+    renderer = make_renderer()
+    service = DlnaPlaybackService(renderer=renderer)
+    await start_queue(service)
+
+    await service.pause("device-1", "192.0.2.10")
+    await service.handle_transport_state("device-1", "PAUSED_PLAYBACK")
+    assert service.current("device-1") is not None
+
+    await service.resume("device-1", "192.0.2.10")
+
+    renderer.resume.assert_awaited_once_with("192.0.2.10")
+    assert service.current("device-1") is not None
+
+
+@pytest.mark.asyncio
+async def test_resume_refuses_radio_after_oct_pause():
+    renderer = make_renderer()
+    service = DlnaPlaybackService(renderer=renderer)
+    await start_queue(service)
+
+    await service.pause("device-1", "192.0.2.10")
+    await service.handle_transport_state("device-1", "PAUSED_PLAYBACK")
+    renderer.get_source.return_value = "LOCAL_INTERNET_RADIO"
+
+    with pytest.raises(DlnaPlaybackError, match="No active DLNA playback"):
+        await service.resume("device-1", "192.0.2.10")
+
+    renderer.resume.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_unknown_playback_state():
     service = DlnaPlaybackService(renderer=AsyncMock())
 
