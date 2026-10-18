@@ -554,6 +554,53 @@ async def test_radio_source_switch_does_not_advance_dlna_queue():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("direction", ["next", "previous"])
+async def test_manual_navigation_refuses_radio_after_oct_pause(direction):
+    renderer = make_renderer()
+    service = DlnaPlaybackService(renderer=renderer)
+    await start_queue(service, count=3, initial_id="track-2")
+    await service.pause("device-1", "192.0.2.10")
+    await service.handle_transport_state("device-1", "PAUSED_PLAYBACK")
+    renderer.reset_mock()
+    renderer.get_source.return_value = "LOCAL_INTERNET_RADIO"
+
+    with pytest.raises(DlnaPlaybackError, match="No active DLNA playback"):
+        await getattr(service, direction)("device-1", "192.0.2.10")
+
+    assert service.current("device-1") is None
+    renderer.play_uri.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_late_playing_event_does_not_reactivate_abandoned_dlna_queue():
+    renderer = make_renderer()
+    service = DlnaPlaybackService(renderer=renderer)
+    await start_queue(service, count=3)
+    await service.handle_transport_state("device-1", "PLAYING")
+    await service.handle_transport_state("device-1", "PAUSED_PLAYBACK")
+    assert service.current("device-1") is None
+
+    await service.handle_transport_state("device-1", "PLAYING")
+
+    assert service.current("device-1") is None
+    renderer.play_uri.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_manual_navigation_works_during_oct_pause():
+    renderer = make_renderer()
+    service = DlnaPlaybackService(renderer=renderer)
+    tracks = await start_queue(service, count=3)
+    await service.pause("device-1", "192.0.2.10")
+    await service.handle_transport_state("device-1", "PAUSED_PLAYBACK")
+
+    result = await service.next("device-1", "192.0.2.10")
+
+    assert result == tracks[1]
+    assert service.current("device-1") == tracks[1]
+
+
+@pytest.mark.asyncio
 async def test_automatic_advance_checks_upnp_source():
     renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
