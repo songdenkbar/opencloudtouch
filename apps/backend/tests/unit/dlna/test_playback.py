@@ -483,6 +483,56 @@ async def test_radio_source_switch_does_not_advance_dlna_queue():
 
 
 @pytest.mark.asyncio
+async def test_automatic_advance_checks_upnp_source():
+    renderer = make_renderer()
+    service = DlnaPlaybackService(renderer=renderer)
+    tracks = await start_queue(service)
+    await service.handle_transport_state("device-1", "PLAYING")
+    renderer.reset_mock()
+
+    await service.handle_transport_state("device-1", "STOPPED")
+    await service._advance_tasks["device-1"]
+
+    renderer.get_source.assert_awaited_once_with("192.0.2.10")
+    renderer.play_uri.assert_awaited_once_with("192.0.2.10", tracks[1].resource_url)
+    assert service.current("device-1") == tracks[1]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("source", ["LOCAL_INTERNET_RADIO", "BLUETOOTH", "AUX", ""])
+async def test_automatic_advance_ignores_other_sources(source):
+    renderer = make_renderer()
+    service = DlnaPlaybackService(renderer=renderer)
+    await start_queue(service)
+    await service.handle_transport_state("device-1", "PLAYING")
+    renderer.reset_mock()
+    renderer.get_source.return_value = source
+
+    await service.handle_transport_state("device-1", "STOPPED")
+    await service._advance_tasks["device-1"]
+
+    renderer.play_uri.assert_not_awaited()
+    assert service.current("device-1") is None
+
+
+@pytest.mark.asyncio
+async def test_automatic_advance_source_error_does_not_restart(caplog):
+    renderer = make_renderer()
+    service = DlnaPlaybackService(renderer=renderer)
+    await start_queue(service)
+    await service.handle_transport_state("device-1", "PLAYING")
+    renderer.reset_mock()
+    renderer.get_source.side_effect = RuntimeError("source unavailable")
+
+    await service.handle_transport_state("device-1", "STOPPED")
+    await service._advance_tasks["device-1"]
+
+    renderer.play_uri.assert_not_awaited()
+    assert service.current("device-1") is None
+    assert "DLNA automatic track advance failed" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_manual_next_cancels_pending_automatic_advance():
     """Manual next must cancel a pending source verification."""
     renderer = make_renderer()
