@@ -25,6 +25,7 @@ class DlnaPlaybackState:
     device_ip: str
     playing_seen: bool = False
     is_active: bool = False
+    paused_by_oct: bool = False
 
     @property
     def current_item(self) -> DlnaItem:
@@ -106,13 +107,17 @@ class DlnaPlaybackService:
         async with self._lock_for(device_id):
             self._require_state(device_id, require_active=True)
             await self.renderer.pause(device_ip)
+            self._states[device_id].paused_by_oct = True
 
     async def resume(self, device_id: str, device_ip: str) -> None:
         """Resume the current item."""
 
         async with self._lock_for(device_id):
-            self._require_state(device_id, require_active=True)
+            state = self._require_state(device_id, require_active=True)
+            if state.paused_by_oct and await self.renderer.get_source(device_ip) != "UPNP":
+                raise DlnaPlaybackError(f"No active DLNA playback for device: {device_id}")
             await self.renderer.resume(device_ip)
+            state.paused_by_oct = False
 
     async def next(self, device_id: str, device_ip: str) -> DlnaItem:
         """Play the next item in the current queue."""
@@ -147,6 +152,7 @@ class DlnaPlaybackService:
             state.index = target_index
             state.playing_seen = False
             state.is_active = True
+            state.paused_by_oct = False
             return item
 
     def current(self, device_id: str) -> DlnaItem | None:
@@ -177,12 +183,13 @@ class DlnaPlaybackService:
 
             if transport_state == "PAUSED_PLAYBACK":
                 state.playing_seen = False
-                state.is_active = False
+                state.is_active = state.paused_by_oct
                 return None
 
             if transport_state == "PLAYING":
                 state.playing_seen = True
                 state.is_active = True
+                state.paused_by_oct = False
                 return None
 
             if transport_state != "STOPPED" or not state.playing_seen:
@@ -190,6 +197,7 @@ class DlnaPlaybackService:
 
             state.playing_seen = False
             state.is_active = False
+            state.paused_by_oct = False
 
             if state.index >= len(state.items) - 1:
                 return None
