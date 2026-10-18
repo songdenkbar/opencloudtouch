@@ -45,91 +45,45 @@ async def test_play_creates_queue():
 
 
 @pytest.mark.asyncio
-async def test_next_track():
+@pytest.mark.parametrize(
+    ("direction", "initial_id", "expected_id", "expected_url"),
+    [
+        ("next", "track-1", "track-2", "http://server/2.mp3"),
+        ("previous", "track-2", "track-1", "http://server/1.mp3"),
+    ],
+)
+async def test_manual_track_navigation(
+    direction, initial_id, expected_id, expected_url
+):
     renderer = AsyncMock()
     service = DlnaPlaybackService(renderer=renderer)
-
-    first = make_track("track-1", "http://server/1.mp3")
-    second = make_track("track-2", "http://server/2.mp3")
-
-    await service.play(
-        "device-1",
-        "192.0.2.10",
-        "server-1",
-        [first, second],
-        "track-1",
-    )
-
+    tracks = [
+        make_track("track-1", "http://server/1.mp3"),
+        make_track("track-2", "http://server/2.mp3"),
+    ]
+    await service.play("device-1", "192.0.2.10", "server-1", tracks, initial_id)
     renderer.reset_mock()
 
-    result = await service.next("device-1", "192.0.2.10")
+    result = await getattr(service, direction)("device-1", "192.0.2.10")
 
-    assert result == second
-    renderer.play_uri.assert_awaited_once_with(
-        "192.0.2.10",
-        "http://server/2.mp3",
-    )
+    assert result.id == expected_id
+    renderer.play_uri.assert_awaited_once_with("192.0.2.10", expected_url)
 
 
 @pytest.mark.asyncio
-async def test_previous_track():
+@pytest.mark.parametrize(
+    ("direction", "error"),
+    [("next", "No next"), ("previous", "No previous")],
+)
+async def test_manual_navigation_at_queue_boundary(direction, error):
     renderer = AsyncMock()
     service = DlnaPlaybackService(renderer=renderer)
-
-    first = make_track("track-1", "http://server/1.mp3")
-    second = make_track("track-2", "http://server/2.mp3")
-
-    await service.play(
-        "device-1",
-        "192.0.2.10",
-        "server-1",
-        [first, second],
-        "track-2",
-    )
-
-    renderer.reset_mock()
-
-    result = await service.previous("device-1", "192.0.2.10")
-
-    assert result == first
-
-
-@pytest.mark.asyncio
-async def test_next_at_end_fails():
-    renderer = AsyncMock()
-    service = DlnaPlaybackService(renderer=renderer)
-
     track = make_track("track-1", "http://server/1.mp3")
+    await service.play("device-1", "192.0.2.10", "server-1", [track], "track-1")
 
-    await service.play(
-        "device-1",
-        "192.0.2.10",
-        "server-1",
-        [track],
-        "track-1",
-    )
-
-    with pytest.raises(DlnaPlaybackError, match="No next"):
-        await service.next("device-1", "192.0.2.10")
-
-
-@pytest.mark.asyncio
-async def test_previous_at_start_fails():
-    renderer = AsyncMock()
-    service = DlnaPlaybackService(renderer=renderer)
-
-    track = make_track("track-1", "http://server/1.mp3")
-
-    await service.play(
-        "device-1",
-        "192.0.2.10",
-        "server-1",
-        [track],
-        "track-1",
-    )
-
-    with pytest.raises(DlnaPlaybackError, match="No previous"):
-        await service.previous("device-1", "192.0.2.10")
+    with pytest.raises(DlnaPlaybackError, match=error):
+        await getattr(service, direction)("device-1", "192.0.2.10")
+    renderer.play_uri.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -326,49 +280,24 @@ async def test_failed_initial_play_does_not_create_active_queue():
 
 
 @pytest.mark.asyncio
-async def test_failed_next_keeps_current_track():
+@pytest.mark.parametrize(
+    ("direction", "initial_id"),
+    [("next", "track-1"), ("previous", "track-2")],
+)
+async def test_failed_manual_navigation_keeps_current_track(direction, initial_id):
     renderer = AsyncMock()
     service = DlnaPlaybackService(renderer=renderer)
-    first = make_track("track-1", "http://server/1.mp3")
-    second = make_track("track-2", "http://server/2.mp3")
-
-    await service.play(
-        "device-1",
-        "192.0.2.10",
-        "server-1",
-        [first, second],
-        "track-1",
-    )
-
+    tracks = [
+        make_track("track-1", "http://server/1.mp3"),
+        make_track("track-2", "http://server/2.mp3"),
+    ]
+    await service.play("device-1", "192.0.2.10", "server-1", tracks, initial_id)
     renderer.play_uri.side_effect = RuntimeError("UPnP failed")
 
     with pytest.raises(RuntimeError, match="UPnP failed"):
-        await service.next("device-1", "192.0.2.10")
+        await getattr(service, direction)("device-1", "192.0.2.10")
 
-    assert service.current("device-1") == first
-
-
-@pytest.mark.asyncio
-async def test_failed_previous_keeps_current_track():
-    renderer = AsyncMock()
-    service = DlnaPlaybackService(renderer=renderer)
-    first = make_track("track-1", "http://server/1.mp3")
-    second = make_track("track-2", "http://server/2.mp3")
-
-    await service.play(
-        "device-1",
-        "192.0.2.10",
-        "server-1",
-        [first, second],
-        "track-2",
-    )
-
-    renderer.play_uri.side_effect = RuntimeError("UPnP failed")
-
-    with pytest.raises(RuntimeError, match="UPnP failed"):
-        await service.previous("device-1", "192.0.2.10")
-
-    assert service.current("device-1") == second
+    assert service.current("device-1").id == initial_id
 
 
 @pytest.mark.asyncio
