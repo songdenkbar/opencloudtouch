@@ -114,8 +114,13 @@ class DlnaPlaybackService:
 
         async with self._lock_for(device_id):
             state = self._require_state(device_id, require_active=True)
-            if state.paused_by_oct and await self.renderer.get_source(device_ip) != "UPNP":
-                raise DlnaPlaybackError(f"No active DLNA playback for device: {device_id}")
+            if (
+                state.paused_by_oct
+                and await self.renderer.get_source(device_ip) != "UPNP"
+            ):
+                raise DlnaPlaybackError(
+                    f"No active DLNA playback for device: {device_id}"
+                )
             await self.renderer.resume(device_ip)
             state.paused_by_oct = False
 
