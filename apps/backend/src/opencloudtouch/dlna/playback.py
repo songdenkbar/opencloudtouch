@@ -144,6 +144,15 @@ class DlnaPlaybackService:
                 raise DlnaPlaybackError(
                     f"No active DLNA playback for device: {device_id}"
                 )
+            # A paused session may have switched to radio without a timely
+            # transport callback. Never reclaim another Bose source.
+            if await self.renderer.get_source(device_ip) != "UPNP":
+                state.is_active = False
+                state.paused_by_oct = False
+                self._cancel_advance(device_id)
+                raise DlnaPlaybackError(
+                    f"No active DLNA playback for device: {device_id}"
+                )
             self._cancel_advance(device_id)
             target_index = state.index + offset
 
@@ -192,6 +201,10 @@ class DlnaPlaybackService:
                 return None
 
             if transport_state == "PLAYING":
+                # Only a pending or active DLNA session can observe PLAYING.
+                # Late notifications must not revive an abandoned queue.
+                if not state.is_active and device_id not in self._advance_tasks:
+                    return None
                 state.playing_seen = True
                 state.is_active = True
                 state.paused_by_oct = False
