@@ -1,6 +1,7 @@
 """UPnP AVTransport client for SoundTouch playback."""
 
 import httpx
+from defusedxml import ElementTree
 
 
 class DlnaRendererError(Exception):
@@ -14,6 +15,16 @@ class DlnaRenderer:
 
     def __init__(self, timeout: float = 5.0):
         self.timeout = timeout
+
+    async def get_source(self, device_ip: str) -> str:
+        """Read the active SoundTouch source through the Bose HTTP API."""
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(f"http://{device_ip}:8090/now_playing")
+                response.raise_for_status()
+            return ElementTree.fromstring(response.content).attrib.get("source", "")
+        except (httpx.HTTPError, ElementTree.ParseError) as exc:
+            raise DlnaRendererError("SoundTouch source query failed") from exc
 
     async def play_uri(self, device_ip: str, uri: str) -> None:
         """Set a media URI on a SoundTouch device.
