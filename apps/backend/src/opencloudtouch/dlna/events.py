@@ -168,6 +168,18 @@ class DlnaEventSubscriptions:
                             sid, timeout_seconds = await self.renderer.subscribe(
                                 subscription.device_ip, subscription.callback_url
                             )
+                            # A failed renewal does not prove the old SID is
+                            # gone; release it to avoid duplicate notifications.
+                            try:
+                                await self.renderer.unsubscribe(
+                                    subscription.device_ip, subscription.sid
+                                )
+                            except Exception:
+                                logger.debug(
+                                    "DLNA old subscription cleanup failed: device=%s",
+                                    subscription.device_id,
+                                    exc_info=True,
+                                )
                             break
                         except Exception:
                             logger.warning(
