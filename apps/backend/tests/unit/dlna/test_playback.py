@@ -484,7 +484,7 @@ async def test_radio_source_switch_does_not_advance_dlna_queue():
 
 @pytest.mark.asyncio
 async def test_manual_next_cancels_pending_automatic_advance():
-    """Manual next must prevent an additional delayed track change."""
+    """Manual next must cancel a pending source verification."""
     renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
 
@@ -492,13 +492,19 @@ async def test_manual_next_cancels_pending_automatic_advance():
     await service.handle_transport_state("device-1", "PLAYING")
     renderer.reset_mock()
 
-    await service.handle_transport_state("device-1", "STOPPED")
+    entered = asyncio.Event()
 
-    # Manual next occurs before the 400 ms automatic delay expires.
+    async def slow_source(_device_ip):
+        entered.set()
+        await asyncio.Event().wait()
+
+    renderer.get_source.side_effect = slow_source
+    await service.handle_transport_state("device-1", "STOPPED")
+    await asyncio.wait_for(entered.wait(), timeout=2)
+
+    # Manual next cancels the source check before it starts a track.
     result = await service.next("device-1", "192.0.2.10")
     assert result == tracks[1]
-
-    await asyncio.sleep(0.5)
 
     assert service.current("device-1") == tracks[1]
     renderer.play_uri.assert_awaited_once_with("192.0.2.10", "http://server/2.mp3")
@@ -514,13 +520,19 @@ async def test_close_cancels_pending_automatic_advance():
     await service.handle_transport_state("device-1", "PLAYING")
     renderer.reset_mock()
 
+    entered = asyncio.Event()
+
+    async def slow_source(_device_ip):
+        entered.set()
+        await asyncio.Event().wait()
+
+    renderer.get_source.side_effect = slow_source
     await service.handle_transport_state("device-1", "STOPPED")
+    await asyncio.wait_for(entered.wait(), timeout=2)
 
     assert len(service._advance_tasks) == 1
 
     await service.close()
-    await asyncio.sleep(0.5)
-
     renderer.play_uri.assert_not_awaited()
     assert service._advance_tasks == {}
 
@@ -563,10 +575,10 @@ async def test_manual_next_during_inflight_delayed_advance():
 
 @pytest.mark.asyncio
 async def test_automatic_advance_network_error_is_logged(caplog):
-    """A failed delayed UPnP command must be logged without changing index."""
+    """A failed automatic UPnP command must be logged without changing index."""
     renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
-        await start_queue(service)
+    await start_queue(service)
     await service.handle_transport_state("device-1", "PLAYING")
     renderer.play_uri.side_effect = RuntimeError("renderer offline")
     await service.handle_transport_state("device-1", "STOPPED")
@@ -584,7 +596,7 @@ async def test_pause_event_does_not_cancel_inflight_network_command():
     """An external pause must not abort an already-started UPnP command."""
     renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
-        await start_queue(service)
+    await start_queue(service)
     await service.handle_transport_state("device-1", "PLAYING")
     entered = asyncio.Event()
     release = asyncio.Event()
