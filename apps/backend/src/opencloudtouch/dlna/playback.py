@@ -45,7 +45,6 @@ class DlnaPlaybackService:
         self._states: dict[str, DlnaPlaybackState] = {}
         self._device_locks: dict[str, asyncio.Lock] = {}
         self._advance_tasks: dict[str, asyncio.Task[None]] = {}
-        self._advance_delay = 0.4
         self._advance_inflight: set[str] = set()
         self._closed = False
 
@@ -190,7 +189,7 @@ class DlnaPlaybackService:
                 return None
 
             self._cancel_advance(device_id)
-            task = asyncio.create_task(self._advance_after_delay(device_id, state))
+            task = asyncio.create_task(self._advance_if_source_matches(device_id, state))
             self._advance_tasks[device_id] = task
             return None
 
@@ -204,20 +203,23 @@ class DlnaPlaybackService:
             if not task.done():
                 task.cancel()
 
-    async def _advance_after_delay(
+    async def _advance_if_source_matches(
         self,
         device_id: str,
         expected_state: DlnaPlaybackState,
     ) -> None:
-        """Advance unless a source change cancels the pending operation."""
+        """Advance only if Bose still reports the UPnP playback source."""
         try:
-            await asyncio.sleep(self._advance_delay)
-
             async with self._lock_for(device_id):
                 if self._closed or self._states.get(device_id) is not expected_state:
                     return
 
                 if expected_state.index >= len(expected_state.items) - 1:
+                    return
+
+                # A source switch can also emit STOPPED. Never reclaim radio,
+                # Bluetooth or AUX playback with a stale DLNA queue.
+                if await self.renderer.get_source(expected_state.device_ip) != "UPNP":
                     return
 
                 next_item = expected_state.items[expected_state.index + 1]
