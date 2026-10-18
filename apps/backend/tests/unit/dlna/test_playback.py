@@ -9,6 +9,13 @@ from opencloudtouch.dlna.models import DlnaItem
 from opencloudtouch.dlna.playback import DlnaPlaybackError, DlnaPlaybackService
 
 
+def make_renderer() -> AsyncMock:
+    """Provide the default UPnP source for a playing test renderer."""
+    renderer = AsyncMock()
+    renderer.get_source.return_value = "UPNP"
+    return renderer
+
+
 def make_track(track_id: str, url: str) -> DlnaItem:
     """Create a playable DLNA test item."""
     return DlnaItem(
@@ -39,7 +46,7 @@ async def start_queue(
 
 @pytest.mark.asyncio
 async def test_play_creates_queue():
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
 
     first = make_track("track-1", "http://server/1.mp3")
@@ -71,7 +78,7 @@ async def test_play_creates_queue():
 async def test_manual_track_navigation(
     direction, initial_id, expected_id, expected_url
 ):
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
     tracks = [
         make_track("track-1", "http://server/1.mp3"),
@@ -92,7 +99,7 @@ async def test_manual_track_navigation(
     [("next", "No next"), ("previous", "No previous")],
 )
 async def test_manual_navigation_at_queue_boundary(direction, error):
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
     track = make_track("track-1", "http://server/1.mp3")
     await service.play("device-1", "192.0.2.10", "server-1", [track], "track-1")
@@ -104,7 +111,7 @@ async def test_manual_navigation_at_queue_boundary(direction, error):
 
 @pytest.mark.asyncio
 async def test_pause_and_resume():
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
 
     track = make_track("track-1", "http://server/1.mp3")
@@ -134,7 +141,7 @@ async def test_unknown_playback_state():
 
 @pytest.mark.asyncio
 async def test_stopped_without_playing_does_not_advance():
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
 
     first = make_track("track-1", "http://server/1.mp3")
@@ -157,7 +164,7 @@ async def test_stopped_without_playing_does_not_advance():
 
 @pytest.mark.asyncio
 async def test_playing_then_stopped_advances_queue():
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
 
     first = make_track("track-1", "http://server/1.mp3")
@@ -186,7 +193,7 @@ async def test_playing_then_stopped_advances_queue():
 
 @pytest.mark.asyncio
 async def test_extra_stopped_after_advance_does_not_advance_again():
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
 
     first = make_track("track-1", "http://server/1.mp3")
@@ -218,7 +225,7 @@ async def test_extra_stopped_after_advance_does_not_advance_again():
 
 @pytest.mark.asyncio
 async def test_stopped_at_queue_end_does_not_fail():
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
 
     track = make_track("track-1", "http://server/1.mp3")
@@ -241,7 +248,7 @@ async def test_stopped_at_queue_end_does_not_fail():
 
 @pytest.mark.asyncio
 async def test_current_returns_active_item():
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
     track = make_track("track-1", "http://server/1.mp3")
 
@@ -258,7 +265,7 @@ async def test_current_returns_active_item():
 
 @pytest.mark.asyncio
 async def test_current_is_empty_after_final_track_stops():
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
     track = make_track("track-1", "http://server/1.mp3")
 
@@ -278,7 +285,7 @@ async def test_current_is_empty_after_final_track_stops():
 
 @pytest.mark.asyncio
 async def test_failed_initial_play_does_not_create_active_queue():
-    renderer = AsyncMock()
+    renderer = make_renderer()
     renderer.play_uri.side_effect = RuntimeError("UPnP failed")
     service = DlnaPlaybackService(renderer=renderer)
     first = make_track("track-1", "http://server/1.mp3")
@@ -301,7 +308,7 @@ async def test_failed_initial_play_does_not_create_active_queue():
     [("next", "track-1"), ("previous", "track-2")],
 )
 async def test_failed_manual_navigation_keeps_current_track(direction, initial_id):
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
     tracks = [
         make_track("track-1", "http://server/1.mp3"),
@@ -318,7 +325,7 @@ async def test_failed_manual_navigation_keeps_current_track(direction, initial_i
 
 @pytest.mark.asyncio
 async def test_concurrent_stopped_events_advance_only_once():
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
 
     tracks = await start_queue(service, count=3)
@@ -353,7 +360,7 @@ async def test_concurrent_stopped_events_advance_only_once():
 
 @pytest.mark.asyncio
 async def test_manual_next_during_automatic_advance():
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
 
     tracks = await start_queue(service, count=3)
@@ -393,7 +400,7 @@ async def test_manual_next_during_automatic_advance():
 
 @pytest.mark.asyncio
 async def test_different_devices_can_play_concurrently():
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
     track = make_track("track-1", "http://server/1.mp3")
 
@@ -432,7 +439,7 @@ async def test_different_devices_can_play_concurrently():
 
 @pytest.mark.asyncio
 async def test_device_lock_released_after_playback_failure():
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
     first = make_track("track-1", "http://server/1.mp3")
     second = make_track("track-2", "http://server/2.mp3")
@@ -455,7 +462,7 @@ async def test_device_lock_released_after_playback_failure():
 @pytest.mark.asyncio
 async def test_radio_source_switch_does_not_advance_dlna_queue():
     """A source switch must cancel pending automatic advancement."""
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
 
     await start_queue(service, count=2)
@@ -463,16 +470,13 @@ async def test_radio_source_switch_does_not_advance_dlna_queue():
     await service.handle_transport_state("device-1", "PLAYING")
     renderer.reset_mock()
 
-    # Observed on SoundTouch: STOPPED followed by
-    # PAUSED_PLAYBACK about 135 ms later when switching to radio.
-    stopped = asyncio.create_task(service.handle_transport_state("device-1", "STOPPED"))
-
-    await asyncio.sleep(0.15)
-
+    # Radio was selected by the time STOPPED arrived.
+    renderer.get_source.return_value = "LOCAL_INTERNET_RADIO"
+    await service.handle_transport_state("device-1", "STOPPED")
+    await asyncio.sleep(0)
+    if service._advance_tasks:
+        await asyncio.gather(*service._advance_tasks.values())
     await service.handle_transport_state("device-1", "PAUSED_PLAYBACK")
-
-    await stopped
-    await asyncio.sleep(0.5)
 
     renderer.play_uri.assert_not_awaited()
     assert service.current("device-1") is None
@@ -481,7 +485,7 @@ async def test_radio_source_switch_does_not_advance_dlna_queue():
 @pytest.mark.asyncio
 async def test_manual_next_cancels_pending_automatic_advance():
     """Manual next must prevent an additional delayed track change."""
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
 
     tracks = await start_queue(service, count=3)
@@ -503,7 +507,7 @@ async def test_manual_next_cancels_pending_automatic_advance():
 @pytest.mark.asyncio
 async def test_close_cancels_pending_automatic_advance():
     """Shutdown must prevent scheduled playback from starting."""
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
 
     await start_queue(service, count=2)
@@ -524,7 +528,7 @@ async def test_close_cancels_pending_automatic_advance():
 @pytest.mark.asyncio
 async def test_manual_next_during_inflight_delayed_advance():
     """Manual next during an active automatic call must remain ordered."""
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
 
     tracks = await start_queue(service, count=3)
@@ -560,10 +564,9 @@ async def test_manual_next_during_inflight_delayed_advance():
 @pytest.mark.asyncio
 async def test_automatic_advance_network_error_is_logged(caplog):
     """A failed delayed UPnP command must be logged without changing index."""
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
-    service._advance_delay = 0
-    await start_queue(service)
+        await start_queue(service)
     await service.handle_transport_state("device-1", "PLAYING")
     renderer.play_uri.side_effect = RuntimeError("renderer offline")
     await service.handle_transport_state("device-1", "STOPPED")
@@ -579,10 +582,9 @@ async def test_automatic_advance_network_error_is_logged(caplog):
 @pytest.mark.asyncio
 async def test_pause_event_does_not_cancel_inflight_network_command():
     """An external pause must not abort an already-started UPnP command."""
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
-    service._advance_delay = 0
-    await start_queue(service)
+        await start_queue(service)
     await service.handle_transport_state("device-1", "PLAYING")
     entered = asyncio.Event()
     release = asyncio.Event()
@@ -607,7 +609,7 @@ async def test_pause_event_does_not_cancel_inflight_network_command():
 
 @pytest.mark.asyncio
 async def test_events_after_shutdown_do_not_restart_queue():
-    renderer = AsyncMock()
+    renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
     await start_queue(service)
     await service.close()
