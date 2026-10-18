@@ -140,6 +140,45 @@ async def test_unknown_playback_state():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("action", ["next", "previous", "pause", "resume"])
+async def test_manual_controls_reject_inactive_queue_after_source_switch(action):
+    renderer = make_renderer()
+    service = DlnaPlaybackService(renderer=renderer)
+    await start_queue(service, count=3, initial_id="track-2")
+    await service.handle_transport_state("device-1", "PLAYING")
+    renderer.reset_mock()
+
+    # A source switch ends the DLNA session without clearing its stored queue.
+    await service.handle_transport_state("device-1", "PAUSED_PLAYBACK")
+    assert service.current("device-1") is None
+
+    with pytest.raises(DlnaPlaybackError, match="No active DLNA playback"):
+        await getattr(service, action)("device-1", "192.0.2.10")
+
+    renderer.play_uri.assert_not_awaited()
+    renderer.pause.assert_not_awaited()
+    renderer.resume.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", ["next", "previous", "pause", "resume"])
+async def test_manual_controls_reject_finished_queue(action):
+    renderer = make_renderer()
+    service = DlnaPlaybackService(renderer=renderer)
+    await start_queue(service, count=1)
+    await service.handle_transport_state("device-1", "PLAYING")
+    await service.handle_transport_state("device-1", "STOPPED")
+    renderer.reset_mock()
+
+    with pytest.raises(DlnaPlaybackError, match="No active DLNA playback"):
+        await getattr(service, action)("device-1", "192.0.2.10")
+
+    renderer.play_uri.assert_not_awaited()
+    renderer.pause.assert_not_awaited()
+    renderer.resume.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_stopped_without_playing_does_not_advance():
     renderer = make_renderer()
     service = DlnaPlaybackService(renderer=renderer)
