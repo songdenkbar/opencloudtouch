@@ -147,3 +147,88 @@ async def test_subscription_is_renewed(monkeypatch):
     )
 
     assert subscriptions._subscriptions["device-1"].sid == "uuid:renewed"
+
+
+@pytest.mark.asyncio
+async def test_concurrent_ensure_creates_only_one_subscription():
+    renderer = AsyncMock()
+    gate = asyncio.Event()
+    entered = asyncio.Event()
+
+    async def subscribe(device_ip, callback_url):
+        entered.set()
+        await gate.wait()
+        return ("uuid:only-one", 300)
+
+    renderer.subscribe.side_effect = subscribe
+    subscriptions = DlnaEventSubscriptions(renderer)
+    args = ("device-1", "192.0.2.10", "http://192.0.2.20:7777/callback")
+    first = asyncio.create_task(subscriptions.ensure(*args))
+    await asyncio.wait_for(entered.wait(), 2)
+    second = asyncio.create_task(subscriptions.ensure(*args))
+    gate.set()
+    await asyncio.gather(first, second)
+
+    renderer.subscribe.assert_awaited_once()
+    await subscriptions.close()
+
+
+@pytest.mark.asyncio
+async def test_failed_renewal_recovers_with_fresh_subscription(monkeypatch):
+    renderer = AsyncMock()
+    renderer.subscribe.side_effect = [
+        ("uuid:old", 300), ("uuid:recovered", 300),
+    ]
+    renderer.renew_subscription.side_effect = [
+        RuntimeError("renewal failed"), asyncio.CancelledError(),
+    ]
+    subscriptions = DlnaEventSubscriptions(renderer)
+
+    original_sleep = asyncio.sleep
+    calls = 0
+
+    async def controlled_sleep(_delay):
+        nonlocal calls
+        calls += 1
+        if calls > 2:
+            raise asyncio.CancelledError()
+        await original_sleep(0)
+
+    monkeypatch.setattr(asyncio, "sleep", controlled_sleep)
+    await subscriptions.ensure(
+        "device-1", "192.0.2.10", "http://192.0.2.20:7777/callback"
+    )
+    subscription = subscriptions._subscriptions["device-1"]
+
+    with pytest.raises(asyncio.CancelledError):
+        await subscription.renewal_task
+
+    assert subscription.sid == "uuid:recovered"
+    assert renderer.subscribe.await_count == 2
+    assert subscriptions._subscriptions["device-1"] is subscription
+
+
+@pytest.mark.asyncio
+async def test_exhausted_recovery_removes_only_own_subscription(monkeypatch):
+    renderer = AsyncMock()
+    renderer.subscribe.side_effect = [
+        ("uuid:old", 300),
+        RuntimeError("retry 1"),
+        RuntimeError("retry 2"),
+        RuntimeError("retry 3"),
+    ]
+    renderer.renew_subscription.side_effect = RuntimeError("renewal failed")
+    subscriptions = DlnaEventSubscriptions(renderer)
+
+    async def fast_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(asyncio, "sleep", fast_sleep)
+    await subscriptions.ensure(
+        "device-1", "192.0.2.10", "http://192.0.2.20:7777/callback"
+    )
+    task = subscriptions._subscriptions["device-1"].renewal_task
+    await asyncio.wait_for(task, 2)
+
+    assert renderer.subscribe.await_count == 4
+    assert "device-1" not in subscriptions._subscriptions
