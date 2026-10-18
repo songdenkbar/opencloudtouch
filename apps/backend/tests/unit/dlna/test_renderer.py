@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from opencloudtouch.dlna.renderer import DlnaRenderer
+from opencloudtouch.dlna.renderer import DlnaRenderer, DlnaRendererError
 
 
 @pytest.mark.asyncio
@@ -169,3 +169,32 @@ async def test_unsubscribe(respx_mock):
 
     assert route.called
     assert route.calls.last.request.headers["SID"] == "uuid:test-subscription"
+
+
+@pytest.mark.asyncio
+async def test_get_source(respx_mock):
+    route = respx_mock.get("http://192.0.2.10:8090/now_playing").mock(
+        return_value=httpx.Response(
+            200,
+            text='<nowPlaying deviceID="test" source="UPNP" />',
+        )
+    )
+
+    source = await DlnaRenderer().get_source("192.0.2.10")
+
+    assert route.called
+    assert source == "UPNP"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("xml", ["<broken", '<nowPlaying deviceID="test" />'])
+async def test_get_source_rejects_invalid_or_missing_source(respx_mock, xml):
+    respx_mock.get("http://192.0.2.10:8090/now_playing").mock(
+        return_value=httpx.Response(200, text=xml)
+    )
+
+    if xml == "<broken":
+        with pytest.raises(DlnaRendererError, match="source query failed"):
+            await DlnaRenderer().get_source("192.0.2.10")
+    else:
+        assert await DlnaRenderer().get_source("192.0.2.10") == ""
