@@ -103,5 +103,6 @@ class DlnaService:
         return await self.playback.previous(device_id, device_ip)
 
     async def close(self) -> None:
-        """Close active DLNA subscriptions on shutdown."""
+        """Stop playback and release AVTransport subscriptions."""
+        await self.playback.close()
         await self.subscriptions.close()

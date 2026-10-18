@@ -374,3 +374,26 @@ async def test_get_current_dlna_item_when_idle(monkeypatch):
         "device_id": "device-1",
         "item": None,
     }
+
+
+@pytest.mark.asyncio
+async def test_avtransport_notify_ignores_malformed_bose_lastchange():
+    """Ignore the malformed initial LastChange sent by SoundTouch."""
+    service = AsyncMock()
+    service.playback.handle_transport_state = AsyncMock()
+
+    body = b"""<?xml version="1.0"?>
+<e:propertyset xmlns:e="urn:schemas-upnp-org:event-1-0">
+  <e:property>
+    <LastChange>&lt;/InstanceID&gt;&lt;/Event&gt;</LastChange>
+  </e:property>
+</e:propertyset>"""
+
+    response = await routes.dlna_avtransport_event(
+        MockNotifyRequest(body),
+        "device-1",
+        service,
+    )
+
+    assert response.status_code == 200
+    service.playback.handle_transport_state.assert_not_awaited()

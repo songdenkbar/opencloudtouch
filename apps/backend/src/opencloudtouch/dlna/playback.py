@@ -1,9 +1,14 @@
 """DLNA playback and in-memory queue management."""
 
+import asyncio
+import logging
 from dataclasses import dataclass
 
 from opencloudtouch.dlna.models import DlnaItem
 from opencloudtouch.dlna.renderer import DlnaRenderer
+
+
+logger = logging.getLogger(__name__)
 
 
 class DlnaPlaybackError(Exception):
@@ -38,6 +43,15 @@ class DlnaPlaybackService:
     def __init__(self, renderer: DlnaRenderer | None = None):
         self.renderer = renderer or DlnaRenderer()
         self._states: dict[str, DlnaPlaybackState] = {}
+        self._device_locks: dict[str, asyncio.Lock] = {}
+        self._advance_tasks: dict[str, asyncio.Task[None]] = {}
+        self._advance_delay = 0.4
+        self._advance_inflight: set[str] = set()
+        self._closed = False
+
+    def _lock_for(self, device_id: str) -> asyncio.Lock:
+        """Return the lock for a SoundTouch device."""
+        return self._device_locks.setdefault(device_id, asyncio.Lock())
 
     async def play(
         self,
@@ -48,75 +62,94 @@ class DlnaPlaybackService:
         object_id: str,
     ) -> DlnaItem:
         """Play an item and remember its surrounding audio queue."""
-        playable_items = [
-            item
-            for item in items
-            if not item.is_container
-            and item.resource_url
-            and (
-                item.media_class is None
-                or item.media_class.startswith("object.item.audioItem")
+
+        async with self._lock_for(device_id):
+            self._cancel_advance(device_id)
+            playable_items = [
+                item
+                for item in items
+                if not item.is_container
+                and item.resource_url
+                and (
+                    item.media_class is None
+                    or item.media_class.startswith("object.item.audioItem")
+                )
+            ]
+
+            index = next(
+                (
+                    index
+                    for index, item in enumerate(playable_items)
+                    if item.id == object_id
+                ),
+                None,
             )
-        ]
 
-        index = next(
-            (
-                index
-                for index, item in enumerate(playable_items)
-                if item.id == object_id
-            ),
-            None,
-        )
+            if index is None:
+                raise DlnaPlaybackError(f"DLNA audio item not found: {object_id}")
 
-        if index is None:
-            raise DlnaPlaybackError(f"DLNA audio item not found: {object_id}")
+            state = DlnaPlaybackState(
+                server_id=server_id,
+                items=playable_items,
+                index=index,
+                device_ip=device_ip,
+            )
 
-        state = DlnaPlaybackState(
-            server_id=server_id,
-            items=playable_items,
-            index=index,
-            device_ip=device_ip,
-        )
+            await self._play_item(device_ip, state.current_item)
 
-        state.is_active = True
-        self._states[device_id] = state
-
-        await self._play_item(device_ip, state.current_item)
-        return state.current_item
+            state.is_active = True
+            self._states[device_id] = state
+            return state.current_item
 
     async def pause(self, device_id: str, device_ip: str) -> None:
         """Pause the current item."""
-        self._require_state(device_id)
-        await self.renderer.pause(device_ip)
+
+        async with self._lock_for(device_id):
+            self._require_state(device_id)
+            await self.renderer.pause(device_ip)
 
     async def resume(self, device_id: str, device_ip: str) -> None:
         """Resume the current item."""
-        self._require_state(device_id)
-        await self.renderer.resume(device_ip)
+
+        async with self._lock_for(device_id):
+            self._require_state(device_id)
+            await self.renderer.resume(device_ip)
 
     async def next(self, device_id: str, device_ip: str) -> DlnaItem:
         """Play the next item in the current queue."""
-        state = self._require_state(device_id)
 
-        if state.index >= len(state.items) - 1:
-            raise DlnaPlaybackError("No next DLNA track")
+        async with self._lock_for(device_id):
+            self._cancel_advance(device_id)
+            state = self._require_state(device_id)
 
-        state.index += 1
-        state.playing_seen = False
-        await self._play_item(device_ip, state.current_item)
-        return state.current_item
+            if state.index >= len(state.items) - 1:
+                raise DlnaPlaybackError("No next DLNA track")
+
+            next_item = state.items[state.index + 1]
+            await self._play_item(device_ip, next_item)
+
+            state.index += 1
+            state.playing_seen = False
+            state.is_active = True
+            return next_item
 
     async def previous(self, device_id: str, device_ip: str) -> DlnaItem:
         """Play the previous item in the current queue."""
-        state = self._require_state(device_id)
 
-        if state.index <= 0:
-            raise DlnaPlaybackError("No previous DLNA track")
+        async with self._lock_for(device_id):
+            self._cancel_advance(device_id)
+            state = self._require_state(device_id)
 
-        state.index -= 1
-        state.playing_seen = False
-        await self._play_item(device_ip, state.current_item)
-        return state.current_item
+            if state.index <= 0:
+                raise DlnaPlaybackError("No previous DLNA track")
+
+            previous_item = state.items[state.index - 1]
+            await self._play_item(device_ip, previous_item)
+
+            state.index -= 1
+            state.playing_seen = False
+            state.is_active = True
+            return previous_item
 
     def current(self, device_id: str) -> DlnaItem | None:
         """Return the currently active DLNA item for a device."""
@@ -131,30 +164,100 @@ class DlnaPlaybackService:
         device_id: str,
         transport_state: str,
     ) -> DlnaItem | None:
-        """Advance the queue after a played track reaches STOPPED."""
-        state = self._states.get(device_id)
-        if state is None:
+        """Process AVTransport events and schedule automatic advancement."""
+        # Cancel outside the device lock: a pending advancement may
+        # be waiting to acquire that same lock.
+        if transport_state == "PAUSED_PLAYBACK":
+            self._cancel_advance(device_id)
+
+        async with self._lock_for(device_id):
+            if self._closed:
+                return None
+            state = self._states.get(device_id)
+            if state is None:
+                return None
+
+            if transport_state == "PAUSED_PLAYBACK":
+                state.playing_seen = False
+                state.is_active = False
+                return None
+
+            if transport_state == "PLAYING":
+                state.playing_seen = True
+                state.is_active = True
+                return None
+
+            if transport_state != "STOPPED" or not state.playing_seen:
+                return None
+
+            state.playing_seen = False
+            state.is_active = False
+
+            if state.index >= len(state.items) - 1:
+                return None
+
+            self._cancel_advance(device_id)
+            task = asyncio.create_task(self._advance_after_delay(device_id, state))
+            self._advance_tasks[device_id] = task
             return None
 
-        if transport_state == "PLAYING":
-            state.playing_seen = True
-            state.is_active = True
-            return None
+    def _cancel_advance(self, device_id: str) -> None:
+        """Cancel a scheduled automatic track change."""
+        task = self._advance_tasks.get(device_id)
+        # Once the UPnP request has started, cancelling it can leave the
+        # renderer in an unknown state. Keep tracking it for shutdown.
+        if task is not None and device_id not in self._advance_inflight:
+            self._advance_tasks.pop(device_id, None)
+            if not task.done():
+                task.cancel()
 
-        if transport_state != "STOPPED" or not state.playing_seen:
-            return None
+    async def _advance_after_delay(
+        self,
+        device_id: str,
+        expected_state: DlnaPlaybackState,
+    ) -> None:
+        """Advance unless a source change cancels the pending operation."""
+        try:
+            await asyncio.sleep(self._advance_delay)
 
-        # Disarm before changing URI. SetAVTransportURI itself produces
-        # STOPPED/TRANSITIONING events which must not advance again.
-        state.playing_seen = False
-        state.is_active = False
+            async with self._lock_for(device_id):
+                if self._closed or self._states.get(device_id) is not expected_state:
+                    return
 
-        if state.index >= len(state.items) - 1:
-            return None
+                if expected_state.index >= len(expected_state.items) - 1:
+                    return
 
-        state.index += 1
-        await self._play_item(state.device_ip, state.current_item)
-        return state.current_item
+                next_item = expected_state.items[expected_state.index + 1]
+                self._advance_inflight.add(device_id)
+                try:
+                    await self._play_item(expected_state.device_ip, next_item)
+                finally:
+                    self._advance_inflight.discard(device_id)
+
+                expected_state.index += 1
+                expected_state.is_active = True
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception(
+                "DLNA automatic track advance failed: device=%s", device_id
+            )
+        finally:
+            current = asyncio.current_task()
+            if self._advance_tasks.get(device_id) is current:
+                self._advance_tasks.pop(device_id, None)
+
+    async def close(self) -> None:
+        """Cancel and await pending automatic track changes."""
+        self._closed = True
+        tasks = list(self._advance_tasks.values())
+        self._advance_tasks.clear()
+
+        for task in tasks:
+            task.cancel()
+
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _play_item(self, device_ip: str, item: DlnaItem) -> None:
         """Send a playable item to the SoundTouch renderer."""
