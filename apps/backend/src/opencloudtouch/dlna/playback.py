@@ -278,7 +278,9 @@ class DlnaPlaybackService:
 
         await self.renderer.play_uri(device_ip, item.resource_url)
 
-    def _require_state(\n        self, device_id: str, require_active: bool = False\n    ) -> DlnaPlaybackState:
+    def _require_state(
+        self, device_id: str, require_active: bool = False
+    ) -> DlnaPlaybackState:
         """Return playback state or raise when none exists."""
         state = self._states.get(device_id)
 
