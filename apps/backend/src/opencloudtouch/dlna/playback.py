@@ -210,16 +210,17 @@ class DlnaPlaybackService:
     ) -> None:
         """Advance only if Bose still reports the UPnP playback source."""
         try:
+            # Keep network checks outside the device lock so manual controls
+            # and external pause events can cancel a slow source lookup.
+            source = await self.renderer.get_source(expected_state.device_ip)
+            if source != "UPNP":
+                return
+
             async with self._lock_for(device_id):
                 if self._closed or self._states.get(device_id) is not expected_state:
                     return
 
                 if expected_state.index >= len(expected_state.items) - 1:
-                    return
-
-                # A source switch can also emit STOPPED. Never reclaim radio,
-                # Bluetooth or AUX playback with a stale DLNA queue.
-                if await self.renderer.get_source(expected_state.device_ip) != "UPNP":
                     return
 
                 next_item = expected_state.items[expected_state.index + 1]
