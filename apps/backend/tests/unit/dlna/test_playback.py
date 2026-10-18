@@ -24,10 +24,7 @@ def make_track(track_id: str, url: str) -> DlnaItem:
 
 def make_tracks(count: int) -> list[DlnaItem]:
     """Build a queue with predictable track IDs and resource URLs."""
-    return [
-        make_track(f"track-{i}", f"http://server/{i}.mp3")
-        for i in range(1, count + 1)
-    ]
+    return [make_track(f"track-{i}", f"http://server/{i}.mp3") for i in range(1, count + 1)]
 
 
 async def start_queue(
@@ -460,7 +457,7 @@ async def test_radio_source_switch_does_not_advance_dlna_queue():
     renderer = AsyncMock()
     service = DlnaPlaybackService(renderer=renderer)
 
-    tracks = await start_queue(service, count=2)
+    await start_queue(service, count=2)
 
     await service.handle_transport_state("device-1", "PLAYING")
     renderer.reset_mock()
@@ -508,7 +505,7 @@ async def test_close_cancels_pending_automatic_advance():
     renderer = AsyncMock()
     service = DlnaPlaybackService(renderer=renderer)
 
-    tracks = await start_queue(service, count=2)
+    await start_queue(service, count=2)
     await service.handle_transport_state("device-1", "PLAYING")
     renderer.reset_mock()
 
@@ -565,7 +562,7 @@ async def test_automatic_advance_network_error_is_logged(caplog):
     renderer = AsyncMock()
     service = DlnaPlaybackService(renderer=renderer)
     service._advance_delay = 0
-    tracks = await start_queue(service)
+    await start_queue(service)
     await service.handle_transport_state("device-1", "PLAYING")
     renderer.play_uri.side_effect = RuntimeError("renderer offline")
     await service.handle_transport_state("device-1", "STOPPED")
@@ -584,7 +581,7 @@ async def test_pause_event_does_not_cancel_inflight_network_command():
     renderer = AsyncMock()
     service = DlnaPlaybackService(renderer=renderer)
     service._advance_delay = 0
-    tracks = await start_queue(service)
+    await start_queue(service)
     await service.handle_transport_state("device-1", "PLAYING")
     entered = asyncio.Event()
     release = asyncio.Event()
@@ -611,7 +608,7 @@ async def test_pause_event_does_not_cancel_inflight_network_command():
 async def test_events_after_shutdown_do_not_restart_queue():
     renderer = AsyncMock()
     service = DlnaPlaybackService(renderer=renderer)
-    tracks = await start_queue(service)
+    await start_queue(service)
     await service.close()
     renderer.reset_mock()
     await service.handle_transport_state("device-1", "PLAYING")
