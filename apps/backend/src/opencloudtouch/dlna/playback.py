@@ -117,39 +117,32 @@ class DlnaPlaybackService:
 
     async def next(self, device_id: str, device_ip: str) -> DlnaItem:
         """Play the next item in the current queue."""
-
-        async with self._lock_for(device_id):
-            self._cancel_advance(device_id)
-            state = self._require_state(device_id)
-
-            if state.index >= len(state.items) - 1:
-                raise DlnaPlaybackError("No next DLNA track")
-
-            next_item = state.items[state.index + 1]
-            await self._play_item(device_ip, next_item)
-
-            state.index += 1
-            state.playing_seen = False
-            state.is_active = True
-            return next_item
+        return await self._skip(device_id, device_ip, offset=1)
 
     async def previous(self, device_id: str, device_ip: str) -> DlnaItem:
         """Play the previous item in the current queue."""
+        return await self._skip(device_id, device_ip, offset=-1)
 
+    async def _skip(
+        self, device_id: str, device_ip: str, offset: int
+    ) -> DlnaItem:
+        """Change track without updating queue state if playback fails."""
         async with self._lock_for(device_id):
             self._cancel_advance(device_id)
             state = self._require_state(device_id)
+            target_index = state.index + offset
 
-            if state.index <= 0:
-                raise DlnaPlaybackError("No previous DLNA track")
+            if not 0 <= target_index < len(state.items):
+                direction = "next" if offset > 0 else "previous"
+                raise DlnaPlaybackError(f"No {direction} DLNA track")
 
-            previous_item = state.items[state.index - 1]
-            await self._play_item(device_ip, previous_item)
+            item = state.items[target_index]
+            await self._play_item(device_ip, item)
 
-            state.index -= 1
+            state.index = target_index
             state.playing_seen = False
             state.is_active = True
-            return previous_item
+            return item
 
     def current(self, device_id: str) -> DlnaItem | None:
         """Return the currently active DLNA item for a device."""
