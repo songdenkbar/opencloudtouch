@@ -104,14 +104,14 @@ class DlnaPlaybackService:
         """Pause the current item."""
 
         async with self._lock_for(device_id):
-            self._require_state(device_id)
+            self._require_state(device_id, require_active=True)
             await self.renderer.pause(device_ip)
 
     async def resume(self, device_id: str, device_ip: str) -> None:
         """Resume the current item."""
 
         async with self._lock_for(device_id):
-            self._require_state(device_id)
+            self._require_state(device_id, require_active=True)
             await self.renderer.resume(device_ip)
 
     async def next(self, device_id: str, device_ip: str) -> DlnaItem:
@@ -125,8 +125,16 @@ class DlnaPlaybackService:
     async def _skip(self, device_id: str, device_ip: str, offset: int) -> DlnaItem:
         """Change track without updating queue state if playback fails."""
         async with self._lock_for(device_id):
-            self._cancel_advance(device_id)
+            # A STOPPED event leaves a cancellable automatic advance pending.
+            # Allow manual navigation during that handoff, but not after a
+            # completed source switch or at the end of the queue.
+            pending = device_id in self._advance_tasks
             state = self._require_state(device_id)
+            if not state.is_active and not pending:
+                raise DlnaPlaybackError(
+                    f"No active DLNA playback for device: {device_id}"
+                )
+            self._cancel_advance(device_id)
             target_index = state.index + offset
 
             if not 0 <= target_index < len(state.items):
@@ -262,11 +270,11 @@ class DlnaPlaybackService:
 
         await self.renderer.play_uri(device_ip, item.resource_url)
 
-    def _require_state(self, device_id: str) -> DlnaPlaybackState:
+    def _require_state(\n        self, device_id: str, require_active: bool = False\n    ) -> DlnaPlaybackState:
         """Return playback state or raise when none exists."""
         state = self._states.get(device_id)
 
-        if state is None:
+        if state is None or (require_active and not state.is_active):
             raise DlnaPlaybackError(f"No active DLNA playback for device: {device_id}")
 
         return state
