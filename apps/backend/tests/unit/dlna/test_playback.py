@@ -662,9 +662,15 @@ async def test_manual_next_cancels_pending_automatic_advance():
 
     entered = asyncio.Event()
 
+    checks = 0
+
     async def slow_source(_device_ip):
-        entered.set()
-        await asyncio.Event().wait()
+        nonlocal checks
+        checks += 1
+        if checks == 1:
+            entered.set()
+            await asyncio.Event().wait()
+        return "UPNP"
 
     renderer.get_source.side_effect = slow_source
     await service.handle_transport_state("device-1", "STOPPED")
