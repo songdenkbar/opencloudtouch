@@ -8,6 +8,7 @@ from collections.abc import Awaitable
 from typing import Annotated, TypeVar
 
 from fastapi import APIRouter, Body, Depends, HTTPException
+from pydantic import BaseModel, StrictInt
 
 from opencloudtouch.core.config import AppConfig, get_config
 from opencloudtouch.core.dependencies import (
@@ -62,7 +63,7 @@ async def _device_op(
         if state_manager:
             await state_manager.mark_device_offline(device_id)
         raise
-    except (DeviceNotFoundError, DomainValidationError):
+    except (DeviceNotFoundError, DomainValidationError, HTTPException):
         raise
     except Exception as e:
         logger.exception("Failed to %s for device %s", action, device_id)
@@ -197,6 +198,61 @@ async def get_device_capabilities_endpoint(
         "query device capabilities",
         device_service.get_device_capabilities(device_id),
     )
+
+
+class SetBassRequest(BaseModel):
+    """Request body for setting a device's bass level."""
+
+    level: StrictInt
+
+
+@router.get("/{device_id}/settings/bass")
+async def get_device_bass(
+    device_id: str,
+    device_service: DeviceService = Depends(get_device_service),
+    state_manager: DeviceStateManager = Depends(get_device_state_manager),
+):
+    """Get the current bass state reported by a SoundTouch device."""
+    bass = await _device_op(
+        device_id,
+        "get bass",
+        device_service.get_device_bass(device_id),
+        state_manager,
+    )
+    return {"actual": bass.actual, "target": bass.target}
+
+
+@router.put(
+    "/{device_id}/settings/bass",
+    responses={422: {"description": "Invalid bass level"}},
+)
+async def set_device_bass(
+    device_id: str,
+    body: Annotated[SetBassRequest, Body()],
+    device_service: Annotated[DeviceService, Depends(get_device_service)],
+    state_manager: Annotated[DeviceStateManager, Depends(get_device_state_manager)],
+):
+    """Set the bass level supported by the selected SoundTouch device."""
+    level = body.level
+
+    async def validate_and_set_bass() -> None:
+        try:
+            await device_service.set_device_bass(device_id, level)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+
+    await _device_op(
+        device_id,
+        "set bass",
+        validate_and_set_bass(),
+        state_manager,
+    )
+
+    return {
+        "message": "Bass level updated successfully",
+        "device_id": device_id,
+        "level": level,
+    }
 
 
 @router.post("/{device_id}/key")
@@ -511,7 +567,11 @@ async def get_now_playing(
             # Offline devices are expected, not exceptional: return the last
             # known state (if any) instead of a 503 that just spams the
             # poller's browser console every cycle (#319).
-            fallback = cached.now_playing if cached else _OFFLINE_FALLBACK_INFO
+            fallback = (
+                cached.now_playing
+                if cached and cached.now_playing
+                else _OFFLINE_FALLBACK_INFO
+            )
             return _now_playing_to_dict(fallback, online=False)
     result = _now_playing_to_dict(info, online=True)
 

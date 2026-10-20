@@ -92,7 +92,19 @@
     "loadMore": "もっと読み込む",
     "loadingMore": "読み込み中...",
     "maxReached": "最大件数 ({{count}}) に到達",
-    "maxReachedTooltip": "特定のステーションを見つけるには検索を絞り込んでください"
+    "maxReachedTooltip": "特定のステーションを見つけるには検索を絞り込んでください",
+    "manualStreamUrlPlaceholder": "ストリームURLを入力...",
+    "manualStationNamePlaceholder": "局名",
+    "manualFaviconPlaceholder": "ロゴURL（任意）",
+    "manualStreamMode": "ストリームURL",
+    "manualUseStation": "局を使用",
+    "manualStreamUrlHelp": "SoundTouchデバイスが対応するオーディオストリームへのHTTP/HTTPS直接アドレス。例: https://example.com/live.mp3",
+    "manualStationNameHelp": "例: SWR3、BBC Radio 1、Radio Paradise",
+    "manualFaviconHelp": "画像ファイルへのHTTP/HTTPS直接アドレス。推奨: 正方形、128×128～600×600 px、PNGまたはJPG/JPEG。",
+    "manualStreamErrorTitle": "ストリームエラー",
+    "manualStreamUnreachable": "ストリームURLにアクセスできません。",
+    "manualStreamSaveFailed": "局を保存できませんでした。",
+    "manualStreamErrorOk": "OK"
   },
   "settings": {
     "title": "設定",
@@ -242,10 +254,14 @@
       "description": "Boseドメインのネットワークリダイレクトを設定"
     },
     "step6": {
+      "label": "NTP",
+      "description": "デバイスのNTPサーバーにパッチを適用"
+    },
+    "step7": {
       "label": "確認",
       "description": "設定をテストしてDNSリダイレクトを確認"
     },
-    "step7": {
+    "step8": {
       "label": "完了",
       "description": "セットアップ完了"
     },
@@ -317,7 +333,7 @@
         "instructionStep3Desc": "少なくとも10秒間待ちます。",
         "instructionStep4": "電源を復元",
         "instructionStep4Desc": "電源アダプターを再接続します。",
-        "instructionStep5": "待つ（約60秒）",
+        "instructionStep5": "待つ（約100秒）",
         "instructionStep5Desc": "デバイスが再起動してUSBドライブからremote_servicesファイルを読み込みます。",
         "sectionStatus": "ステータスを確認",
         "statusWaiting": "デバイスの再起動を待っています...",
@@ -362,7 +378,7 @@
         "troubleshootingTitle": "⚠️ トラブルシューティング",
         "troubleshootingItem1": "USBドライブが正しく挿入されているか確認",
         "troubleshootingItem2": "「remote_services」ファイルが正しいことを確認",
-        "troubleshootingItem3": "再起動後少なくとも60秒待つ",
+        "troubleshootingItem3": "再起動後少なくとも100秒待つ",
         "troubleshootingItem4": "別の電源サイクルを試す（手順2〜5）",
         "troubleshootingItem5": "デバイスが同じネットワークにあるか確認",
         "troubleshootingItem6": "上記のコマンドでSSH接続を手動でテストしてください — それが機能すれば、デバイスは準備できています。"
@@ -450,11 +466,23 @@
         "successTitle": "hostsファイルが正常に変更されました！",
         "changedEntries": "変更されたエントリ：",
         "backupLabel": "バックアップ：",
-        "btnShowDiff": "▶ 差分を表示",
-        "btnHideDiff": "▼ 差分を非表示",
+        "btnShowChanges": "▶ 変更を表示",
+        "btnHideChanges": "▼ 変更を非表示",
         "hostsApplied": "hostsファイルが正常に変更されました。"
       },
       "step7": {
+        "title": "NTPサーバーにパッチを適用",
+        "description": "デバイスのNTPタイムサーバーを設定して、時刻を正確に保ちます。",
+        "optionalNotice": "この手順は任意です。スキップしてもデバイスは既存のNTP設定を使い続けます。",
+        "serverLabel": "NTPサーバー:",
+        "serverHint": "例: ルーターのIPアドレスや公開NTPサーバー。",
+        "btnPatch": "NTPサーバーを適用",
+        "btnPatching": "適用中...",
+        "errorTitle": "NTPパッチに失敗しました",
+        "successTitle": "NTPサーバーが更新されました！",
+        "nextDisabled": "最初にNTPサーバーを適用してください。"
+      },
+      "step8": {
         "title": "設定をテスト",
         "description": "ドメインリダイレクトが正しく機能することを確認します。",
         "warning": "テストが失敗した場合、デバイスの再起動が必要な場合があります。",
@@ -511,9 +539,12 @@
         "fullVerifyItem4": "DNSリダイレクトがOpenCloudTouchサーバーに解決されている",
         "btnRunFullVerify": "完全な検証を開始",
         "fullVerifying": "完全なシステム検証を実行中...",
-        "btnRetryFullVerify": "検証を再実行"
+        "btnRetryFullVerify": "検証を再実行",
+        "checkNtpServer": "NTPサーバーを設定しました: {{server}}",
+        "checkNtpServerWrong": "NTPサーバーは '{{found}}' に設定されています（期待値: '{{expected}}'）",
+        "fullVerifyItem5": "NTPサーバーがデバイスに設定済み"
       },
-      "step8": {
+      "step9": {
         "title": "セットアップ完了！",
         "description": "デバイスが正常に設定され、使用準備ができています。",
         "heroTitle": "おめでとうございます！",
@@ -538,7 +569,8 @@
         "nextStep3Desc": "追加のSoundTouchデバイスに対してウィザードを繰り返します。",
         "btnDone": "完了",
         "supportText": "問題や質問がありますか？",
-        "supportLink": "サポートに連絡 →"
+        "supportLink": "サポートに連絡 →",
+        "summaryItem7": "NTPサーバーにパッチを適用 ({{server}})"
       }
     }
   },
@@ -764,6 +796,6 @@
   "deviceHeader": {
     "reboot": "デバイスを再起動",
     "sent": "再起動コマンドを送信しました",
-    "confirmMessage": "{{name}}を再起動しますか？デバイスは約60秒間使用できなくなります。"
+    "confirmMessage": "{{name}}を再起動しますか？デバイスは約100秒間使用できなくなります。"
   }
 }

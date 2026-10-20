@@ -92,7 +92,19 @@
     "loadMore": "Załaduj więcej",
     "loadingMore": "Ładowanie...",
     "maxReached": "Osiągnięto maksimum ({{count}})",
-    "maxReachedTooltip": "Zawęź wyszukiwanie, aby znaleźć konkretne stacje"
+    "maxReachedTooltip": "Zawęź wyszukiwanie, aby znaleźć konkretne stacje",
+    "manualStreamUrlPlaceholder": "Wprowadź adres URL strumienia...",
+    "manualStationNamePlaceholder": "Nazwa stacji",
+    "manualFaviconPlaceholder": "URL logo (opcjonalnie)",
+    "manualStreamMode": "URL strumienia",
+    "manualUseStation": "Użyj stacji",
+    "manualStreamUrlHelp": "Bezpośredni adres HTTP/HTTPS do strumienia audio obsługiwanego przez urządzenie SoundTouch. Przykład: https://example.com/live.mp3",
+    "manualStationNameHelp": "Przykłady: SWR3, BBC Radio 1, Radio Paradise",
+    "manualFaviconHelp": "Bezpośredni adres HTTP/HTTPS do pliku obrazu. Zalecane: kwadrat, od 128×128 do 600×600 px, PNG lub JPG/JPEG.",
+    "manualStreamErrorTitle": "Błąd strumienia",
+    "manualStreamUnreachable": "Adres URL strumienia jest nieosiągalny.",
+    "manualStreamSaveFailed": "Nie udało się zapisać stacji.",
+    "manualStreamErrorOk": "OK"
   },
   "settings": {
     "title": "Ustawienia",
@@ -242,10 +254,14 @@
       "description": "Skonfiguruj przekierowanie sieci dla domen Bose"
     },
     "step6": {
+      "label": "NTP",
+      "description": "Zastosuj łatkę serwera NTP na urządzeniu"
+    },
+    "step7": {
       "label": "Weryfikacja",
       "description": "Przetestuj konfigurację i zweryfikuj przekierowanie DNS"
     },
-    "step7": {
+    "step8": {
       "label": "Gotowe",
       "description": "Konfiguracja zakończona"
     },
@@ -317,7 +333,7 @@
         "instructionStep3Desc": "Poczekaj co najmniej 10 sekund.",
         "instructionStep4": "Przywróć zasilanie",
         "instructionStep4Desc": "Ponownie podłącz adapter zasilania.",
-        "instructionStep5": "Poczekaj (~60 sekund)",
+        "instructionStep5": "Poczekaj (~100 sekund)",
         "instructionStep5Desc": "Urządzenie restartuje się i odczytuje plik remote_services z dysku USB.",
         "sectionStatus": "Sprawdź status",
         "statusWaiting": "Oczekiwanie na restart urządzenia...",
@@ -362,7 +378,7 @@
         "troubleshootingTitle": "⚠️ Rozwiązywanie problemów",
         "troubleshootingItem1": "Sprawdź, czy dysk USB jest prawidłowo włożony",
         "troubleshootingItem2": "Upewnij się, że plik 'remote_services' jest poprawny",
-        "troubleshootingItem3": "Poczekaj co najmniej 60 sekund po restarcie",
+        "troubleshootingItem3": "Poczekaj co najmniej 100 sekund po restarcie",
         "troubleshootingItem4": "Spróbuj kolejnego cyklu zasilania (kroki 2-5)",
         "troubleshootingItem5": "Sprawdź, czy urządzenie jest w tej samej sieci",
         "troubleshootingItem6": "Przetestuj połączenie SSH ręcznie poleceniem powyżej — jeśli działa, urządzenie jest gotowe."
@@ -450,11 +466,23 @@
         "successTitle": "Plik hosts zmodyfikowany pomyślnie!",
         "changedEntries": "Zmienione wpisy:",
         "backupLabel": "Kopia zap.:",
-        "btnShowDiff": "▶ Pokaż diff",
-        "btnHideDiff": "▼ Ukryj diff",
+        "btnShowChanges": "▶ Pokaż zmiany",
+        "btnHideChanges": "▼ Ukryj zmiany",
         "hostsApplied": "Plik hosts został pomyślnie zmodyfikowany."
       },
       "step7": {
+        "title": "Patch serwera NTP",
+        "description": "Ustaw serwer czasu NTP na urządzeniu, aby zegar był dokładny.",
+        "optionalNotice": "Ten krok jest opcjonalny i można go pominąć — urządzenie zachowa swoją obecną konfigurację NTP.",
+        "serverLabel": "Serwer NTP:",
+        "serverHint": "Na przykład adres IP routera lub publiczny serwer NTP.",
+        "btnPatch": "Zastosuj serwer NTP",
+        "btnPatching": "Stosowanie...",
+        "errorTitle": "Patch NTP nie powiódł się",
+        "successTitle": "Serwer NTP zaktualizowany!",
+        "nextDisabled": "Najpierw zastosuj serwer NTP."
+      },
+      "step8": {
         "title": "Testuj konfigurację",
         "description": "Sprawdź, czy przekierowania domen działają poprawnie.",
         "warning": "Jeśli testy nie powiodą się, może być wymagany restart urządzenia.",
@@ -511,9 +539,12 @@
         "fullVerifyItem4": "Przekierowania DNS rozwiązane do serwera OpenCloudTouch",
         "btnRunFullVerify": "Uruchom pełną weryfikację",
         "fullVerifying": "Trwa pełna weryfikacja systemu...",
-        "btnRetryFullVerify": "Uruchom weryfikację ponownie"
+        "btnRetryFullVerify": "Uruchom weryfikację ponownie",
+        "checkNtpServer": "Serwer NTP ustawiony na: {{server}}",
+        "checkNtpServerWrong": "Serwer NTP jest ustawiony na „{{found}}”, oczekiwano „{{expected}}”",
+        "fullVerifyItem5": "Serwer NTP skonfigurowany na urządzeniu"
       },
-      "step8": {
+      "step9": {
         "title": "Konfiguracja zakończona!",
         "description": "Urządzenie zostało pomyślnie skonfigurowane i jest gotowe do użycia.",
         "heroTitle": "Gratulacje!",
@@ -538,7 +569,8 @@
         "nextStep3Desc": "Powtórz kreator dla dodatkowych urządzeń SoundTouch.",
         "btnDone": "Gotowe",
         "supportText": "Problemy lub pytania?",
-        "supportLink": "Skontaktuj się z pomocą techniczną →"
+        "supportLink": "Skontaktuj się z pomocą techniczną →",
+        "summaryItem7": "Serwer NTP zaktualizowany ({{server}})"
       }
     }
   },
@@ -764,6 +796,6 @@
   "deviceHeader": {
     "reboot": "Uruchom ponownie urządzenie",
     "sent": "Polecenie restartu wysłane",
-    "confirmMessage": "Uruchomić ponownie {{name}}? Urządzenie będzie niedostępne przez około 60 sekund."
+    "confirmMessage": "Uruchomić ponownie {{name}}? Urządzenie będzie niedostępne przez około 100 sekund."
   }
 }

@@ -92,7 +92,19 @@
     "loadMore": "Mehr anzeigen",
     "loadingMore": "Lädt...",
     "maxReached": "Maximum ({{count}}) erreicht",
-    "maxReachedTooltip": "Grenzen Sie Ihre Suche weiter ein, um bestimmte Sender zu finden"
+    "maxReachedTooltip": "Grenzen Sie Ihre Suche weiter ein, um bestimmte Sender zu finden",
+    "manualStreamUrlPlaceholder": "Stream-URL eingeben...",
+    "manualStationNamePlaceholder": "Sendername",
+    "manualFaviconPlaceholder": "Logo-URL (optional)",
+    "manualStreamMode": "Stream-URL",
+    "manualUseStation": "Sender verwenden",
+    "manualStreamUrlHelp": "Direkte HTTP-/HTTPS-Adresse zu einem vom SoundTouch-Gerät unterstützten Audiostream. Beispiel: https://example.com/live.mp3",
+    "manualStationNameHelp": "Beispiele: SWR3, BBC Radio 1, Radio Paradise",
+    "manualFaviconHelp": "Direkte HTTP-/HTTPS-Adresse zu einer Bilddatei. Empfohlen: quadratisch, 128×128 bis 600×600 px, PNG oder JPG/JPEG.",
+    "manualStreamErrorTitle": "Stream-Fehler",
+    "manualStreamUnreachable": "Die Stream-URL ist nicht erreichbar.",
+    "manualStreamSaveFailed": "Der Sender konnte nicht gespeichert werden.",
+    "manualStreamErrorOk": "OK"
   },
   "settings": {
     "title": "Einstellungen",
@@ -242,10 +254,14 @@
       "description": "Netzwerk-Weiterleitung für Bose-Domains einrichten"
     },
     "step6": {
+      "label": "NTP",
+      "description": "NTP-Server auf dem Gerät patchen"
+    },
+    "step7": {
       "label": "Prüfung",
       "description": "Konfiguration testen und DNS-Weiterleitung verifizieren"
     },
-    "step7": {
+    "step8": {
       "label": "Fertig",
       "description": "Einrichtung abgeschlossen"
     },
@@ -317,7 +333,7 @@
         "instructionStep3Desc": "Warten Sie mindestens 10 Sekunden.",
         "instructionStep4": "Stromversorgung wiederherstellen",
         "instructionStep4Desc": "Stecken Sie das Netzteil wieder ein.",
-        "instructionStep5": "Warten (~60 Sekunden)",
+        "instructionStep5": "Warten (~100 Sekunden)",
         "instructionStep5Desc": "Das Gerät startet neu und liest die remote_services Datei vom USB-Stick.",
         "sectionStatus": "Status überprüfen",
         "statusWaiting": "Warte auf Geräteneustart...",
@@ -362,7 +378,7 @@
         "troubleshootingTitle": "⚠️ Fehlerbehebung",
         "troubleshootingItem1": "Überprüfen Sie, ob der USB-Stick korrekt eingesteckt ist",
         "troubleshootingItem2": "Stellen Sie sicher, dass die Datei 'remote_services' korrekt ist",
-        "troubleshootingItem3": "Warten Sie mindestens 60 Sekunden nach dem Neustart",
+        "troubleshootingItem3": "Warten Sie mindestens 100 Sekunden nach dem Neustart",
         "troubleshootingItem4": "Versuchen Sie einen weiteren Power Cycle (Schritte 2–5)",
         "troubleshootingItem5": "Prüfen Sie, ob das Gerät im gleichen Netzwerk ist",
         "troubleshootingItem6": "Testen Sie die SSH-Verbindung manuell mit dem Befehl oben – wenn das funktioniert, ist das Gerät bereit."
@@ -450,11 +466,23 @@
         "successTitle": "Hosts-Datei erfolgreich geändert!",
         "changedEntries": "Geänderte Einträge:",
         "backupLabel": "Backup:",
-        "btnShowDiff": "▶ Diff anzeigen",
-        "btnHideDiff": "▼ Diff ausblenden",
+        "btnShowChanges": "▶ Änderungen anzeigen",
+        "btnHideChanges": "▼ Änderungen ausblenden",
         "hostsApplied": "Hosts-Datei erfolgreich geändert."
       },
       "step7": {
+        "title": "NTP-Server patchen",
+        "description": "Den NTP-Zeitserver auf dem Gerät setzen, damit die Uhr korrekt läuft.",
+        "optionalNotice": "Dieser Schritt ist optional und kann übersprungen werden — das Gerät behält dann seine bisherige NTP-Konfiguration.",
+        "serverLabel": "NTP-Server:",
+        "serverHint": "Zum Beispiel die IP-Adresse Ihres Routers oder ein öffentlicher NTP-Server.",
+        "btnPatch": "NTP-Server anwenden",
+        "btnPatching": "Wird angewendet...",
+        "errorTitle": "NTP-Patch fehlgeschlagen",
+        "successTitle": "NTP-Server aktualisiert!",
+        "nextDisabled": "Bitte zuerst den NTP-Server anwenden."
+      },
+      "step8": {
         "title": "Überprüfung & Test",
         "description": "Geräte-Konfiguration abschließen, neu starten und alles überprüfen.",
         "warning": "Wir empfehlen, dass alle Checks bestanden werden, bevor Sie fortfahren.",
@@ -511,9 +539,12 @@
         "allPassedMessage": "Ihr Gerät ist vollständig konfiguriert und einsatzbereit. Alle System-Checks und DNS-Umleitungen funktionieren korrekt.",
         "someFailedTitle": "Einige Checks sind fehlgeschlagen",
         "someFailedMessage": "Nicht alle Überprüfungen waren erfolgreich. Prüfen Sie die Ergebnisse oben und versuchen Sie es erneut.",
-        "btnSkip": "Trotzdem fortfahren — Gerät wird nicht als konfiguriert markiert"
+        "btnSkip": "Trotzdem fortfahren — Gerät wird nicht als konfiguriert markiert",
+        "checkNtpServer": "NTP-Server gesetzt auf: {{server}}",
+        "checkNtpServerWrong": "NTP-Server ist auf '{{found}}' gesetzt, erwartet wurde '{{expected}}'",
+        "fullVerifyItem5": "NTP-Server auf dem Gerät konfiguriert"
       },
-      "step8": {
+      "step9": {
         "title": "Setup abgeschlossen!",
         "description": "Ihr Gerät wurde erfolgreich konfiguriert und ist einsatzbereit.",
         "heroTitle": "Herzlichen Glückwunsch!",
@@ -538,7 +569,8 @@
         "nextStep3Desc": "Wiederholen Sie den Wizard für weitere SoundTouch-Geräte.",
         "btnDone": "Fertig",
         "supportText": "Probleme oder Fragen?",
-        "supportLink": "Support kontaktieren →"
+        "supportLink": "Support kontaktieren →",
+        "summaryItem7": "NTP-Server gepatcht ({{server}})"
       }
     }
   },
@@ -764,6 +796,6 @@
   "deviceHeader": {
     "reboot": "Gerät neu starten",
     "sent": "Neustart-Befehl gesendet",
-    "confirmMessage": "{{name}} neu starten? Das Gerät ist für ca. 60 Sekunden nicht erreichbar."
+    "confirmMessage": "{{name}} neu starten? Das Gerät ist für ca. 100 Sekunden nicht erreichbar."
   }
 }

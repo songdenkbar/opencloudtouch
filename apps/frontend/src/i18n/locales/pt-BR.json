@@ -92,7 +92,19 @@
     "loadMore": "Carregar mais",
     "loadingMore": "Carregando...",
     "maxReached": "Máximo ({{count}}) atingido",
-    "maxReachedTooltip": "Refine sua pesquisa para encontrar estações específicas"
+    "maxReachedTooltip": "Refine sua pesquisa para encontrar estações específicas",
+    "manualStreamUrlPlaceholder": "Inserir URL do stream...",
+    "manualStationNamePlaceholder": "Nome da estação",
+    "manualFaviconPlaceholder": "URL do logotipo (opcional)",
+    "manualStreamMode": "URL do stream",
+    "manualUseStation": "Usar estação",
+    "manualStreamUrlHelp": "Endereço HTTP/HTTPS direto para um stream de áudio compatível com o dispositivo SoundTouch. Exemplo: https://example.com/live.mp3",
+    "manualStationNameHelp": "Exemplos: SWR3, BBC Radio 1, Radio Paradise",
+    "manualFaviconHelp": "Endereço HTTP/HTTPS direto para um arquivo de imagem. Recomendado: quadrado, de 128×128 a 600×600 px, PNG ou JPG/JPEG.",
+    "manualStreamErrorTitle": "Erro de stream",
+    "manualStreamUnreachable": "A URL do stream não está acessível.",
+    "manualStreamSaveFailed": "Não foi possível salvar a estação.",
+    "manualStreamErrorOk": "OK"
   },
   "settings": {
     "title": "Configurações",
@@ -242,10 +254,14 @@
       "description": "Configurar redirecionamento de rede para domínios Bose"
     },
     "step6": {
+      "label": "NTP",
+      "description": "Aplicar patch no servidor NTP do dispositivo"
+    },
+    "step7": {
       "label": "Verificação",
       "description": "Testar configuração e verificar redirecionamento DNS"
     },
-    "step7": {
+    "step8": {
       "label": "Concluído",
       "description": "Configuração concluída"
     },
@@ -317,7 +333,7 @@
         "instructionStep3Desc": "Aguarde pelo menos 10 segundos.",
         "instructionStep4": "Restaurar a alimentação",
         "instructionStep4Desc": "Reconecte o adaptador de alimentação.",
-        "instructionStep5": "Aguardar (~60 segundos)",
+        "instructionStep5": "Aguardar (~100 segundos)",
         "instructionStep5Desc": "O dispositivo reinicia e lê o arquivo remote_services do pendrive.",
         "sectionStatus": "Verificar status",
         "statusWaiting": "Aguardando reinício do dispositivo...",
@@ -362,7 +378,7 @@
         "troubleshootingTitle": "⚠️ Solução de problemas",
         "troubleshootingItem1": "Verifique se o pendrive está inserido corretamente",
         "troubleshootingItem2": "Certifique-se de que o arquivo 'remote_services' está correto",
-        "troubleshootingItem3": "Aguarde pelo menos 60 segundos após o reinício",
+        "troubleshootingItem3": "Aguarde pelo menos 100 segundos após o reinício",
         "troubleshootingItem4": "Tente outro ciclo de energia (etapas 2-5)",
         "troubleshootingItem5": "Verifique se o dispositivo está na mesma rede",
         "troubleshootingItem6": "Teste a conexão SSH manualmente com o comando acima — se funcionar, o dispositivo está pronto."
@@ -450,11 +466,23 @@
         "successTitle": "Arquivo hosts modificado com sucesso!",
         "changedEntries": "Entradas modificadas:",
         "backupLabel": "Backup:",
-        "btnShowDiff": "▶ Mostrar diff",
-        "btnHideDiff": "▼ Ocultar diff",
+        "btnShowChanges": "▶ Mostrar alterações",
+        "btnHideChanges": "▼ Ocultar alterações",
         "hostsApplied": "Arquivo hosts modificado com sucesso."
       },
       "step7": {
+        "title": "Aplicar patch no servidor NTP",
+        "description": "Defina o servidor de tempo NTP no dispositivo para manter o relógio preciso.",
+        "optionalNotice": "Esta etapa é opcional e pode ser ignorada — o dispositivo manterá sua configuração NTP atual.",
+        "serverLabel": "Servidor NTP:",
+        "serverHint": "Por exemplo, o endereço IP do seu roteador, ou um servidor NTP público.",
+        "btnPatch": "Aplicar servidor NTP",
+        "btnPatching": "Aplicando...",
+        "errorTitle": "Falha no patch NTP",
+        "successTitle": "Servidor NTP atualizado!",
+        "nextDisabled": "Por favor, aplique o servidor NTP primeiro."
+      },
+      "step8": {
         "title": "Testar configuração",
         "description": "Verifique se os redirecionamentos de domínio funcionam corretamente.",
         "warning": "Se os testes falharem, pode ser necessário reiniciar o dispositivo.",
@@ -511,9 +539,12 @@
         "fullVerifyItem4": "Redirecionamentos DNS resolvidos para o servidor OpenCloudTouch",
         "btnRunFullVerify": "Iniciar verificação completa",
         "fullVerifying": "Executando verificação completa do sistema...",
-        "btnRetryFullVerify": "Executar verificação novamente"
+        "btnRetryFullVerify": "Executar verificação novamente",
+        "checkNtpServer": "Servidor NTP definido como: {{server}}",
+        "checkNtpServerWrong": "O servidor NTP está definido como '{{found}}', esperado '{{expected}}'",
+        "fullVerifyItem5": "Servidor NTP configurado no dispositivo"
       },
-      "step8": {
+      "step9": {
         "title": "Configuração concluída!",
         "description": "Seu dispositivo foi configurado com sucesso e está pronto para uso.",
         "heroTitle": "Parabéns!",
@@ -538,7 +569,8 @@
         "nextStep3Desc": "Repita o assistente para dispositivos SoundTouch adicionais.",
         "btnDone": "Concluído",
         "supportText": "Problemas ou dúvidas?",
-        "supportLink": "Contatar suporte →"
+        "supportLink": "Contatar suporte →",
+        "summaryItem7": "Servidor NTP com patch aplicado ({{server}})"
       }
     }
   },
@@ -657,7 +689,7 @@
     "hallOfFameDescription": "Top 3 colaboradores de todos os tempos — reconhecidos pelo impacto técnico excepcional.",
     "supportersTitle": "Apoiadores",
     "reportBug": "Relatar bug",
-    "diagnostics": "Diagn\u00f3sticos",
+    "diagnostics": "Diagnósticos",
     "supportersDescription": "Obrigado a todos que apoiam o OpenCloudTouch financeiramente. Suas contribuições ajudam a manter o projeto vivo!",
     "supportersMonthly": "Apoiadores Mensais",
     "supportersOneTime": "Apoiadores únicos",
@@ -764,6 +796,6 @@
   "deviceHeader": {
     "reboot": "Reiniciar dispositivo",
     "sent": "Comando de reinicialização enviado",
-    "confirmMessage": "Reiniciar {{name}}? O dispositivo ficará indisponível por cerca de 60 segundos."
+    "confirmMessage": "Reiniciar {{name}}? O dispositivo ficará indisponível por cerca de 100 segundos."
   }
 }

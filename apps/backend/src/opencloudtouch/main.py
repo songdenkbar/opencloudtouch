@@ -30,7 +30,9 @@ from opencloudtouch.core.static_files import (
     mount_static_files,
 )
 from opencloudtouch.db import DeviceRepository
+from opencloudtouch.dlna.service import DlnaService
 from opencloudtouch.devices.adapter import get_discovery_adapter
+from opencloudtouch.dlna.routes import router as dlna_router
 from opencloudtouch.devices.api.discovery_routes import discovery_router
 from opencloudtouch.devices.api.event_routes import event_router
 from opencloudtouch.devices.api.preset_stream_routes import (
@@ -59,8 +61,7 @@ from opencloudtouch.settings.routes import router as settings_router
 from opencloudtouch.settings.service import SettingsService
 from opencloudtouch.setup.routes import router as setup_router
 from opencloudtouch.setup.service import SetupService
-from opencloudtouch.setup.wizard_routes import wizard_router
-from opencloudtouch.setup.wizard_service import WizardService
+from opencloudtouch.setup.wizard import WizardService, wizard_router
 from opencloudtouch.swupdate.routes import router as swupdate_router
 from opencloudtouch.wizard_audit.repository import WizardAuditRepository
 from opencloudtouch.wizard_audit.routes import audit_router as wizard_audit_router
@@ -184,6 +185,9 @@ async def _init_services(
     )
     app.state.device_service = device_service
     logger.info("DeviceService initialized")
+
+    app.state.dlna_service = DlnaService()
+    logger.info("DlnaService initialized")
 
     # Zone service (with injected client factory to avoid circular deps)
     from opencloudtouch.devices.adapter import get_device_client
@@ -407,6 +411,7 @@ app.add_middleware(
 app.include_router(
     discovery_router
 )  # Device discovery endpoints (/discover, /sync, /stream)
+app.include_router(dlna_router)  # DLNA media server discovery and browsing
 app.include_router(devices_router)
 app.include_router(presets_router)
 app.include_router(radio_router)

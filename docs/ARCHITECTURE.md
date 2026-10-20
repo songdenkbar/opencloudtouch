@@ -47,6 +47,7 @@
 | `radio` | RadioBrowser search provider |
 | `settings` | User settings persistence |
 | `setup` | SSH/USB device configuration wizard |
+| `setup/wizard/` | Step-organized subpackage (one file per wizard step under `setup/wizard/`, mixins composed in `wizard/service.py`, routers aggregated in `wizard/router.py`) |
 | `bmx` | Bose Media Exchange emulation |
 | `marge` | Bose cloud API emulation (XML) |
 | `recents` | Recently played items |
@@ -92,6 +93,7 @@ Cross-module dependencies are minimal:
 | Pre-built frontend | Eliminates Node.js from Docker image, solves ARM32 Rolldown issue |
 | Host networking | Required for SSDP multicast discovery on local network |
 | No authentication | Trusted local network only (documented in SECURITY.md) |
+| `setup/wizard/step8_finalize_verify.py` stays unsplit | Holds both `finalize_device`/`verify_setup` flows (largest file in the package) because they share `_verify_sys_config` and are both driven by the same frontend component (`Step8Verification.tsx`); see #466 item 1. Renumbered from `step7_finalize_verify.py`/`Step7Verification.tsx` when #469 inserted the NTP step ahead of it. |
 
 ## Real-Time Architecture
 

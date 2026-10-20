@@ -92,7 +92,19 @@
     "loadMore": "Ladda fler",
     "loadingMore": "Laddar...",
     "maxReached": "Maximum ({{count}}) nått",
-    "maxReachedTooltip": "Förfina din sökning för att hitta specifika stationer"
+    "maxReachedTooltip": "Förfina din sökning för att hitta specifika stationer",
+    "manualStreamUrlPlaceholder": "Ange stream-URL...",
+    "manualStationNamePlaceholder": "Stationsnamn",
+    "manualFaviconPlaceholder": "Logotyp-URL (valfritt)",
+    "manualStreamMode": "Stream-URL",
+    "manualUseStation": "Använd station",
+    "manualStreamUrlHelp": "Direkt HTTP/HTTPS-adress till en ljudström som stöds av SoundTouch-enheten. Exempel: https://example.com/live.mp3",
+    "manualStationNameHelp": "Exempel: SWR3, BBC Radio 1, Radio Paradise",
+    "manualFaviconHelp": "Direkt HTTP/HTTPS-adress till en bildfil. Rekommenderat: kvadratisk, 128×128 till 600×600 px, PNG eller JPG/JPEG.",
+    "manualStreamErrorTitle": "Streamfel",
+    "manualStreamUnreachable": "Stream-URL:en kan inte nås.",
+    "manualStreamSaveFailed": "Stationen kunde inte sparas.",
+    "manualStreamErrorOk": "OK"
   },
   "settings": {
     "title": "Inställningar",
@@ -242,10 +254,14 @@
       "description": "Konfigurera nätverksomdirigering för Bose-domäner"
     },
     "step6": {
+      "label": "NTP",
+      "description": "Patcha NTP-server på enheten"
+    },
+    "step7": {
       "label": "Verifiering",
       "description": "Testa konfiguration och verifiera DNS-omdirigering"
     },
-    "step7": {
+    "step8": {
       "label": "Klart",
       "description": "Installation slutförd"
     },
@@ -317,7 +333,7 @@
         "instructionStep3Desc": "Vänta minst 10 sekunder.",
         "instructionStep4": "Återställ strömmen",
         "instructionStep4Desc": "Koppla in strömadaptern igen.",
-        "instructionStep5": "Vänta (~60 sekunder)",
+        "instructionStep5": "Vänta (~100 sekunder)",
         "instructionStep5Desc": "Enheten startar om och läser filen remote_services från USB-enheten.",
         "sectionStatus": "Kontrollera status",
         "statusWaiting": "Väntar på att enheten startar om...",
@@ -362,7 +378,7 @@
         "troubleshootingTitle": "⚠️ Felsökning",
         "troubleshootingItem1": "Kontrollera att USB-enheten är korrekt isatt",
         "troubleshootingItem2": "Kontrollera att filen 'remote_services' är korrekt",
-        "troubleshootingItem3": "Vänta minst 60 sekunder efter omstart",
+        "troubleshootingItem3": "Vänta minst 100 sekunder efter omstart",
         "troubleshootingItem4": "Prova en ny strömcykel (steg 2-5)",
         "troubleshootingItem5": "Kontrollera att enheten är i samma nätverk",
         "troubleshootingItem6": "Testa SSH-anslutning manuellt med kommandot ovan — om det fungerar är enheten redo."
@@ -450,11 +466,23 @@
         "successTitle": "Hosts-filen ändrad!",
         "changedEntries": "Ändrade poster:",
         "backupLabel": "Säkerhetskopia:",
-        "btnShowDiff": "▶ Visa diff",
-        "btnHideDiff": "▼ Dölj diff",
+        "btnShowChanges": "▶ Visa ändringar",
+        "btnHideChanges": "▼ Dölj ändringar",
         "hostsApplied": "Hosts-filen har ändrats."
       },
       "step7": {
+        "title": "Patcha NTP-server",
+        "description": "Ställ in NTP-tidsservern på enheten så att klockan håller sig korrekt.",
+        "optionalNotice": "Detta steg är valfritt och kan hoppas över — enheten behåller då sin nuvarande NTP-konfiguration.",
+        "serverLabel": "NTP-server:",
+        "serverHint": "Till exempel din routers IP-adress, eller en offentlig NTP-server.",
+        "btnPatch": "Tillämpa NTP-server",
+        "btnPatching": "Tillämpar...",
+        "errorTitle": "NTP-patch misslyckades",
+        "successTitle": "NTP-server uppdaterad!",
+        "nextDisabled": "Tillämpa NTP-servern först."
+      },
+      "step8": {
         "title": "Testa konfiguration",
         "description": "Kontrollera att domänomdirigeringarna fungerar korrekt.",
         "warning": "Om testerna misslyckas kan en omstart av enheten krävas.",
@@ -511,9 +539,12 @@
         "fullVerifyItem4": "DNS-omdirigeringar lösta till OpenCloudTouch-servern",
         "btnRunFullVerify": "Starta fullständig verifiering",
         "fullVerifying": "Fullständig systemverifiering pågår...",
-        "btnRetryFullVerify": "Kör verifiering igen"
+        "btnRetryFullVerify": "Kör verifiering igen",
+        "checkNtpServer": "NTP-server inställd på: {{server}}",
+        "checkNtpServerWrong": "NTP-servern är inställd på '{{found}}', förväntat '{{expected}}'",
+        "fullVerifyItem5": "NTP-server konfigurerad på enheten"
       },
-      "step8": {
+      "step9": {
         "title": "Installation klar!",
         "description": "Enheten har konfigurerats och är redo att användas.",
         "heroTitle": "Grattis!",
@@ -538,7 +569,8 @@
         "nextStep3Desc": "Upprepa guiden för ytterligare SoundTouch-enheter.",
         "btnDone": "Klar",
         "supportText": "Problem eller frågor?",
-        "supportLink": "Kontakta support →"
+        "supportLink": "Kontakta support →",
+        "summaryItem7": "NTP-server patchad ({{server}})"
       }
     }
   },
@@ -764,6 +796,6 @@
   "deviceHeader": {
     "reboot": "Starta om enheten",
     "sent": "Omstartskommando skickat",
-    "confirmMessage": "Starta om {{name}}? Enheten kommer att vara otillgänglig i ungefär 60 sekunder."
+    "confirmMessage": "Starta om {{name}}? Enheten kommer att vara otillgänglig i ungefär 100 sekunder."
   }
 }

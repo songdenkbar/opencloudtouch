@@ -92,7 +92,19 @@
     "loadMore": "Meer laden",
     "loadingMore": "Laden...",
     "maxReached": "Maximum ({{count}}) bereikt",
-    "maxReachedTooltip": "Verfijn uw zoekopdracht om specifieke stations te vinden"
+    "maxReachedTooltip": "Verfijn uw zoekopdracht om specifieke stations te vinden",
+    "manualStreamUrlPlaceholder": "Stream-URL invoeren...",
+    "manualStationNamePlaceholder": "Stationsnaam",
+    "manualFaviconPlaceholder": "Logo-URL (optioneel)",
+    "manualStreamMode": "Stream-URL",
+    "manualUseStation": "Station gebruiken",
+    "manualStreamUrlHelp": "Direct HTTP/HTTPS-adres naar een audiostream die door het SoundTouch-apparaat wordt ondersteund. Voorbeeld: https://example.com/live.mp3",
+    "manualStationNameHelp": "Voorbeelden: SWR3, BBC Radio 1, Radio Paradise",
+    "manualFaviconHelp": "Direct HTTP/HTTPS-adres naar een afbeeldingsbestand. Aanbevolen: vierkant, 128×128 tot 600×600 px, PNG of JPG/JPEG.",
+    "manualStreamErrorTitle": "Streamfout",
+    "manualStreamUnreachable": "De stream-URL is niet bereikbaar.",
+    "manualStreamSaveFailed": "Het station kon niet worden opgeslagen.",
+    "manualStreamErrorOk": "OK"
   },
   "settings": {
     "title": "Instellingen",
@@ -242,10 +254,14 @@
       "description": "Netwerkdoorverwijzing instellen voor Bose-domeinen"
     },
     "step6": {
+      "label": "NTP",
+      "description": "NTP-server op het apparaat patchen"
+    },
+    "step7": {
       "label": "Verificatie",
       "description": "Configuratie testen en DNS-doorverwijzing verifiëren"
     },
-    "step7": {
+    "step8": {
       "label": "Klaar",
       "description": "Installatie voltooid"
     },
@@ -317,7 +333,7 @@
         "instructionStep3Desc": "Wacht minstens 10 seconden.",
         "instructionStep4": "Stroom herstellen",
         "instructionStep4Desc": "Sluit de voedingsadapter opnieuw aan.",
-        "instructionStep5": "Wachten (~60 seconden)",
+        "instructionStep5": "Wachten (~100 seconden)",
         "instructionStep5Desc": "Het apparaat herstart en leest het remote_services-bestand van de USB-stick.",
         "sectionStatus": "Status controleren",
         "statusWaiting": "Wachten op apparaat herstart...",
@@ -362,7 +378,7 @@
         "troubleshootingTitle": "⚠️ Probleemoplossing",
         "troubleshootingItem1": "Controleer of de USB-stick correct is ingestoken",
         "troubleshootingItem2": "Zorg ervoor dat het bestand 'remote_services' correct is",
-        "troubleshootingItem3": "Wacht minstens 60 seconden na het herstarten",
+        "troubleshootingItem3": "Wacht minstens 100 seconden na het herstarten",
         "troubleshootingItem4": "Probeer een andere stroomcyclus (stappen 2-5)",
         "troubleshootingItem5": "Controleer of het apparaat in hetzelfde netwerk zit",
         "troubleshootingItem6": "Test de SSH-verbinding handmatig met het bovenstaande commando — als dat werkt, is het apparaat klaar."
@@ -450,11 +466,23 @@
         "successTitle": "Hosts-bestand succesvol gewijzigd!",
         "changedEntries": "Gewijzigde vermeldingen:",
         "backupLabel": "Back-up:",
-        "btnShowDiff": "▶ Diff tonen",
-        "btnHideDiff": "▼ Diff verbergen",
+        "btnShowChanges": "▶ Wijzigingen tonen",
+        "btnHideChanges": "▼ Wijzigingen verbergen",
         "hostsApplied": "Hosts-bestand succesvol gewijzigd."
       },
       "step7": {
+        "title": "NTP-server patchen",
+        "description": "Stel de NTP-tijdserver in op het apparaat zodat de klok nauwkeurig blijft.",
+        "optionalNotice": "Deze stap is optioneel en kan worden overgeslagen — het apparaat behoudt dan zijn huidige NTP-configuratie.",
+        "serverLabel": "NTP-server:",
+        "serverHint": "Bijvoorbeeld het IP-adres van uw router, of een publieke NTP-server.",
+        "btnPatch": "NTP-server toepassen",
+        "btnPatching": "Toepassen...",
+        "errorTitle": "NTP-patch mislukt",
+        "successTitle": "NTP-server bijgewerkt!",
+        "nextDisabled": "Pas eerst de NTP-server toe."
+      },
+      "step8": {
         "title": "Configuratie testen",
         "description": "Controleer of de domeindoorleidingen correct werken.",
         "warning": "Als tests mislukken, kan een apparaat herstart vereist zijn.",
@@ -511,9 +539,12 @@
         "fullVerifyItem4": "DNS-doorleidingen opgelost naar de OpenCloudTouch-server",
         "btnRunFullVerify": "Volledige verificatie starten",
         "fullVerifying": "Volledige systeemverificatie wordt uitgevoerd...",
-        "btnRetryFullVerify": "Verificatie opnieuw uitvoeren"
+        "btnRetryFullVerify": "Verificatie opnieuw uitvoeren",
+        "checkNtpServer": "NTP-server ingesteld op: {{server}}",
+        "checkNtpServerWrong": "NTP-server is ingesteld op '{{found}}', verwacht werd '{{expected}}'",
+        "fullVerifyItem5": "NTP-server op het apparaat geconfigureerd"
       },
-      "step8": {
+      "step9": {
         "title": "Installatie voltooid!",
         "description": "Uw apparaat is succesvol geconfigureerd en klaar voor gebruik.",
         "heroTitle": "Gefeliciteerd!",
@@ -538,7 +569,8 @@
         "nextStep3Desc": "Herhaal de wizard voor extra SoundTouch-apparaten.",
         "btnDone": "Gereed",
         "supportText": "Problemen of vragen?",
-        "supportLink": "Contact opnemen met ondersteuning →"
+        "supportLink": "Contact opnemen met ondersteuning →",
+        "summaryItem7": "NTP-server gepatcht ({{server}})"
       }
     }
   },
@@ -764,6 +796,6 @@
   "deviceHeader": {
     "reboot": "Apparaat herstarten",
     "sent": "Herstartopdracht verzonden",
-    "confirmMessage": "{{name}} herstarten? Het apparaat is ongeveer 60 seconden niet beschikbaar."
+    "confirmMessage": "{{name}} herstarten? Het apparaat is ongeveer 100 seconden niet beschikbaar."
   }
 }
