@@ -141,7 +141,7 @@ describe("Settings — Scan Button trigger", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /scan now/i }));
 
-    expect(mockStartDiscovery).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mockStartDiscovery).toHaveBeenCalledTimes(1));
   });
 
   it("button is disabled while discovery is running", async () => {
@@ -293,6 +293,57 @@ describe("Settings — Discover Button completion toast", () => {
     await waitFor(() => {
       expect(screen.getByText(/1 new device found/i)).toBeInTheDocument();
     });
+  });
+
+  it("lists only newly synced devices, excluding previously known devices", async () => {
+    const { useDiscoveryStream } = await import("../../src/hooks/useDiscoveryStream");
+    (useDiscoveryStream as Mock).mockReturnValue({
+      ...makeDiscoveryState({
+        completed: true,
+        devicesFound: [
+          { device_id: "OLD", name: "Already Known", ip: "192.168.1.10" },
+          { device_id: "NEW", name: "Living Room", ip: "192.168.1.11" },
+        ],
+      }),
+      startDiscovery: mockStartDiscovery,
+    });
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ ips: [] }) });
+    renderSettings([{ device_id: "OLD", ip: "192.168.1.10" }]);
+    const list = await screen.findByRole("list");
+    expect(list).toHaveTextContent("Living Room");
+    expect(list).not.toHaveTextContent("Already Known");
+  });
+
+  it("shows no results list when all discovered devices are known", async () => {
+    const { useDiscoveryStream } = await import("../../src/hooks/useDiscoveryStream");
+    (useDiscoveryStream as Mock).mockReturnValue({
+      ...makeDiscoveryState({
+        completed: true,
+        devicesFound: [{ device_id: "OLD", name: "Known", ip: "192.168.1.10" }],
+      }),
+      startDiscovery: mockStartDiscovery,
+    });
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ ips: [] }) });
+    renderSettings([{ device_id: "OLD", ip: "192.168.1.10" }]);
+    await screen.findByText(/0 new devices found/i);
+    expect(screen.queryByTestId("newly-discovered-devices")).not.toBeInTheDocument();
+  });
+
+  it("deduplicates repeated synced events by device ID", async () => {
+    const { useDiscoveryStream } = await import("../../src/hooks/useDiscoveryStream");
+    (useDiscoveryStream as Mock).mockReturnValue({
+      ...makeDiscoveryState({
+        completed: true,
+        devicesFound: [
+          { device_id: "NEW", name: "Kitchen" },
+          { device_id: "NEW", name: "Kitchen" },
+        ],
+      }),
+      startDiscovery: mockStartDiscovery,
+    });
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ ips: [] }) });
+    renderSettings();
+    expect(await screen.findAllByText("Kitchen")).toHaveLength(1);
   });
 
   it.each([
