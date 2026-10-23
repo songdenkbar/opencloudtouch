@@ -22,14 +22,46 @@ log_error() {
     echo "${RED}[ERROR]${NC} $1"
 }
 
+# If the page size cannot be determined, try importing zlib to detect
+# ELF alignment errors that may indicate incompatible kernel page sizes.
+# Run the check in a separate Python process before starting OCT.
+check_unknown_page_size() {
+    if ZLIB_OUTPUT=$(python -c 'import zlib' 2>&1); then
+        log_warn "Python zlib import succeeded, but kernel page size compatibility remains unverified; startup will continue."
+        return 0
+    else
+        ZLIB_STATUS=$?
+    fi
+
+    case "$ZLIB_OUTPUT" in
+        *ELF*"not page-aligned"*)
+            log_error "ELF alignment error while loading a Python library."
+            log_error "This may indicate an incompatible kernel page size. OpenCloudTouch cannot start with this container image."
+            log_error "Original error: $ZLIB_OUTPUT"
+            log_error "See: https://www.qnap.com/en-uk/how-to/faq/article/why-do-the-installed-third-party-containers-not-run-successfully-on-specific-32-bit-arm-devices"
+            exit 1
+            ;;
+        *)
+            log_warn "Python zlib compatibility check failed (exit status: $ZLIB_STATUS). A system compatibility issue is possible; startup will continue."
+            if [ -n "$ZLIB_OUTPUT" ]; then
+                log_warn "Original error: $ZLIB_OUTPUT"
+            fi
+            ;;
+    esac
+}
+
 # Check system page size compatibility
 check_page_size() {
     PAGE_SIZE=$(getconf PAGE_SIZE 2>/dev/null || true)
 
-    if ! echo "$PAGE_SIZE" | grep -qE '^[0-9]+$'; then
-        log_warn "Unable to determine system page size; continuing without page-size compatibility check."
-        return 0
-    fi
+    # Use shell built-ins to avoid external dependencies during startup.
+    case "$PAGE_SIZE" in
+        ''|*[!0-9]*)
+            log_warn "Unable to determine system page size; checking Python library compatibility."
+            check_unknown_page_size
+            return 0
+            ;;
+    esac
 
     if [ "$PAGE_SIZE" -eq 32768 ]; then
         log_error "This platform uses a 32768-byte page size, which is not supported."
@@ -48,10 +80,12 @@ validate_env() {
     log_info "Validating environment variables..."
 
     # OCT_PORT must be numeric
-    if ! echo "$OCT_PORT" | grep -qE '^[0-9]+$'; then
-        log_error "OCT_PORT must be numeric (got: $OCT_PORT)"
-        exit 1
-    fi
+    case "$OCT_PORT" in
+        ''|*[!0-9]*)
+            log_error "OCT_PORT must be numeric (got: $OCT_PORT)"
+            exit 1
+            ;;
+    esac
 
     # OCT_LOG_LEVEL must be valid
     case "$OCT_LOG_LEVEL" in

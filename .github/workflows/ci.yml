@@ -57,6 +57,114 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      - name: Test entrypoint ELF fallback and numeric validation
+        run: |
+          set -eu
+          ROOT="$PWD"
+          TMP=$(mktemp -d)
+          trap 'rm -rf "$TMP"' EXIT HUP INT TERM
+          mkdir -p "$TMP/bin" "$TMP/data"
+          cat > "$TMP/bin/getconf" <<'EOF'
+          #!/bin/sh
+          printf '%s' "${TEST_PAGE_SIZE-4096}"
+          EOF
+          cat > "$TMP/bin/id" <<'EOF'
+          #!/bin/sh
+          if [ "$1" = '-u' ]; then echo 1000; else /usr/bin/id "$@"; fi
+          EOF
+          cat > "$TMP/bin/python" <<'EOF'
+          #!/bin/sh
+          case "$*" in
+            *'import zlib'*)
+              if [ -n "${TEST_ZLIB_MARKER-}" ]; then printf 'called\n' >> "$TEST_ZLIB_MARKER"; fi
+              case "${TEST_ZLIB_MODE-ok}" in
+                ok) exit 0 ;;
+                elf) echo 'ImportError: libz.so.1: ELF load command address/offset not page-aligned' >&2; exit 1 ;;
+                variant) echo 'ImportError: other.so: ELF segment is not page-aligned' >&2; exit 1 ;;
+                other) echo 'ImportError: another import failure' >&2; exit 1 ;;
+                crash) echo 'Segmentation fault' >&2; exit 139 ;;
+              esac ;;
+            *'from opencloudtouch import __version__'*) echo 1.5.8; exit 0 ;;
+            *'--version'*) echo 'Python 3.11.15'; exit 0 ;;
+            *) exit 0 ;;
+          esac
+          EOF
+          chmod +x "$TMP/bin/"*
+          run() {
+              page=$1 mode=$2 port=$3 expected_status=$4 expected_text=$5
+              set +e
+              output=$(PATH="$TMP/bin:$PATH" TEST_PAGE_SIZE="$page" TEST_ZLIB_MODE="$mode" OCT_PORT="$port" OCT_LOG_LEVEL=INFO OCT_DB_PATH="$TMP/data/db.sqlite" OCT_HOST=127.0.0.1 sh "$ROOT/apps/backend/entrypoint.sh" version 2>&1)
+              status=$?
+              set -e
+              if [ "$status" -ne "$expected_status" ]; then
+                  printf 'FAIL: page=<%s> mode=%s port=%s expected status %s got %s\n%s\n' "$page" "$mode" "$port" "$expected_status" "$status" "$output" >&2
+                  exit 1
+              fi
+              case "$output" in
+                  *"$expected_text"*) : ;;
+                  *) printf 'FAIL: expected <%s> in output:\n%s\n' "$expected_text" "$output" >&2; exit 1 ;;
+              esac
+              printf 'PASS: page=<%s> mode=%s port=%s status=%s\n' "$page" "$mode" "$port" "$status"
+          }
+          run 4096 ok 7777 0 'Environment validation passed'
+          run 16384 ok 7777 0 'has not been fully validated'
+          run 32768 ok 7777 1 '32768-byte page size'
+          run 65536 ok 7777 0 'has not been fully validated'
+          run '' ok 7777 0 'compatibility remains unverified'
+          run abc ok 7777 0 'compatibility remains unverified'
+          run '' elf 7777 1 'ELF alignment error'
+          run '' variant 7777 1 'ELF alignment error'
+          run '' other 7777 0 'startup will continue'
+          run '' crash 7777 0 'startup will continue'
+          run 4096 elf 7777 0 'Environment validation passed'
+          run 4096 ok xyz 1 'OCT_PORT must be numeric'
+          run '' ok xyz 1 'OCT_PORT must be numeric'
+          run 4096 ok '' 1 'OCT_PORT must be numeric'
+          run 4096 ok '7777abc' 1 'OCT_PORT must be numeric'
+          run 4096 ok '-1' 1 'OCT_PORT must be numeric'
+          run 4096 ok ' 7777' 1 'OCT_PORT must be numeric'
+          run 4096 ok "$(printf '7777\n8888')" 1 'OCT_PORT must be numeric'
+          run '32768x' ok 7777 0 'compatibility remains unverified'
+          # Assert the complete diagnostic, not just the generic error heading.
+          assert_output() {
+              page=$1 mode=$2 expected_status=$3
+              shift 3
+              set +e
+              output=$(PATH="$TMP/bin:$PATH" TEST_PAGE_SIZE="$page" TEST_ZLIB_MODE="$mode" OCT_PORT=7777 OCT_LOG_LEVEL=INFO OCT_DB_PATH="$TMP/data/db.sqlite" OCT_HOST=127.0.0.1 sh "$ROOT/apps/backend/entrypoint.sh" version 2>&1)
+              status=$?
+              set -e
+              if [ "$status" -ne "$expected_status" ]; then
+                  printf 'FAIL: expected exit %s, got %s:\n%s\n' "$expected_status" "$status" "$output" >&2
+                  exit 1
+              fi
+              for expected do
+                  case "$output" in
+                      *"$expected"*) : ;;
+                      *) printf 'FAIL: missing <%s> in output:\n%s\n' "$expected" "$output" >&2; exit 1 ;;
+                  esac
+              done
+          }
+          
+          assert_output '' elf 1 \
+              'ELF alignment error while loading a Python library.' \
+              'Original error: ImportError: libz.so.1: ELF load command address/offset not page-aligned' \
+              'See: https://www.qnap.com/en-uk/how-to/faq/article/why-do-the-installed-third-party-containers-not-run-successfully-on-specific-32-bit-arm-devices'
+          printf 'PASS: complete ELF diagnostic includes original error and QNAP reference\n'
+          
+          # Known page sizes must skip the additional Python zlib probe altogether.
+          marker="$TMP/zlib-invocations"
+          : > "$marker"
+          set +e
+          output=$(PATH="$TMP/bin:$PATH" TEST_PAGE_SIZE=4096 TEST_ZLIB_MODE=elf TEST_ZLIB_MARKER="$marker" OCT_PORT=7777 OCT_LOG_LEVEL=INFO OCT_DB_PATH="$TMP/data/db.sqlite" OCT_HOST=127.0.0.1 sh "$ROOT/apps/backend/entrypoint.sh" version 2>&1)
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ] || [ -s "$marker" ]; then
+              printf 'FAIL: known page size invoked zlib probe or failed (status=%s):\n%s\n' "$status" "$output" >&2
+              exit 1
+          fi
+          printf 'PASS: known page size does not invoke zlib probe\n'
+          echo 'PASS: All entrypoint integration scenarios passed.'
+
       - name: Test page size compatibility handling
         run: |
           run_page_size_test() {
@@ -79,6 +187,17 @@ jobs:
 
             chmod +x /tmp/fakebin/getconf
 
+            # Keep this entrypoint regression test independent of an installed OCT package.
+            cat > /tmp/fakebin/python <<'EOF'
+          #!/bin/sh
+          case "$*" in
+            *'from opencloudtouch import __version__'*) echo 'test-version'; exit 0 ;;
+            *'--version'*) echo 'Python test-version'; exit 0 ;;
+            *) exit 0 ;;
+          esac
+          EOF
+            chmod +x /tmp/fakebin/python
+
             set +e
             OUTPUT=$(
               PATH="/tmp/fakebin:$PATH" \
@@ -100,6 +219,10 @@ jobs:
                 exit 1
               fi
             else
+              if [ "$STATUS" -ne 0 ]; then
+                echo "ERROR: Expected successful entrypoint exit for page size '$VALUE' (status: $STATUS)"
+                exit 1
+              fi
               if echo "$OUTPUT" | grep -q "page size, which is not supported"; then
                 echo "ERROR: Page size check unexpectedly rejected value '$VALUE'"
                 exit 1
