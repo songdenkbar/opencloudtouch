@@ -171,6 +171,34 @@ class DeviceRepository(BaseRepository):
         """
         db = self._ensure_initialized()
 
+        # Discovery may observe an externally changed account UUID. Never
+        # silently map it to a second MAC in the same OCT database.
+        if device.marge_account_uuid:
+            owner = await self.get_by_account_uuid(device.marge_account_uuid)
+            if owner is not None and owner.device_id != device.device_id:
+                logger.warning(
+                    "Skipping conflicting UUID %s for %s (owned by %s)",
+                    device.marge_account_uuid,
+                    device.device_id,
+                    owner.device_id,
+                )
+                device.marge_account_uuid = None
+
+        if device.marge_account_uuid:
+            previous = await self.get_by_device_id(device.device_id)
+            if (
+                previous is not None
+                and previous.marge_account_uuid
+                and previous.marge_account_uuid != device.marge_account_uuid
+            ):
+                # An external OCT instance may have changed the speaker UUID.
+                # Count the observed transition for this process's write limiter.
+                from opencloudtouch.setup.account_pairing_service import (
+                    _record_uuid_write,
+                )
+
+                _record_uuid_write(device.device_id)
+
         cursor = await db.execute(
             """
             INSERT INTO devices (device_id, ip, name, model, mac_address, firmware_version, schema_version, last_seen, marge_account_uuid, capabilities_json)
