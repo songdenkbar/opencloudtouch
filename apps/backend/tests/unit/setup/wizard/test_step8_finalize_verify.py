@@ -226,7 +226,6 @@ class TestFinalizeDeviceUUIDFails:
             assert "SSH failed" in result["error"]
 
 
-
 class TestFinalizeDeviceMissingDatabaseRow:
     """Step 8 reports a failed UUID persistence instead of claiming success."""
 
@@ -251,16 +250,13 @@ class TestFinalizeDeviceMissingDatabaseRow:
                 new_callable=AsyncMock,
             ) as write_sources,
         ):
-            result = await service.finalize_device(
-                "192.168.1.100", "AABBCCDDEEFF"
-            )
+            result = await service.finalize_device("192.168.1.100", "AABBCCDDEEFF")
 
         assert result["success"] is False
         assert "device not found" in result["error"]
         uuid_setup.assert_awaited_once()
         repo.update_marge_account_uuid.assert_awaited_once()
         write_sources.assert_not_awaited()
-
 
 
 class TestFinalizeDeviceNoRepo:
