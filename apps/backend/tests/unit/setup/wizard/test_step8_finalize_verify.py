@@ -36,7 +36,8 @@ class TestFinalizeDeviceNoUUID:
     """Device has no UUID -- should generate and set."""
 
     @pytest.mark.asyncio
-    async def test_generates_uuid_when_missing(self):
+    @pytest.mark.parametrize("uuid_source", ["derived", "collision_fallback"])
+    async def test_generates_uuid_when_missing(self, uuid_source):
         repo = _make_device_repo()
         service = WizardService(device_repo=repo)
 
@@ -49,6 +50,7 @@ class TestFinalizeDeviceNoUUID:
                     had_uuid=False,
                     uuid="1234567",
                     message="UUID set via SSH",
+                    uuid_source=uuid_source,
                 ),
             ),
             patch(
@@ -96,7 +98,7 @@ class TestFinalizeDeviceNoUUID:
             assert result["uuid"] == "1234567"
             assert result["had_uuid"] is False
             repo.update_marge_account_uuid.assert_called_once_with(
-                "AABBCCDDEEFF", "1234567", uuid_source="unknown"
+                "AABBCCDDEEFF", "1234567", uuid_source=uuid_source
             )
 
 
