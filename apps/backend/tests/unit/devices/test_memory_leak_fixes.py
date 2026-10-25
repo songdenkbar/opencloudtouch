@@ -482,9 +482,9 @@ class TestShutdownRadioAdapters:
         from opencloudtouch.main import _shutdown
 
         mock_health_check = AsyncMock()
+        mock_dlna = AsyncMock()
 
         mock_app = MagicMock()
-        mock_dlna = AsyncMock()
         mock_app.state = SimpleNamespace(
             health_check=mock_health_check,
             dlna_service=mock_dlna,
