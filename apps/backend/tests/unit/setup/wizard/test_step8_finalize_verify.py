@@ -226,6 +226,43 @@ class TestFinalizeDeviceUUIDFails:
             assert "SSH failed" in result["error"]
 
 
+
+class TestFinalizeDeviceMissingDatabaseRow:
+    """Step 8 reports a failed UUID persistence instead of claiming success."""
+
+    @pytest.mark.asyncio
+    async def test_missing_row_fails_before_sources_are_written(self):
+        repo = _make_device_repo()
+        repo.update_marge_account_uuid.side_effect = ValueError(
+            "UUID collision or device not found: 1234567"
+        )
+        service = WizardService(device_repo=repo)
+
+        with (
+            patch(
+                "opencloudtouch.setup.wizard.step8_finalize_verify.ensure_account_uuid_unique",
+                new_callable=AsyncMock,
+                return_value=AccountPairingResult(
+                    success=True, had_uuid=False, uuid="1234567"
+                ),
+            ) as uuid_setup,
+            patch(
+                "opencloudtouch.setup.wizard.step8_finalize_verify.force_write_sources_xml",
+                new_callable=AsyncMock,
+            ) as write_sources,
+        ):
+            result = await service.finalize_device(
+                "192.168.1.100", "AABBCCDDEEFF"
+            )
+
+        assert result["success"] is False
+        assert "device not found" in result["error"]
+        uuid_setup.assert_awaited_once()
+        repo.update_marge_account_uuid.assert_awaited_once()
+        write_sources.assert_not_awaited()
+
+
+
 class TestFinalizeDeviceNoRepo:
     """No device repo available -- should return error."""
 
