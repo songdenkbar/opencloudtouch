@@ -196,6 +196,9 @@ class DeviceRepository(BaseRepository):
                 uuid_collision = True
                 incoming_uuid = None
 
+        # A collision-fallback UUID was assigned by the wizard. Before reboot,
+        # /info can still report the old, conflicting value: preserve the
+        # fallback mapping until the speaker reports a non-conflicting UUID.
         cursor = await db.execute(
             """
             INSERT INTO devices (device_id, ip, name, model, mac_address, firmware_version, schema_version, last_seen, marge_account_uuid, capabilities_json)
@@ -220,13 +223,19 @@ class DeviceRepository(BaseRepository):
                 schema_version = excluded.schema_version,
                 last_seen = excluded.last_seen,
                 marge_account_uuid = CASE
-                    WHEN ? OR (? IS NOT NULL AND excluded.marge_account_uuid IS NULL)
-                        THEN NULL
+                    WHEN (? OR (? IS NOT NULL AND excluded.marge_account_uuid IS NULL))
+                      AND NOT (
+                          devices.uuid_source = 'collision_fallback'
+                          AND devices.marge_account_uuid IS NOT NULL
+                      ) THEN NULL
                     ELSE COALESCE(excluded.marge_account_uuid, devices.marge_account_uuid)
                 END,
                 uuid_source = CASE
-                    WHEN ? OR (? IS NOT NULL AND excluded.marge_account_uuid IS NULL)
-                        THEN 'unknown'
+                    WHEN (? OR (? IS NOT NULL AND excluded.marge_account_uuid IS NULL))
+                      AND NOT (
+                          devices.uuid_source = 'collision_fallback'
+                          AND devices.marge_account_uuid IS NOT NULL
+                      ) THEN 'unknown'
                     WHEN excluded.marge_account_uuid IS NOT NULL
                       AND excluded.marge_account_uuid != devices.marge_account_uuid
                         THEN 'unknown'

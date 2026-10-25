@@ -801,6 +801,107 @@ async def test_upsert_conflicting_uuid_invalidates_stale_mapping(repo):
 
 
 @pytest.mark.asyncio
+async def test_upsert_preserves_pending_collision_fallback_until_reboot(repo):
+    """A stale /info collision must not erase the replacement UUID."""
+    speaker_a = Device(
+        device_id="AABBCCDDEEFF",
+        ip="192.168.1.10",
+        name="Speaker A",
+        model="SoundTouch 10",
+        mac_address="AA:BB:CC:DD:EE:FF",
+        firmware_version="27.0.6",
+        marge_account_uuid="1234567",
+    )
+    speaker_b = Device(
+        device_id="112233445566",
+        ip="192.168.1.11",
+        name="Speaker B",
+        model="SoundTouch 10",
+        mac_address="11:22:33:44:55:66",
+        firmware_version="27.0.6",
+        marge_account_uuid="1234567",
+    )
+
+    await repo.upsert(speaker_a)
+    await repo.upsert(speaker_b)
+    await repo.update_marge_account_uuid(
+        speaker_b.device_id, "7654321", uuid_source="collision_fallback"
+    )
+
+    # /info can still report the conflicting old UUID before restart.
+    await repo.upsert(speaker_b)
+
+    stored_a = await repo.get_by_device_id(speaker_a.device_id)
+    stored_b = await repo.get_by_device_id(speaker_b.device_id)
+    assert stored_a.marge_account_uuid == "1234567"
+    assert stored_b.marge_account_uuid == "7654321"
+    assert stored_b.uuid_source == "collision_fallback"
+    assert (await repo.get_by_account_uuid("7654321")).device_id == speaker_b.device_id
+
+    # A reboot exposes the new UUID through /info; provenance stays intact.
+    speaker_b.marge_account_uuid = "7654321"
+    await repo.upsert(speaker_b)
+    stored_b = await repo.get_by_device_id(speaker_b.device_id)
+    assert stored_b.uuid_source == "collision_fallback"
+
+    # A genuine later non-conflicting change can still replace the mapping.
+    speaker_b.marge_account_uuid = "8765432"
+    await repo.upsert(speaker_b)
+    stored_b = await repo.get_by_device_id(speaker_b.device_id)
+    assert stored_b.marge_account_uuid == "8765432"
+    assert stored_b.uuid_source == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_upsert_preserves_fallback_when_sql_detects_late_collision(repo):
+    """SQL's recheck also protects an already assigned fallback mapping."""
+    from unittest.mock import patch
+
+    speaker_a = Device(
+        device_id="AABBCCDDEEFF",
+        ip="192.168.1.10",
+        name="Speaker A",
+        model="SoundTouch 10",
+        mac_address="AA:BB:CC:DD:EE:FF",
+        firmware_version="27.0.6",
+    )
+    speaker_b = Device(
+        device_id="112233445566",
+        ip="192.168.1.11",
+        name="Speaker B",
+        model="SoundTouch 10",
+        mac_address="11:22:33:44:55:66",
+        firmware_version="27.0.6",
+        marge_account_uuid="7654321",
+    )
+    await repo.upsert(speaker_a)
+    await repo.upsert(speaker_b)
+    await repo.update_marge_account_uuid(
+        speaker_b.device_id, "7654321", uuid_source="collision_fallback"
+    )
+
+    original_lookup = repo.get_by_account_uuid
+    injected = False
+
+    async def assign_during_lookup(uuid):
+        nonlocal injected
+        if uuid == "1234567" and not injected:
+            injected = True
+            await repo.update_marge_account_uuid(speaker_a.device_id, "1234567")
+            return None
+        return await original_lookup(uuid)
+
+    speaker_b.marge_account_uuid = "1234567"
+    with patch.object(repo, "get_by_account_uuid", side_effect=assign_during_lookup):
+        await repo.upsert(speaker_b)
+
+    stored_b = await repo.get_by_device_id(speaker_b.device_id)
+    assert stored_b.marge_account_uuid == "7654321"
+    assert stored_b.uuid_source == "collision_fallback"
+    assert (await repo.get_by_account_uuid("1234567")).device_id == speaker_a.device_id
+
+
+@pytest.mark.asyncio
 async def test_update_account_uuid_rejects_collision(repo):
     """Direct UUID updates must not assign one UUID to two devices."""
     speaker_a = Device(
