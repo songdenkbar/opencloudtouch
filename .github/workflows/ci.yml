@@ -768,6 +768,8 @@ jobs:
             -exec bash -c 'for f; do [ -s "$f" ] && [ "$(tail -c1 "$f")" != "" ] && echo >> "$f"; done' _ {} + || true
 
       - name: Commit and push if changed
+        env:
+          BRANCH: ${{ steps.ref.outputs.branch }}
         run: |
           git config user.name "formatter-bot"
           git config user.email "noreply@opencloudtouch.org"
