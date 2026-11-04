@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from opencloudtouch.dlna.models import DlnaItem
 from opencloudtouch.dlna.renderer import DlnaRenderer
 
-
 logger = logging.getLogger(__name__)
 
 
