@@ -110,7 +110,9 @@ class DlnaService:
         """Play a DLNA item, creating a queue from its parent container."""
         items = await self.browse(server_id, parent_id)
         if callback_base_url is not None:
-            callback_url = f"{callback_base_url.rstrip('/')}/api/dlna/events/{device_id}"
+            callback_url = (
+                f"{callback_base_url.rstrip('/')}/api/dlna/events/{device_id}"
+            )
             try:
                 await self.subscriptions.ensure(
                     device_id=device_id,
