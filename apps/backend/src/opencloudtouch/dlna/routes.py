@@ -107,7 +107,7 @@ def _get_callback_base_url(request: Request, device_ip: str) -> str | None:
             callback_host = sock.getsockname()[0]
     except OSError:
         logger.warning(
-            "Cannot determine DLNA callback address; playing without auto-advance: device=%s",
+            "Cannot determine DLNA callback address; attempting playback without auto-advance: device=%s",
             device_ip,
             exc_info=True,
         )
