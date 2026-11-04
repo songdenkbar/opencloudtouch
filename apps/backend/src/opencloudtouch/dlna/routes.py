@@ -1,5 +1,6 @@
 """DLNA API routes."""
 
+import logging
 import socket
 from dataclasses import asdict
 from typing import Any, Literal
@@ -14,6 +15,8 @@ from opencloudtouch.dlna.events import parse_avtransport_event
 from opencloudtouch.dlna.playback import DlnaPlaybackError
 from opencloudtouch.dlna.renderer import DlnaRendererError
 from opencloudtouch.core.dependencies import DlnaServiceDep
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/dlna", tags=["dlna"])
 
@@ -87,7 +90,7 @@ async def _get_device_ip(request: Request, device_id: str) -> str:
     return device.ip
 
 
-def _get_callback_base_url(request: Request, device_ip: str) -> str:
+def _get_callback_base_url(request: Request, device_ip: str) -> str | None:
     """Build an AVTransport callback URL reachable by the renderer.
 
     The LAN interface is selected using the renderer address and the callback
@@ -102,11 +105,13 @@ def _get_callback_base_url(request: Request, device_ip: str) -> str:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             sock.connect((device_ip, 8091))
             callback_host = sock.getsockname()[0]
-    except OSError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail="Cannot determine DLNA callback address",
-        ) from exc
+    except OSError:
+        logger.warning(
+            "Cannot determine DLNA callback address; playing without auto-advance: device=%s",
+            device_ip,
+            exc_info=True,
+        )
+        return None
 
     server = request.scope.get("server")
     callback_port = server[1] if server else request.url.port

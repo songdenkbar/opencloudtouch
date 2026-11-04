@@ -75,23 +75,24 @@ class DlnaService:
         server_id: str,
         parent_id: str,
         object_id: str,
-        callback_base_url: str,
+        callback_base_url: str | None,
     ) -> DlnaItem:
         """Play a DLNA item, creating a queue from its parent container."""
         items = await self.browse(server_id, parent_id)
-        callback_url = f"{callback_base_url.rstrip('/')}/api/dlna/events/{device_id}"
-        try:
-            await self.subscriptions.ensure(
-                device_id=device_id,
-                device_ip=device_ip,
-                callback_url=callback_url,
-            )
-        except Exception:
-            logger.warning(
-                "DLNA subscription failed; playing without auto-advance: device=%s",
-                device_id,
-                exc_info=True,
-            )
+        if callback_base_url is not None:
+            callback_url = f"{callback_base_url.rstrip('/')}/api/dlna/events/{device_id}"
+            try:
+                await self.subscriptions.ensure(
+                    device_id=device_id,
+                    device_ip=device_ip,
+                    callback_url=callback_url,
+                )
+            except Exception:
+                logger.warning(
+                    "DLNA subscription failed; playing without auto-advance: device=%s",
+                    device_id,
+                    exc_info=True,
+                )
         return await self.playback.play(
             device_id=device_id,
             device_ip=device_ip,
