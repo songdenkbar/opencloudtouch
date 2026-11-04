@@ -491,3 +491,42 @@ async def test_play_continues_when_event_subscription_fails():
     assert result == item
     service.playback.play.assert_awaited_once()
     service.subscriptions.ensure.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_play_skips_subscription_without_callback_address():
+    """Playback proceeds without auto-advance when no callback address is available."""
+    item = DlnaItem(
+        id="track-1",
+        parent_id="folder",
+        title="Song",
+        is_container=False,
+        resource_url="http://192.0.2.10/song.mp3",
+    )
+    service = DlnaService(
+        discovery=AsyncMock(),
+        client=AsyncMock(),
+        playback=AsyncMock(),
+    )
+    service.browse = AsyncMock(return_value=[item])
+    service.playback.play.return_value = item
+    service.subscriptions.ensure = AsyncMock()
+
+    result = await service.play(
+        device_id="device-1",
+        device_ip="192.0.2.20",
+        server_id="server-1",
+        parent_id="folder",
+        object_id="track-1",
+        callback_base_url=None,
+    )
+
+    assert result == item
+    service.subscriptions.ensure.assert_not_awaited()
+    service.playback.play.assert_awaited_once_with(
+        device_id="device-1",
+        device_ip="192.0.2.20",
+        server_id="server-1",
+        items=[item],
+        object_id="track-1",
+    )
