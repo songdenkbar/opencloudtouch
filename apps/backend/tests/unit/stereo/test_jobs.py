@@ -115,3 +115,36 @@ async def test_device_in_zone_rejected(service):
     with pytest.raises(Exception) as exc:
         await service.create(LEFT, RIGHT, "A pair")
     assert getattr(exc.value, "code", None) == "stereo_device_in_zone"
+
+
+
+@pytest.mark.asyncio
+async def test_second_commit_failure_rolls_back_both_devices(service):
+    class FailingSecondCommit(MockGroupBackend):
+        def __init__(self):
+            self.calls = 0
+
+        async def commit(self, ip: str, job: str, *, removing: bool = False):
+            self.calls += 1
+            if self.calls == 2:
+                raise RuntimeError("stereo_write_failed")
+            await super().commit(ip, job, removing=removing)
+
+    service.backend = FailingSecondCommit()
+    created = await service.create(LEFT, RIGHT, "Failed attempt")
+    await service.tasks[created["job_id"]]
+    result = service.job(created["job_id"])
+    assert result["state"] == "failed"
+    assert result["rolled_back"] is True
+    assert all(s.content is None for s in mock_group_store.values())
+    assert all(s.journal is None for s in mock_group_store.values())
+
+
+@pytest.mark.asyncio
+async def test_rejects_leftover_before_new_pair(service):
+    mock_group_store["192.168.1.101"] = StoredGroup(
+        journal={"job_id": "a" * 32, "operation": "create", "had_file": False},
+    )
+    with pytest.raises(Exception) as exc:
+        await service.create(LEFT, RIGHT, "New Pair")
+    assert getattr(exc.value, "code", None) == "stereo_recovery_needed"
