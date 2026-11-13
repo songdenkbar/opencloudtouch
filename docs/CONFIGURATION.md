@@ -2,6 +2,38 @@
 
 OpenCloudTouch is configured via `OCT_`-prefixed environment variables (case-insensitive), read by `AppConfig` in [`apps/backend/src/opencloudtouch/core/config.py`](../apps/backend/src/opencloudtouch/core/config.py). This page documents every variable; see [README.md](../README.md#configuration) for the short version.
 
+## Stereo pairs (SoundTouch 10)
+
+**Experimental backend implementation — hardware verification pending.** Stereo pairs
+are separate from multi-room zones. Only two SoundTouch 10 speakers are supported:
+LEFT is the master and RIGHT plays the right channel. OCT discovers pairs through
+GET /getGroup; no stereo pair database records are created.
+
+To create a pair, both speakers must be present in OCT, available on the LAN,
+outside multi-room zones and existing stereo pairs, and have permanent SSH
+access enabled. The backend backs up the persistent file at
+/mnt/nv/BoseApp-Persistence/1/GroupService.xml, stages LEFT/RIGHT XML,
+commits both files, reboots both speakers, and verifies the reported group.
+Creating, removing and recovering a pair are long-running jobs (HTTP 202),
+polled with GET /api/stereo-pairs/jobs/{job_id}.
+
+On each affected speaker a job may leave:
+- GroupService.xml.oct-job — a JSON journal
+- GroupService.xml.oct-bak.<job_id> — original content when present
+- GroupService.xml.oct-new.<job_id> — staged update
+
+OCT blocks subsequent writes while such files remain. Use
+POST /api/stereo-pairs/recover/{device_id} to restore the previous configuration
+from journal and backup, followed by reboot. Before running recovery, verify
+which speaker has the interrupted operation.
+
+**Caution:** Removing a pair by deleting its file, target-shell support,
+recovery after interruption, and reboot timing must still be verified on
+real SoundTouch 10 devices. Multi-room zone creation and automatic grouping
+are not prevented for stereo-pair members. Do not run those actions during
+stereo jobs. Devices may appear offline temporarily while rebooting.
+Mock-mode tests do not replace real channel-separation hardware tests.
+
 ## Server
 
 | Variable | Default | Description |
