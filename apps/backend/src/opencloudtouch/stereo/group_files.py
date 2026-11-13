@@ -6,6 +6,7 @@ The left speaker is the master; only the right file has GROUP_OK status.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from unicodedata import category
 from ipaddress import ip_address
 import re
 from xml.sax.saxutils import escape
@@ -43,7 +44,7 @@ def validate_device(device_id: str, ip: str) -> None:
 
 def validate_name(name: str) -> str:
     clean = name.strip()
-    if not 1 <= len(clean) <= 30 or any(ord(c) < 32 or ord(c) == 127 for c in clean):
+    if not 1 <= len(clean) <= 30 or any(category(c) == "Cc" for c in clean):
         raise ValueError("Stereo pair name must have 1-30 printable characters")
     return clean
 
