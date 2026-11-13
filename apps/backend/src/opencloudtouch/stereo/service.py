@@ -6,6 +6,7 @@ import logging
 import secrets
 import uuid
 from datetime import datetime, timezone
+from dataclasses import replace
 from ipaddress import ip_address
 from typing import Any
 
@@ -40,7 +41,8 @@ class StereoService:
     async def _group(self, device: Any) -> GroupInfo | None:
         if self.mock_mode:
             state = mock_group_store.get(device.ip)
-            return parse_group_xml(state.content) if state and state.content else None
+            group = parse_group_xml(state.content) if state and state.content else None
+            return replace(group, status="GROUP_OK") if group is not None else None
         async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, connect=2.0)) as client:
             result = await client.get(f"http://{device.ip}:8090/getGroup")
             result.raise_for_status()
