@@ -91,7 +91,7 @@ class SSHGroupBackend:
             GROUP_FILE + ".oct-new." + job,
         )
 
-    async def _run(self, ip: str, commands: list[str]) -> list[str]:
+    async def _run(self, ip: str, commands: list[str | tuple[str, str]]) -> list[str]:
         from opencloudtouch.setup.ssh_client import SoundTouchSSHClient
         ssh = SoundTouchSSHClient(ip)
         connection = await ssh.connect()
@@ -100,18 +100,29 @@ class SSHGroupBackend:
         output = []
         try:
             for command in commands:
-                result = await ssh.execute(command)
-                if not result.success:
-                    raise OSError("SSH command failed")
-                output.append(result.output.strip())
+                if isinstance(command, tuple):
+                    # Payload is sent via stdin, never included in the command or logs.
+                    shell, payload = command
+                    connection = ssh._connection
+                    if connection is None:
+                        raise OSError("SSH connection closed")
+                    result = await connection.run(shell, input=payload, check=False)
+                    if result.exit_status != 0:
+                        raise OSError("SSH transfer failed")
+                    output.append((result.stdout or "").strip())
+                else:
+                    result = await ssh.execute(command)
+                    if not result.success:
+                        raise OSError("SSH command failed")
+                    output.append(result.output.strip())
             return output
         finally:
             await ssh.close()
 
     @staticmethod
-    def _write(path: str, content: str) -> str:
+    def _write(path: str, content: str) -> tuple[str, str]:
         encoded = base64.b64encode(content.encode("utf-8")).decode("ascii")
-        return f"printf '%s' '{encoded}' | base64 -d > {path}"
+        return (f"base64 -d > {path}", encoded)
 
     async def leftover(self, ip: str) -> bool:
         # glob is resolved by shell. Existence of any artifact blocks new operations.
