@@ -181,13 +181,16 @@ class SSHGroupBackend:
         await self._run(ip, [f"rm -f {stage}"])
 
     async def mark_verified(self, ip: str, job: str) -> None:
-        journal, _, _ = self._suffix(job)
+        journal, _, stage = self._suffix(job)
         raw = (await self._run(ip, [f"cat {journal}"]))[0]
         record = json.loads(raw)
         if record.get("job_id") != job:
             raise RuntimeError("stereo_recovery_needed")
         record["state"] = "verified"
-        await self._run(ip, [self._write(journal, json.dumps(record, separators=(",", ":")))])
+        await self._run(ip, [
+            self._write(stage, json.dumps(record, separators=(",", ":"))),
+            f"mv {stage} {journal}",
+        ])
 
     async def cleanup(self, ip: str, job: str) -> None:
         journal, backup, stage = self._suffix(job)
