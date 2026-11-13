@@ -294,7 +294,8 @@ class MockDeviceClient(DeviceClient):
         from opencloudtouch.stereo.group_backend import mock_group_store
         from opencloudtouch.stereo.group_files import parse_group_xml
 
-        state = mock_group_store.get(self.ip_address or self.MOCK_DEVICES[self.device_id]["info"].ip_address)
+        info = await self.get_info()
+        state = mock_group_store.get(self.ip_address or info.ip_address)
         group = parse_group_xml(state.content) if state and state.content else None
         return replace(group, status="GROUP_OK") if group is not None else None
 
