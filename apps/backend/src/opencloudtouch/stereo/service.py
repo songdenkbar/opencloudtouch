@@ -202,15 +202,26 @@ class StereoService:
             right = await self.repo.get_by_device_id(ids[1])
             if not left or not right:
                 raise_coded(503, "device_unreachable", "Pair member missing")
-            for d in (left, right):
-                group, ok = await self._group_safe(d)
+            reachable: list[Any] = []
+            for device in (left, right):
+                group, ok = await self._group_safe(device)
                 if not ok:
+                    if force:
+                        continue
                     raise_coded(503, "device_unreachable", "Pair member is unreachable")
                 if not group or group.group_id != group_id:
                     raise_coded(409, "stereo_pair_not_found", "Pair membership changed")
-                if await self.backend.leftover(d.ip):
+                if await self.backend.leftover(device.ip):
                     raise_coded(409, "stereo_recovery_needed", "Recovery required")
-            return self._enqueue("remove", ids, pair["name"], group_id, left, right)
+                reachable.append(device)
+            if not reachable:
+                raise_coded(503, "device_unreachable", "Both speakers are unreachable")
+            # Keep both members in the job's identity; only operate on reachable devices.
+            return self._enqueue(
+                "remove", ids, pair["name"], group_id,
+                left if left in reachable else None,
+                right if right in reachable else None,
+            )
         except BaseException:
             self.busy.difference_update(ids)
             raise
@@ -267,18 +278,24 @@ class StereoService:
             if all(ok for _g, ok in groups):
                 if group_id is None and all(g is None for g, _ok in groups):
                     return
-                if group_id and len(devices) == 2 and all(
-                    g is not None and g.group_id == group_id
-                    and g.master_device_id == devices[0].device_id
-                    and g.status == "GROUP_OK"
+                if group_id and all(
+                    g is not None and g.group_id == group_id and g.status == "GROUP_OK"
                     and len(g.roles) == 2
-                    and {(r.device_id, r.role) for r in g.roles} == {
-                        (devices[0].device_id, "LEFT"),
-                        (devices[1].device_id, "RIGHT"),
-                    }
-                    for g, _ok in groups
+                    and {r.role for r in g.roles} == {"LEFT", "RIGHT"}
+                    and any(r.device_id == d.device_id for r in g.roles)
+                    for d, (g, _ok) in zip(devices, groups)
                 ):
-                    return
+                    # Full-pair verification also checks master and role identities.
+                    if len(devices) == 1 or all(
+                        g is not None
+                        and g.master_device_id == devices[0].device_id
+                        and {(r.device_id, r.role) for r in g.roles} == {
+                            (devices[0].device_id, "LEFT"),
+                            (devices[1].device_id, "RIGHT"),
+                        }
+                        for g, _ok in groups
+                    ):
+                        return
             await asyncio.sleep(10 if not self.mock_mode else 0)
         raise RuntimeError("stereo_verify_failed")
 
