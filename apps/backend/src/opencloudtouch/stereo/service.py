@@ -153,10 +153,11 @@ class StereoService:
         job_id = uuid.uuid4().hex
         job: dict[str, Any] = {
             "job_id": job_id, "operation": op, "group_id": group_id, "name": name,
-            "left_device_id": left.device_id if left else None,
-            "right_device_id": right.device_id if right else None,
+            "left_device_id": ids[0] if op != "recover" else None,
+            "right_device_id": ids[1] if op != "recover" and len(ids) > 1 else None,
             "state": "running", "step": "backing_up", "started_at": _now(),
-            "finished_at": None, "error_code": None, "failed_device_id": None,
+            "finished_at": None, "error_code": None,
+            "failed_device_id": ids[0] if op == "recover" else None,
             "rolled_back": None,
         }
         self.jobs[job_id] = job
