@@ -77,6 +77,23 @@ class MockDeviceClient(DeviceClient):
                 artwork_url=None,
             ),
         },
+        "A1B2C3D4E5F6": {
+            "info": DeviceInfo(
+                device_id="A1B2C3D4E5F6",
+                name="Study",
+                type="SoundTouch 10",
+                mac_address="A1B2C3D4E5F6",
+                ip_address="192.168.1.103",
+                firmware_version="28.0.12.46499",
+                module_type="sm2",
+                variant="spotty",
+                variant_mode="normal",
+            ),
+            "now_playing": NowPlayingInfo(
+                source="STANDBY",
+                state="STOP_STATE",
+            ),
+        },
         "112233445566": {
             "info": DeviceInfo(
                 device_id="112233445566",
