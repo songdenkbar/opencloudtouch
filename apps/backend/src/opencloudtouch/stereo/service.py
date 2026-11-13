@@ -360,7 +360,7 @@ class StereoService:
                 restored = True
                 for device in reversed(prepared):
                     try:
-                        if await self.backend.leftover(device.ip):
+                        if committed and await self.backend.leftover(device.ip):
                             await self.backend.rollback(device.ip, job["job_id"])
                     except Exception:
                         restored = False
