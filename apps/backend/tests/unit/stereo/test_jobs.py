@@ -148,3 +148,31 @@ async def test_rejects_leftover_before_new_pair(service):
     with pytest.raises(Exception) as exc:
         await service.create(LEFT, RIGHT, "New Pair")
     assert getattr(exc.value, "code", None) == "stereo_recovery_needed"
+
+
+
+@pytest.mark.asyncio
+async def test_cleanup_failure_never_undoes_verified_pair(service):
+    class FailingCleanup(MockGroupBackend):
+        def __init__(self):
+            self.calls = 0
+
+        async def cleanup(self, ip: str, job: str):
+            self.calls += 1
+            if self.calls == 2:
+                raise RuntimeError("stereo_ssh_failed")
+            await super().cleanup(ip, job)
+
+    service.backend = FailingCleanup()
+    job = await service.create(LEFT, RIGHT, "Protected Pair")
+    await service.tasks[job["job_id"]]
+    result = service.job(job["job_id"])
+    assert result["state"] == "failed"
+    assert result["rolled_back"] is False
+    # Speaker files must still agree: recovery is cleanup-only after verification.
+    assert len((await service.list_pairs())["pairs"]) == 1
+    outstanding = mock_group_store["192.168.1.103"]
+    assert outstanding.journal["state"] == "verified"
+    assert await service.backend.recover("192.168.1.103")
+    assert len((await service.list_pairs())["pairs"]) == 1
+    assert not await service.backend.leftover("192.168.1.103")
