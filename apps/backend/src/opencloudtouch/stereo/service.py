@@ -305,6 +305,7 @@ class StereoService:
         devices = [d for d in (left, right) if d is not None]
         prepared: list[Any] = []
         committed = False
+        verified = False
         try:
             if operation == "recover":
                 job["step"] = "rolling_back"
@@ -339,6 +340,9 @@ class StereoService:
                 job["step"] = "verifying"
                 await self._verify(devices, job["group_id"] if operation == "create" else None)
                 for device in devices:
+                    await self.backend.mark_verified(device.ip, job["job_id"])
+                verified = True
+                for device in devices:
                     await self.backend.cleanup(device.ip, job["job_id"])
             job["state"] = "succeeded"
             job["step"] = "done"
@@ -346,7 +350,11 @@ class StereoService:
             logger.warning("Stereo job %s failed: %s", job["job_id"], type(exc).__name__)
             job["state"] = "failed"
             job["error_code"] = str(exc) if str(exc).startswith("stereo_") else "stereo_ssh_failed"
-            if prepared:
+            if verified:
+                # Do not restore just one side after a successful pair verification.
+                # Any remaining journal is marked verified and recovery cleans it.
+                job["rolled_back"] = False
+            elif prepared:
                 job["step"] = "rolling_back"
                 restored = True
                 for device in reversed(prepared):
@@ -356,22 +364,23 @@ class StereoService:
                     except Exception:
                         restored = False
                         job["failed_device_id"] = device.device_id
-                if restored and committed:
+                cancelled = isinstance(exc, asyncio.CancelledError)
+                if restored and committed and not cancelled:
                     try:
                         await self._reboot(devices)
                         await self._wait_online(devices)
                         await self._verify(devices, job['group_id'] if operation == 'remove' else None)
                     except Exception:
                         restored = False
-                if restored:
+                if restored and not cancelled:
                     for device in prepared:
                         try:
                             if await self.backend.leftover(device.ip):
                                 await self.backend.cleanup(device.ip, job["job_id"])
                         except Exception:
                             restored = False
-                job["rolled_back"] = restored
-                if not restored:
+                job["rolled_back"] = restored and not cancelled
+                if not restored and job["error_code"] != "stereo_timeout":
                     job["error_code"] = "stereo_rollback_failed"
             if isinstance(exc, asyncio.CancelledError):
                 logger.warning("Stereo job cancelled, recovery files retained if necessary")
