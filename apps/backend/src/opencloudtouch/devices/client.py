@@ -199,6 +199,14 @@ class DeviceClient(ABC):
         """
         pass
 
+    async def get_group(self):
+        """Read the persistent stereo group from the device.
+
+        Returns None when no group is configured or its XML cannot be parsed.
+        Not abstract for compatibility with existing third-party DeviceClient fakes.
+        """
+        raise NotImplementedError("get_group not implemented")
+
     # ---- Zone Methods ----
 
     @abstractmethod
