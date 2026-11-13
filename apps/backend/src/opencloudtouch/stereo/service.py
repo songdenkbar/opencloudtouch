@@ -240,25 +240,25 @@ class StereoService:
     async def _wait_online(self, devices: list[Any]) -> None:
         if self.mock_mode:
             return
-        # Explicitly wait for the speakers to leave and rejoin the network.
-        for device in devices:
-            down = False
+
+        async def wait_one(device: Any) -> None:
+            # All speakers must be watched concurrently. Otherwise the second
+            # speaker may have already rebooted by the time it is polled.
             for _ in range(30):
                 _, online = await self._group_safe(device)
                 if not online:
-                    down = True
                     break
                 await asyncio.sleep(2)
-            if not down:
+            else:
                 raise RuntimeError("stereo_timeout")
-        for device in devices:
             for _ in range(36):
                 _, online = await self._group_safe(device)
                 if online:
-                    break
+                    return
                 await asyncio.sleep(5)
-            else:
-                raise RuntimeError("stereo_timeout")
+            raise RuntimeError("stereo_timeout")
+
+        await asyncio.gather(*(wait_one(d) for d in devices))
 
     async def _verify(self, devices: list[Any], group_id: str | None) -> None:
         for _ in range(6):
@@ -266,11 +266,15 @@ class StereoService:
             if all(ok for _g, ok in groups):
                 if group_id is None and all(g is None for g, _ok in groups):
                     return
-                if group_id and all(
+                if group_id and len(devices) == 2 and all(
                     g is not None and g.group_id == group_id
+                    and g.master_device_id == devices[0].device_id
                     and g.status == "GROUP_OK"
                     and len(g.roles) == 2
-                    and {r.role for r in g.roles} == {"LEFT", "RIGHT"}
+                    and {(r.device_id, r.role) for r in g.roles} == {
+                        (devices[0].device_id, "LEFT"),
+                        (devices[1].device_id, "RIGHT"),
+                    }
                     for g, _ok in groups
                 ):
                     return
@@ -338,7 +342,7 @@ class StereoService:
                     try:
                         await self._reboot(devices)
                         await self._wait_online(devices)
-                        await self._verify(devices, None)
+                        await self._verify(devices, job['group_id'] if operation == 'remove' else None)
                     except Exception:
                         restored = False
                 if restored:
