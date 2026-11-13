@@ -42,6 +42,13 @@ class MockDiscoveryAdapter(DeviceDiscovery):
             "model": "SoundTouch 10",
             "firmware_version": "28.0.12.46499",
         },
+        "A1B2C3D4E5F6": {
+            "ip": "192.168.1.103",
+            "mac": "A1B2C3D4E5F6",
+            "name": "Study",
+            "model": "SoundTouch 10",
+            "firmware_version": "28.0.12.46499",
+        },
         "112233445566": {
             "ip": "192.168.1.102",
             "mac": "112233445566",
