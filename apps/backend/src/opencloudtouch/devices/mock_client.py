@@ -288,6 +288,16 @@ class MockDeviceClient(DeviceClient):
 
     # ---- Zone Methods ----
 
+    async def get_group(self):
+        """Return simulated firmware stereo status using the shared group-file store."""
+        from dataclasses import replace
+        from opencloudtouch.stereo.group_backend import mock_group_store
+        from opencloudtouch.stereo.group_files import parse_group_xml
+
+        state = mock_group_store.get(self.ip_address or self.MOCK_DEVICES[self.device_id]["info"].ip_address)
+        group = parse_group_xml(state.content) if state and state.content else None
+        return replace(group, status="GROUP_OK") if group is not None else None
+
     async def get_zone_status(self) -> ZoneStatus | None:
         """Mock get zone status."""
         logger.debug("[MOCK] get_zone_status() for device %s", self.device_id)
