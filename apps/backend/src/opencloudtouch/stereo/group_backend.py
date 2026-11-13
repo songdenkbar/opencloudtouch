@@ -73,6 +73,8 @@ class MockGroupBackend:
 
     async def cleanup(self, ip: str, job: str) -> None:
         state = mock_group_store[ip]
+        if state.journal is None or state.journal.get("job_id") != job:
+            raise RuntimeError("stereo_recovery_needed")
         state.journal = None
         state.backup = None
         state.staged = None
@@ -194,6 +196,10 @@ class SSHGroupBackend:
 
     async def cleanup(self, ip: str, job: str) -> None:
         journal, backup, stage = self._suffix(job)
+        raw = (await self._run(ip, [f"cat {journal}"]))[0]
+        record = json.loads(raw)
+        if record.get("job_id") != job:
+            raise RuntimeError("stereo_recovery_needed")
         await self._run(ip, [f"rm -f {backup} {stage} {journal}"])
 
     async def recover(self, ip: str) -> bool:
