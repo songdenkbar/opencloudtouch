@@ -4,6 +4,110 @@ info:
   description: Open-Source replacement for discontinued streaming device cloud features
   version: 2.0.0
 paths:
+  /api/stereo-pairs:
+    get:
+      tags: [Stereo]
+      operationId: list_stereo_pairs
+      summary: List SoundTouch 10 stereo pairs and recovery state
+      responses:
+        '200':
+          description: Speaker-derived pairs and recovery status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StereoPairList'
+    post:
+      tags: [Stereo]
+      operationId: create_stereo_pair
+      summary: Start persistent LEFT/RIGHT pairing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStereoPair'
+      responses:
+        '202':
+          description: Long-running stereo job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StereoJob'
+  /api/stereo-pairs/jobs:
+    get:
+      tags: [Stereo]
+      operationId: list_stereo_jobs
+      responses:
+        '200':
+          description: Recent and running jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StereoJob'
+  /api/stereo-pairs/jobs/{job_id}:
+    get:
+      tags: [Stereo]
+      operationId: get_stereo_job
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Job status and progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StereoJob'
+        '404':
+          description: Job not found
+  /api/stereo-pairs/recover/{device_id}:
+    post:
+      tags: [Stereo]
+      operationId: recover_stereo_device
+      parameters:
+      - name: device_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '202':
+          description: Recovery job started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StereoJob'
+  /api/stereo-pairs/{group_id}:
+    delete:
+      tags: [Stereo]
+      operationId: remove_stereo_pair
+      parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: force
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+      responses:
+        '202':
+          description: Removal job started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StereoJob'
   /api/devices/discover:
     get:
       tags:
@@ -3299,6 +3403,82 @@ paths:
               schema: {}
 components:
   schemas:
+    CreateStereoPair:
+      type: object
+      required: [left_device_id, right_device_id, name]
+      properties:
+        left_device_id:
+          type: string
+        right_device_id:
+          type: string
+        name:
+          type: string
+          minLength: 1
+          maxLength: 30
+    StereoPair:
+      type: object
+      properties:
+        group_id:
+          type: string
+        name:
+          type: [string, 'null']
+        status:
+          type: [string, 'null']
+        left_device_id:
+          type: [string, 'null']
+        right_device_id:
+          type: [string, 'null']
+        partial:
+          type: boolean
+        inconsistent:
+          type: boolean
+    StereoPairList:
+      type: object
+      properties:
+        pairs:
+          type: array
+          items:
+            $ref: '#/components/schemas/StereoPair'
+        unreachable_device_ids:
+          type: array
+          items:
+            type: string
+        recovery_needed_device_ids:
+          type: array
+          items:
+            type: string
+    StereoJob:
+      type: object
+      properties:
+        job_id:
+          type: string
+        operation:
+          type: string
+          enum: [create, remove, recover]
+        group_id:
+          type: [string, 'null']
+        name:
+          type: [string, 'null']
+        left_device_id:
+          type: [string, 'null']
+        right_device_id:
+          type: [string, 'null']
+        state:
+          type: string
+          enum: [running, succeeded, failed]
+        step:
+          type: string
+          enum: [validating, backing_up, writing_files, rebooting, waiting_for_devices, verifying, rolling_back, done]
+        started_at:
+          type: string
+        finished_at:
+          type: [string, 'null']
+        error_code:
+          type: [string, 'null']
+        failed_device_id:
+          type: [string, 'null']
+        rolled_back:
+          type: [boolean, 'null']
     AuditBatchRequest:
       properties:
         entries:
