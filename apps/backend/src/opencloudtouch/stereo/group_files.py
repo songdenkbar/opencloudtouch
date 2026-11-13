@@ -11,6 +11,7 @@ import re
 from xml.sax.saxutils import escape
 
 from defusedxml import ElementTree
+from defusedxml.common import DefusedXmlException
 
 _DEVICE_ID = re.compile(r"^[A-Za-z0-9]{12}$")
 _GROUP_ID = re.compile(r"^[0-9]{1,12}$")
@@ -109,5 +110,5 @@ def parse_group_xml(xml: str | bytes) -> GroupInfo | None:
             roles=roles,
             status=root.findtext("status"),
         )
-    except (ValueError, TypeError, ElementTree.ParseError):
+    except (ValueError, TypeError, ElementTree.ParseError, DefusedXmlException):
         return None
