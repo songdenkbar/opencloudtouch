@@ -4,7 +4,7 @@ from __future__ import annotations
 import base64
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Protocol
 
 from opencloudtouch.stereo.group_files import GROUP_FILE, GROUP_DIRECTORY
