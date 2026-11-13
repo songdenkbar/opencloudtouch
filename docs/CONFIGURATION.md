@@ -24,7 +24,9 @@ On each affected speaker a job may leave:
 
 OCT blocks subsequent writes while such files remain. Use
 POST /api/stereo-pairs/recover/{device_id} to restore the previous configuration
-from journal and backup, followed by reboot. Before running recovery, verify
+from journal and backup, followed by reboot. If the journal indicates that a
+pair was already verified, recovery only cleans leftover artifacts instead of
+reversing an otherwise successful pairing. Before running recovery, verify
 which speaker has the interrupted operation.
 
 **Caution:** Removing a pair by deleting its file, target-shell support,
