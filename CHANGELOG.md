@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_No changes yet._
+### Added
+- Experimental backend-only SoundTouch 10 stereo-pair jobs with persistent LEFT/RIGHT group files, device-derived pair discovery, on-speaker transaction journal, backups, recovery endpoints, and mock-mode tests. Real-hardware verification is still required.
 
 ---
 
