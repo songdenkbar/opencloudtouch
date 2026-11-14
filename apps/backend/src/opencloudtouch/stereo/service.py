@@ -334,7 +334,12 @@ class StereoService:
                 == {d.device_id for d in devices}
             )
 
-        if any(r["state"] == "verified" for r in records):
+        if all(r["state"] == "restored" for r in records):
+            # Rollback already completed on both devices. Cleanup may have
+            # deleted backup files before an SSH disconnect, so never read
+            # those backups or reboot the speakers on this resume path.
+            pass
+        elif any(r["state"] == "verified" for r in records):
             # A verified marker is written only after both speakers passed
             # the firmware-level check. Never undo one half of that decision.
             if any(r["state"] == "restored" for r in records):
