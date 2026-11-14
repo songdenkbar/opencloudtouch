@@ -249,7 +249,7 @@ class StereoService:
         if not await self.backend.leftover(device.ip):
             raise_coded(409, "stereo_nothing_to_recover", "No recovery information found")
         record = await self.backend.journal_record(device.ip)
-        if record is None or record["state"] in {"verified", "preparing"}:
+        if record is None or record["state"] in {"verified", "restored", "preparing"}:
             self._reserve([device_id])
             try:
                 return self._enqueue("recover", [device_id], None, None, device, None)
@@ -327,8 +327,12 @@ class StereoService:
         if any(r["state"] == "verified" for r in records):
             # A verified marker is written only after both speakers passed
             # the firmware-level check. Never undo one half of that decision.
+            if any(r["state"] == "restored" for r in records):
+                raise RuntimeError("stereo_recovery_needed")
             if not await matching_final_state():
                 raise RuntimeError("stereo_recovery_needed")
+            for device in devices:
+                await self.backend.mark_verified(device.ip, job_id)
         else:
             # Both backups must be readable before touching either speaker.
             from opencloudtouch.stereo.group_files import parse_group_xml
@@ -336,11 +340,13 @@ class StereoService:
                 parse_group_xml(await self.backend.previous_content(d.ip) or "<group />")
                 for d in devices
             ]
-            for device in devices:
-                await self.backend.rollback(device.ip, job_id)
-            if any(r["state"] == "committed" for r in records):
-                await self._reboot(devices)
-                await self._wait_reachable(devices)
+            for device, record in zip(devices, records):
+                if record["state"] != "restored":
+                    await self.backend.rollback(device.ip, job_id)
+            # A write may have happened before its journal was updated; always
+            # reboot after restoring original files to reload firmware state.
+            await self._reboot(devices)
+            await self._wait_reachable(devices)
 
             for attempt in range(6):
                 responses = await asyncio.gather(*(self._group_safe(d) for d in devices))
@@ -363,9 +369,13 @@ class StereoService:
             else:
                 raise RuntimeError("stereo_rollback_failed")
 
-        # Complete both decisions before deleting either backup.
-        for device in devices:
-            await self.backend.mark_verified(device.ip, job_id)
+            # Persist the rollback decision independently from successful
+            # verification. A second crash must never reinterpret restored
+            # original files as a successfully created stereo group.
+            for device in devices:
+                await self.backend.mark_restored(device.ip, job_id)
+
+        # Both devices have the same final decision before either backup goes.
         for device in devices:
             await self.backend.cleanup(device.ip, job_id)
 
