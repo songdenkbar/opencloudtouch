@@ -1478,3 +1478,33 @@ async def test_trailing_newline_name_rejected_before_remote_access(service):
     assert getattr(exc.value, "code", None) == "stereo_name_invalid"
     service.repo.get_by_device_id.assert_not_awaited()
     assert not service.busy
+
+
+
+@pytest.mark.asyncio
+async def test_shutdown_after_first_commit_restores_files_and_retains_journal(service):
+    """Cancellation restores a committed file before the job releases its lock."""
+    import asyncio
+
+    committed = asyncio.Event()
+
+    class PauseAfterFirstCommit(MockGroupBackend):
+        async def commit(self, ip, job, *, removing=False):
+            await super().commit(ip, job, removing=removing)
+            if ip == "192.168.1.101":
+                committed.set()
+                await asyncio.Event().wait()
+
+    service.backend = PauseAfterFirstCommit()
+    created = await service.create(LEFT, RIGHT, "Cancel after commit")
+    await asyncio.wait_for(committed.wait(), timeout=1)
+    await service.shutdown()
+    await asyncio.sleep(0)
+    result = service.job(created["job_id"])
+
+    assert result["state"] == "failed"
+    assert result["rolled_back"] is False
+    assert all(s.content is None for s in mock_group_store.values())
+    assert all(s.journal is not None for s in mock_group_store.values())
+    assert not service.tasks
+    assert not service.busy
