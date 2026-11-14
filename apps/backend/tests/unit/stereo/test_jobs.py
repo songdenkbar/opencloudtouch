@@ -1365,3 +1365,26 @@ async def test_injected_backend_and_fake_sleep_are_used(service):
     assert injected.job(created["job_id"])["state"] == "succeeded"
     assert injected.job(created["job_id"])["started_at"] == "2026-01-01T00:00:00Z"
     assert injected.job(created["job_id"])["finished_at"] == "2026-01-01T00:00:00Z"
+
+
+
+@pytest.mark.asyncio
+async def test_pair_list_ignores_equivalent_role_element_order(service):
+    """XML role element order is not part of pair membership identity."""
+    from opencloudtouch.stereo.group_files import GroupInfo, GroupRole
+
+    left = await service.repo.get_by_device_id(LEFT)
+    right = await service.repo.get_by_device_id(RIGHT)
+    roles = [
+        GroupRole(LEFT, "LEFT", left.ip),
+        GroupRole(RIGHT, "RIGHT", right.ip),
+    ]
+
+    async def group_safe(device):
+        device_roles = roles if device.device_id == LEFT else list(reversed(roles))
+        return GroupInfo("1234567", "Stereo", LEFT, device_roles, "GROUP_OK"), True
+
+    service._group_safe = group_safe
+    pair = (await service.list_pairs())["pairs"][0]
+    assert pair["partial"] is False
+    assert pair["inconsistent"] is False
