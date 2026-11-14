@@ -29,8 +29,12 @@ def validate_device(device_id: str, ip: str) -> None:
 
 
 def validate_name(name: str) -> str:
+    # Check the untrimmed value too: strip() would otherwise silently accept
+    # a leading/trailing newline or another control character.
+    if any(category(c) == "Cc" for c in name):
+        raise ValueError("Stereo pair name must not contain control characters")
     clean = name.strip()
-    if not 1 <= len(clean) <= 30 or any(category(c) == "Cc" for c in clean):
+    if not 1 <= len(clean) <= 30:
         raise ValueError("Stereo pair name must have 1-30 printable characters")
     return clean
 
