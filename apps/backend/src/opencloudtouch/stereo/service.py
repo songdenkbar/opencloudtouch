@@ -982,7 +982,8 @@ class StereoService:
                     for device in devices:
                         xml = None
                         if operation == "create":
-                            assert left is not None and right is not None
+                            if left is None or right is None:
+                                raise RuntimeError("stereo_device_invalid")
                             xml = build_group_xml(
                                 job["group_id"],
                                 job["name"],
