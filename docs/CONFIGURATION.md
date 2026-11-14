@@ -105,6 +105,13 @@ Run it only on two deliberately unpaired speakers with empty /getGroup and
 /getZone responses, verified SSH access and a reliable restoration plan.
 Never repeat the write test after any failure.
 
+For the remaining physical outage, OCT-restart recovery and post-recovery
+regression tests, follow
+[`STEREO_HARDWARE_TEST_PLAN.md`](../apps/backend/scripts/STEREO_HARDWARE_TEST_PLAN.md)
+using the read-only-by-default `test_stereo_hardware_scenarios.py` runner.
+It requires explicit `--execute` for any API write/reboot operation; power
+disconnection and OCT restart remain manual.
+
 ## Server
 
 | Variable | Default | Description |
