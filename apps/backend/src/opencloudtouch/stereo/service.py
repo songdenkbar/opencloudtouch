@@ -136,35 +136,74 @@ class StereoService:
         right = await self.repo.get_by_device_id(right_id)
         if left is None or right is None:
             raise_coded(404, "device_not_found", "SoundTouch device not found")
+        # Validate each prerequisite for both speakers in the order specified
+        # by #549. Do not contact either speaker while the other still has an
+        # invalid stored model or address.
         for device in (left, right):
-            params = {"device_id": device.device_id}
             if device.model.strip().casefold() != "soundtouch 10":
-                raise_coded(422, "stereo_model_unsupported", "SoundTouch 10 required", params=params)
+                raise_coded(
+                    422, "stereo_model_unsupported", "SoundTouch 10 required",
+                    params={"device_id": device.device_id},
+                )
+        for device in (left, right):
             try:
                 validate_device(device.device_id, device.ip)
             except ValueError:
-                raise_coded(422, "stereo_device_invalid", "Invalid stored device identifier", params=params)
-            if not self.mock_mode:
+                raise_coded(
+                    422, "stereo_device_invalid", "Invalid stored device identifier",
+                    params={"device_id": device.device_id},
+                )
+        if not self.mock_mode:
+            for device in (left, right):
                 if not device.ssh_permanent:
-                    raise_coded(409, "stereo_ssh_not_available", "Permanent SSH is required", params=params)
-                from opencloudtouch.setup.ssh_client import check_ssh_port
+                    raise_coded(
+                        409, "stereo_ssh_not_available", "Permanent SSH is required",
+                        params={"device_id": device.device_id},
+                    )
+            from opencloudtouch.setup.ssh_client import check_ssh_port
+            for device in (left, right):
                 if not await check_ssh_port(device.ip):
-                    raise_coded(503, "stereo_ssh_unreachable", "SSH is unreachable", params=params)
+                    raise_coded(
+                        503, "stereo_ssh_unreachable", "SSH is unreachable",
+                        params={"device_id": device.device_id},
+                    )
+        from opencloudtouch.core.exceptions import CodedApiError
+        for device in (left, right):
             try:
-                if await self.zones.get_zone_status(device.device_id) is not None:
-                    raise_coded(409, "stereo_device_in_zone", "Remove device from zone first", params=params)
-            except Exception as exc:
-                from opencloudtouch.core.exceptions import CodedApiError
-                if isinstance(exc, CodedApiError):
-                    raise
-                raise_coded(503, "device_unreachable", "Unable to check zone", params=params)
+                zone = await self.zones.get_zone_status(device.device_id)
+            except CodedApiError:
+                raise
+            except Exception:
+                raise_coded(
+                    503, "device_unreachable", "Unable to check zone",
+                    params={"device_id": device.device_id},
+                )
+            if zone is not None:
+                raise_coded(
+                    409, "stereo_device_in_zone", "Remove device from zone first",
+                    params={"device_id": device.device_id},
+                )
+        groups = []
+        for device in (left, right):
             group, reachable = await self._group_safe(device)
             if not reachable:
-                raise_coded(503, "device_unreachable", "Cannot query stereo group", params=params)
+                raise_coded(
+                    503, "device_unreachable", "Cannot query stereo group",
+                    params={"device_id": device.device_id},
+                )
+            groups.append(group)
+        for device, group in zip((left, right), groups):
             if group is not None:
-                raise_coded(409, "stereo_device_in_pair", "Device already belongs to a pair", params=params)
+                raise_coded(
+                    409, "stereo_device_in_pair", "Device already belongs to a pair",
+                    params={"device_id": device.device_id},
+                )
+        for device in (left, right):
             if await self.backend.leftover(device.ip):
-                raise_coded(409, "stereo_recovery_needed", "Recovery required before pairing", params=params)
+                raise_coded(
+                    409, "stereo_recovery_needed", "Recovery required before pairing",
+                    params={"device_id": device.device_id},
+                )
         return left, right
 
     def _reserve(self, ids: list[str]) -> None:
