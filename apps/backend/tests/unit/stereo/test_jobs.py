@@ -961,3 +961,93 @@ async def test_recover_missing_device_reports_404(service):
         await service.recover("FFFFFFFFFFFF")
     assert getattr(exc.value, "code", None) == "device_not_found"
     assert not service.busy
+
+
+@pytest.mark.asyncio
+async def test_reboot_dispatches_both_speakers_and_reports_failure(service):
+    """A failed reboot of either speaker must fail the coordinated operation."""
+    from unittest.mock import AsyncMock
+
+    speakers = await service.repo.get_all()
+    service.mock_mode = False
+    await service._reboot(speakers)
+    assert service.devices.reboot_device.await_count == 2
+
+    service.devices.reboot_device.reset_mock()
+    service.devices.reboot_device.side_effect = [None, OSError("telnet failed")]
+    with pytest.raises(RuntimeError, match="stereo_reboot_failed"):
+        await service._reboot(speakers)
+    assert service.devices.reboot_device.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_reboot_wait_observes_offline_then_online_for_each_speaker(service):
+    """A reboot is confirmed only after both devices disappear and return."""
+    from unittest.mock import AsyncMock, patch
+
+    speakers = await service.repo.get_all()
+    service.mock_mode = False
+    observations = {speaker.device_id: 0 for speaker in speakers}
+
+    async def online(speaker):
+        observations[speaker.device_id] += 1
+        return observations[speaker.device_id] > 1
+
+    service._info_online = AsyncMock(side_effect=online)
+    with patch("opencloudtouch.stereo.service.asyncio.sleep", new_callable=AsyncMock):
+        await service._wait_online(speakers)
+    assert observations == {speaker.device_id: 2 for speaker in speakers}
+
+
+@pytest.mark.asyncio
+async def test_reboot_wait_times_out_when_speaker_never_goes_offline(service):
+    """A continuously answering /info must not count as a reboot."""
+    from unittest.mock import AsyncMock, patch
+
+    speaker = await service.repo.get_by_device_id(LEFT)
+    service.mock_mode = False
+    service._info_online = AsyncMock(return_value=True)
+    with patch("opencloudtouch.stereo.service.asyncio.sleep", new_callable=AsyncMock):
+        with pytest.raises(RuntimeError, match="stereo_timeout"):
+            await service._wait_online([speaker])
+    assert service._info_online.await_count == 30
+
+
+@pytest.mark.asyncio
+async def test_reboot_wait_times_out_when_speaker_never_returns(service):
+    """An unreachable speaker after reboot must be reported, not verified."""
+    from unittest.mock import AsyncMock, patch
+
+    speaker = await service.repo.get_by_device_id(LEFT)
+    service.mock_mode = False
+    service._info_online = AsyncMock(return_value=False)
+    with patch("opencloudtouch.stereo.service.asyncio.sleep", new_callable=AsyncMock):
+        with pytest.raises(RuntimeError, match="stereo_timeout"):
+            await service._wait_online([speaker])
+    assert service._info_online.await_count == 37
+
+
+@pytest.mark.asyncio
+async def test_rollback_wait_allows_already_offline_speaker_to_return(service):
+    """Rollback does not require a second offline transition."""
+    from unittest.mock import AsyncMock, patch
+
+    speaker = await service.repo.get_by_device_id(LEFT)
+    service.mock_mode = False
+    service._info_online = AsyncMock(side_effect=[False, True])
+    with patch("opencloudtouch.stereo.service.asyncio.sleep", new_callable=AsyncMock):
+        await service._wait_reachable([speaker])
+    assert service._info_online.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_rollback_wait_times_out_if_speaker_stays_unreachable(service):
+    from unittest.mock import AsyncMock, patch
+
+    speaker = await service.repo.get_by_device_id(LEFT)
+    service.mock_mode = False
+    service._info_online = AsyncMock(return_value=False)
+    with patch("opencloudtouch.stereo.service.asyncio.sleep", new_callable=AsyncMock):
+        with pytest.raises(RuntimeError, match="stereo_timeout"):
+            await service._wait_reachable([speaker])
+    assert service._info_online.await_count == 36
