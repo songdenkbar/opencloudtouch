@@ -286,29 +286,24 @@ class SSHGroupBackend:
             raise RuntimeError("stereo_recovery_needed")
         await self._run(ip, [f"rm -f {stage}"], writable=True)
 
-    async def mark_restored(self, ip: str, job: str) -> None:
+    async def _mark_state(self, ip: str, job: str, state: str) -> None:
+        """Atomically update the durable journal after a verified decision."""
         journal, _, stage = self._suffix(job)
         raw = (await self._run(ip, [f"cat {journal}"]))[0]
         record = json.loads(raw)
         if record.get("job_id") != job:
             raise RuntimeError("stereo_recovery_needed")
-        record["state"] = "restored"
+        record["state"] = state
         await self._run(ip, [
             self._write(stage, json.dumps(record, separators=(",", ":"))),
             f"mv {stage} {journal}",
         ], writable=True)
 
+    async def mark_restored(self, ip: str, job: str) -> None:
+        await self._mark_state(ip, job, "restored")
+
     async def mark_verified(self, ip: str, job: str) -> None:
-        journal, _, stage = self._suffix(job)
-        raw = (await self._run(ip, [f"cat {journal}"]))[0]
-        record = json.loads(raw)
-        if record.get("job_id") != job:
-            raise RuntimeError("stereo_recovery_needed")
-        record["state"] = "verified"
-        await self._run(ip, [
-            self._write(stage, json.dumps(record, separators=(",", ":"))),
-            f"mv {stage} {journal}",
-        ], writable=True)
+        await self._mark_state(ip, job, "verified")
 
     async def cleanup(self, ip: str, job: str) -> None:
         journal, backup, stage = self._suffix(job)
