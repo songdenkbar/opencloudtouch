@@ -18,8 +18,14 @@ All writes/reboots are opt-in; there is no automatic power-cut or server restart
 - The matching journals had `operation: create` and `had_file: false`.
   Pair-coordinated API recovery succeeded, removed both journals, and a final
   independent test passed with original files absent on both devices.
-- **Still pending:** an independent create/paired/remove/final round trip
-  *after* recovery. A real OCT restart during the interrupted state is not
+- **Post-recovery regression: PASS (2026-11-14).** Fresh create returned
+  `succeeded` for group `8891842`; both speakers reported `GROUP_OK`,
+  LEFT remained master, and audible stereo playback was confirmed. The
+  read-only `paired` check passed; removal returned `succeeded`, and the
+  independent `final` check passed with both original files absent,
+  empty `/getGroup` and `/getZone`, no journal/leftovers, and an unrelated
+  existing stereo pair still healthy.
+- **Still open:** A real OCT restart during the interrupted state is not
   independently established by an `after-restart` test invocation; preserve
   this as an open verification unless server restart evidence is available.
 
