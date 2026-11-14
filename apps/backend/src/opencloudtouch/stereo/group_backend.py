@@ -32,6 +32,8 @@ mock_group_store: dict[str, StoredGroup] = {}
 class GroupBackend(Protocol):
     async def leftover(self, ip: str) -> bool: ...
     async def journal_state(self, ip: str) -> str | None: ...
+    async def journal_record(self, ip: str) -> dict | None: ...
+    async def previous_content(self, ip: str) -> str | None: ...
     async def prepare(self, ip: str, job: str, operation: str, new: str | None) -> None: ...
     async def commit(self, ip: str, job: str, *, removing: bool = False) -> None: ...
     async def rollback(self, ip: str, job: str) -> None: ...
@@ -45,6 +47,20 @@ class MockGroupBackend:
     async def leftover(self, ip: str) -> bool:
         state = mock_group_store.get(ip)
         return bool(state and (state.journal or state.backup or state.staged))
+
+    async def journal_record(self, ip: str) -> dict | None:
+        state = mock_group_store.get(ip)
+        return dict(state.journal) if state and state.journal else None
+
+    async def previous_content(self, ip: str) -> str | None:
+        state = mock_group_store.get(ip)
+        if state is None or state.journal is None:
+            raise RuntimeError("stereo_recovery_needed")
+        if not state.journal.get("had_file"):
+            return None
+        if state.backup is None:
+            raise RuntimeError("stereo_recovery_needed")
+        return state.backup
 
     async def journal_state(self, ip: str) -> str | None:
         state = mock_group_store.get(ip)
@@ -172,8 +188,7 @@ class SSHGroupBackend:
         ])
         return output[0] == "yes"
 
-    async def journal_state(self, ip: str) -> str | None:
-        # Read only; a missing journal with stray artifacts is handled by leftover().
+    async def journal_record(self, ip: str) -> dict | None:
         raw = (await self._run(ip, [
             f"if test -f {GROUP_FILE}.oct-job; then cat {GROUP_FILE}.oct-job; fi"
         ]))[0]
@@ -183,12 +198,29 @@ class SSHGroupBackend:
             record = json.loads(raw)
             if not isinstance(record, dict) or record.get("state") not in {
                 "preparing", "prepared", "committed", "verified"
-            }:
-                raise ValueError("Unknown stereo journal state")
+            } or record.get("had_file") not in {True, False}:
+                raise ValueError("Invalid stereo journal")
             self._suffix(record["job_id"])
-            return record["state"]
+            return record
         except (ValueError, TypeError, KeyError) as exc:
             raise RuntimeError("stereo_recovery_needed") from exc
+
+    async def journal_state(self, ip: str) -> str | None:
+        record = await self.journal_record(ip)
+        return record["state"] if record is not None else None
+
+    async def previous_content(self, ip: str) -> str | None:
+        record = await self.journal_record(ip)
+        if record is None:
+            raise RuntimeError("stereo_recovery_needed")
+        if not record["had_file"]:
+            return None
+        _, backup, _ = self._suffix(record["job_id"])
+        output = (await self._run(ip, [f"if test -s {backup}; then cat {backup}; fi"]))[0]
+        if not output:
+            raise RuntimeError("stereo_recovery_needed")
+        return output
+
 
     async def prepare(self, ip: str, job: str, operation: str, new: str | None) -> None:
         journal, backup, stage = self._suffix(job)
