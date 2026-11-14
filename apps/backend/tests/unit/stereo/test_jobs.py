@@ -1051,3 +1051,42 @@ async def test_rollback_wait_times_out_if_speaker_stays_unreachable(service):
         with pytest.raises(RuntimeError, match="stereo_timeout"):
             await service._wait_reachable([speaker])
     assert service._info_online.await_count == 36
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("missing", [LEFT, RIGHT])
+async def test_missing_device_error_contains_requested_device_id(service, missing):
+    original = service.repo.get_by_device_id.side_effect
+    service.repo.get_by_device_id.side_effect = (
+        lambda key: None if key == missing else original(key)
+    )
+    with pytest.raises(Exception) as exc:
+        await service.create(LEFT, RIGHT, "Test")
+    assert getattr(exc.value, "code", None) == "device_not_found"
+    assert getattr(exc.value, "params", None) == {"device_id": missing}
+    assert not service.busy
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [False, OSError("connection refused"), TimeoutError("timeout")])
+async def test_live_ssh_port_failure_returns_coded_503_without_writes(service, failure):
+    from unittest.mock import AsyncMock, patch
+
+    speakers = await service.repo.get_all()
+    for speaker in speakers:
+        speaker.ssh_permanent = True
+    service.mock_mode = False
+    service.backend.leftover = AsyncMock()
+    with patch(
+        "opencloudtouch.setup.ssh_client.check_ssh_port",
+        new_callable=AsyncMock,
+    ) as check:
+        check.side_effect = [failure] if isinstance(failure, BaseException) else None
+        check.return_value = failure if isinstance(failure, bool) else True
+        with pytest.raises(Exception) as exc:
+            await service.create(LEFT, RIGHT, "Test")
+    assert getattr(exc.value, "code", None) == "stereo_ssh_unreachable"
+    assert getattr(exc.value, "params", None) == {"device_id": LEFT}
+    service.backend.leftover.assert_not_awaited()
+    service.devices.reboot_device.assert_not_awaited()
+    assert not service.busy
