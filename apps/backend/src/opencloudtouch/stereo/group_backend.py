@@ -61,6 +61,10 @@ class MockGroupBackend:
         state = mock_group_store.get(ip)
         if state is None or state.journal is None:
             raise RuntimeError("stereo_recovery_needed")
+        if state.journal.get("state") == "preparing":
+            # This speaker's GroupService.xml cannot have been committed yet.
+            # Its backup may not exist, so its current file is the original.
+            return state.content
         if not state.journal.get("had_file"):
             return None
         if state.backup is None:
@@ -243,6 +247,20 @@ class SSHGroupBackend:
         record = await self.journal_record(ip)
         if record is None:
             raise RuntimeError("stereo_recovery_needed")
+        if record["state"] == "preparing":
+            # Journal was persisted before backup/staging, but no commit was
+            # possible yet. Read the untouched current file, not a missing
+            # or partially written backup.
+            current = (
+                await self._run(
+                    ip, [f"if test -f {GROUP_FILE}; then cat {GROUP_FILE}; fi"]
+                )
+            )[0]
+            if record["had_file"] and not current:
+                raise RuntimeError("stereo_recovery_needed")
+            if not record["had_file"] and current:
+                raise RuntimeError("stereo_recovery_needed")
+            return current if current else None
         if not record["had_file"]:
             return None
         _, backup, _ = self._suffix(record["job_id"])
