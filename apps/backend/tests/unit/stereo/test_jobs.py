@@ -285,3 +285,69 @@ async def test_original_state_verified_before_cleanup(service):
     assert result["error_code"] == "stereo_rollback_failed"
     assert failures > 0
     assert any(group.journal is not None for group in mock_group_store.values())
+
+
+
+@pytest.mark.asyncio
+async def test_shutdown_during_staging_keeps_journal_and_finishes_task(service):
+    import asyncio
+
+    preparing = asyncio.Event()
+
+    class InterruptedPreparation(MockGroupBackend):
+        async def prepare(self, ip, job, operation, new):
+            await super().prepare(ip, job, operation, new)
+            preparing.set()
+            await asyncio.Event().wait()  # interrupted before any file commit
+
+    service.backend = InterruptedPreparation()
+    created = await service.create(LEFT, RIGHT, "Interrupted")
+    await asyncio.wait_for(preparing.wait(), 1)
+    await service.shutdown()
+    await asyncio.sleep(0)
+    result = service.job(created["job_id"])
+    assert result["state"] == "failed"
+    assert result["rolled_back"] is False
+    assert not service.tasks
+    assert any(state.journal is not None for state in mock_group_store.values())
+    assert all(state.content is None for state in mock_group_store.values())
+
+
+@pytest.mark.asyncio
+async def test_failed_verification_after_reboot_restores_original_state(service):
+    class VerificationFailure(MockGroupBackend):
+        pass
+
+    service.backend = VerificationFailure()
+
+    async def fail_verification(devices, group_id):
+        raise RuntimeError("stereo_verify_failed")
+
+    service._verify = fail_verification
+    job = await service.create(LEFT, RIGHT, "Reboot and rollback")
+    await service.tasks[job["job_id"]]
+    result = service.job(job["job_id"])
+    assert result["state"] == "failed"
+    assert result["error_code"] == "stereo_verify_failed"
+    assert result["rolled_back"] is True
+    assert all(state.content is None for state in mock_group_store.values())
+    assert all(state.journal is None for state in mock_group_store.values())
+
+
+@pytest.mark.asyncio
+async def test_preparing_mock_rollback_never_overwrites_original_file(service):
+    ip = "192.168.1.101"
+    mock_group_store[ip] = StoredGroup(
+        content="<original/>",
+        journal={
+            "job_id": "a" * 32,
+            "operation": "create",
+            "had_file": True,
+            "state": "preparing",
+        },
+        backup=None,
+    )
+    backend = MockGroupBackend()
+    await backend.rollback(ip, "a" * 32)
+    assert mock_group_store[ip].content == "<original/>"
+    assert mock_group_store[ip].journal is not None
