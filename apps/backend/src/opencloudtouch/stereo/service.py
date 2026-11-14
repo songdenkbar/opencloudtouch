@@ -83,7 +83,7 @@ class StereoService:
 
     async def _sleep(self, seconds: float) -> None:
         # Resolve asyncio.sleep at call time so existing test patches work too.
-        await (self._sleep_hook or asyncio.sleep)(seconds)
+        await (getattr(self, "_sleep_hook", None) or asyncio.sleep)(seconds)
 
     async def _group(self, device: Any) -> GroupInfo | None:
         if self.mock_mode:
