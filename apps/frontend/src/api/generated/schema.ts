@@ -2345,6 +2345,92 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/stereo-pairs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Pairs */
+    get: operations["list_pairs_api_stereo_pairs_get"];
+    put?: never;
+    /** Create Pair */
+    post: operations["create_pair_api_stereo_pairs_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/stereo-pairs/jobs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Jobs */
+    get: operations["list_jobs_api_stereo_pairs_jobs_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/stereo-pairs/jobs/{job_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Job */
+    get: operations["get_job_api_stereo_pairs_jobs__job_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/stereo-pairs/recover/{device_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Recover */
+    post: operations["recover_api_stereo_pairs_recover__device_id__post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/stereo-pairs/{group_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Remove Pair */
+    delete: operations["remove_pair_api_stereo_pairs__group_id__delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/devices/{device_id}/zone": {
     parameters: {
       query?: never;
@@ -2976,6 +3062,15 @@ export interface components {
       /** Ip */
       ip: string;
     };
+    /** CreateStereoPair */
+    CreateStereoPair: {
+      /** Left Device Id */
+      left_device_id: string;
+      /** Right Device Id */
+      right_device_id: string;
+      /** Name */
+      name: string;
+    };
     /**
      * CreateZoneRequest
      * @description Request to create a new zone.
@@ -3102,6 +3197,104 @@ export interface components {
        * @default true
        */
       make_permanent: boolean;
+    };
+    /**
+     * ErrorDetail
+     * @description Standardized error response format (RFC 7807-inspired).
+     *
+     *     Provides consistent error structure across all API endpoints.
+     *
+     *     Attributes:
+     *         type: Error category (validation_error, not_found, server_error, etc.)
+     *         title: Human-readable error title
+     *         status: HTTP status code
+     *         detail: Detailed error message
+     *         instance: Request path that triggered error (optional)
+     *         errors: Field-level validation errors (optional, for 422 responses)
+     *         code: Stable machine-readable error identifier (see ``error_codes``)
+     *         params: Flat string map for message interpolation on the client
+     *         extra: Structured data for the client (not for translation)
+     *
+     *     Example:
+     *         {
+     *             "type": "not_found",
+     *             "title": "Device Not Found",
+     *             "status": 404,
+     *             "detail": "Device not found: abc123",
+     *             "instance": "/api/devices/abc123",
+     *             "errors": null,
+     *             "code": "device_not_found",
+     *             "params": null,
+     *             "extra": null
+     *         }
+     */
+    ErrorDetail: {
+      /** Type */
+      type: string;
+      /** Title */
+      title: string;
+      /** Status */
+      status: number;
+      /** Detail */
+      detail: string;
+      /**
+       * Instance
+       * @default null
+       */
+      instance: string | null;
+      /**
+       * Errors
+       * @default null
+       */
+      errors: components["schemas"]["ErrorItem"][] | null;
+      /**
+       * Code
+       * @default null
+       */
+      code: string | null;
+      /**
+       * Params
+       * @default null
+       */
+      params: {
+        [key: string]: string;
+      } | null;
+      /**
+       * Extra
+       * @default null
+       */
+      extra: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /**
+     * ErrorItem
+     * @description One field-level error inside ``ErrorDetail.errors``.
+     *
+     *     ``field`` keeps the legacy dotted location (``body.port``); ``path`` is the
+     *     same location without the leading ``body``/``query``/``path``/``header``
+     *     segment (``port``) and is what clients map to input names.
+     */
+    ErrorItem: {
+      /** Field */
+      field: string;
+      /**
+       * Path
+       * @default null
+       */
+      path: string | null;
+      /** Message */
+      message: string;
+      /**
+       * Type
+       * @default null
+       */
+      type: string | null;
+      /**
+       * Code
+       * @default null
+       */
+      code: string | null;
     };
     /**
      * FinalizeRequest
@@ -3668,6 +3861,83 @@ export interface components {
        */
       ips: string[];
     };
+    /** StereoJob */
+    StereoJob: {
+      /** Job Id */
+      job_id: string;
+      /**
+       * Operation
+       * @enum {string}
+       */
+      operation: "create" | "remove" | "recover";
+      /** Group Id */
+      group_id: string | null;
+      /** Name */
+      name: string | null;
+      /** Left Device Id */
+      left_device_id: string | null;
+      /** Right Device Id */
+      right_device_id: string | null;
+      /**
+       * State
+       * @enum {string}
+       */
+      state: "running" | "succeeded" | "failed";
+      /**
+       * Step
+       * @enum {string}
+       */
+      step:
+        | "validating"
+        | "backing_up"
+        | "writing_files"
+        | "rebooting"
+        | "waiting_for_devices"
+        | "verifying"
+        | "rolling_back"
+        | "done";
+      /** Started At */
+      started_at: string;
+      /** Finished At */
+      finished_at: string | null;
+      /** Error Code */
+      error_code: string | null;
+      /** Failed Device Id */
+      failed_device_id: string | null;
+      /** Rolled Back */
+      rolled_back: boolean | null;
+    };
+    /** StereoJobList */
+    StereoJobList: {
+      /** Jobs */
+      jobs: components["schemas"]["StereoJob"][];
+    };
+    /** StereoPair */
+    StereoPair: {
+      /** Group Id */
+      group_id: string;
+      /** Name */
+      name: string | null;
+      /** Status */
+      status: string | null;
+      /** Left Device Id */
+      left_device_id: string | null;
+      /** Right Device Id */
+      right_device_id: string | null;
+      /** Partial */
+      partial: boolean;
+      /** Inconsistent */
+      inconsistent: boolean;
+    };
+    /** StereoPairList */
+    StereoPairList: {
+      /** Pairs */
+      pairs: components["schemas"]["StereoPair"][];
+      /** Unreachable Device Ids */
+      unreachable_device_ids: string[];
+      /** Recovery Needed Device Ids */
+      recovery_needed_device_ids: string[];
+    };
     /**
      * ValidateHostnameRequest
      * @description Request to validate a hostname or IP via DNS resolution and OCT reachability.
@@ -3919,104 +4189,6 @@ export interface components {
       message: string;
       /** Ip */
       ip: string;
-    };
-    /**
-     * ErrorItem
-     * @description One field-level error inside ``ErrorDetail.errors``.
-     *
-     *     ``field`` keeps the legacy dotted location (``body.port``); ``path`` is the
-     *     same location without the leading ``body``/``query``/``path``/``header``
-     *     segment (``port``) and is what clients map to input names.
-     */
-    ErrorItem: {
-      /** Field */
-      field: string;
-      /**
-       * Path
-       * @default null
-       */
-      path: string | null;
-      /** Message */
-      message: string;
-      /**
-       * Type
-       * @default null
-       */
-      type: string | null;
-      /**
-       * Code
-       * @default null
-       */
-      code: string | null;
-    };
-    /**
-     * ErrorDetail
-     * @description Standardized error response format (RFC 7807-inspired).
-     *
-     *     Provides consistent error structure across all API endpoints.
-     *
-     *     Attributes:
-     *         type: Error category (validation_error, not_found, server_error, etc.)
-     *         title: Human-readable error title
-     *         status: HTTP status code
-     *         detail: Detailed error message
-     *         instance: Request path that triggered error (optional)
-     *         errors: Field-level validation errors (optional, for 422 responses)
-     *         code: Stable machine-readable error identifier (see ``error_codes``)
-     *         params: Flat string map for message interpolation on the client
-     *         extra: Structured data for the client (not for translation)
-     *
-     *     Example:
-     *         {
-     *             "type": "not_found",
-     *             "title": "Device Not Found",
-     *             "status": 404,
-     *             "detail": "Device not found: abc123",
-     *             "instance": "/api/devices/abc123",
-     *             "errors": null,
-     *             "code": "device_not_found",
-     *             "params": null,
-     *             "extra": null
-     *         }
-     */
-    ErrorDetail: {
-      /** Type */
-      type: string;
-      /** Title */
-      title: string;
-      /** Status */
-      status: number;
-      /** Detail */
-      detail: string;
-      /**
-       * Instance
-       * @default null
-       */
-      instance: string | null;
-      /**
-       * Errors
-       * @default null
-       */
-      errors: components["schemas"]["ErrorItem"][] | null;
-      /**
-       * Code
-       * @default null
-       */
-      code: string | null;
-      /**
-       * Params
-       * @default null
-       */
-      params: {
-        [key: string]: string;
-      } | null;
-      /**
-       * Extra
-       * @default null
-       */
-      extra: {
-        [key: string]: unknown;
-      } | null;
     };
   };
   responses: never;
@@ -7141,6 +7313,264 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_pairs_api_stereo_pairs_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["StereoPairList"];
+        };
+      };
+    };
+  };
+  create_pair_api_stereo_pairs_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateStereoPair"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["StereoJob"];
+        };
+      };
+      /** @description device_not_found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorDetail"];
+        };
+      };
+      /** @description stereo_ssh_not_available, stereo_device_in_zone, stereo_device_in_pair, stereo_recovery_needed, stereo_job_in_progress, stereo_job_limit_reached */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorDetail"];
+        };
+      };
+      /** @description stereo_same_device, stereo_name_invalid, stereo_model_unsupported, stereo_device_invalid */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorDetail"];
+        };
+      };
+      /** @description stereo_ssh_unreachable, device_unreachable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorDetail"];
+        };
+      };
+    };
+  };
+  list_jobs_api_stereo_pairs_jobs_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["StereoJobList"];
+        };
+      };
+    };
+  };
+  get_job_api_stereo_pairs_jobs__job_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        job_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["StereoJob"];
+        };
+      };
+      /** @description stereo_job_not_found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorDetail"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  recover_api_stereo_pairs_recover__device_id__post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        device_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["StereoJob"];
+        };
+      };
+      /** @description device_not_found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorDetail"];
+        };
+      };
+      /** @description stereo_nothing_to_recover, stereo_recovery_needed, stereo_job_in_progress, stereo_job_limit_reached */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorDetail"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description device_unreachable, stereo_ssh_unreachable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorDetail"];
+        };
+      };
+    };
+  };
+  remove_pair_api_stereo_pairs__group_id__delete: {
+    parameters: {
+      query?: {
+        force?: boolean;
+      };
+      header?: never;
+      path: {
+        group_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["StereoJob"];
+        };
+      };
+      /** @description stereo_pair_not_found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorDetail"];
+        };
+      };
+      /** @description stereo_recovery_needed, stereo_job_in_progress, stereo_job_limit_reached, stereo_pair_not_found */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorDetail"];
+        };
+      };
+      /** @description stereo_group_id_invalid */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorDetail"];
+        };
+      };
+      /** @description device_unreachable, stereo_ssh_unreachable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorDetail"];
         };
       };
     };
