@@ -1584,3 +1584,18 @@ async def test_http_offline_peer_still_receives_ssh_file_rollback(service):
     assert all([await backend.leftover(ip) for ip in ips])
     rebooted = service._reboot.await_args.args[0]
     assert [d.device_id for d in rebooted] == [LEFT]
+
+
+
+@pytest.mark.asyncio
+async def test_local_invalid_device_precedes_busy_lock(service):
+    """A malformed stored device record has priority over an active job."""
+    right = await service.repo.get_by_device_id(RIGHT)
+    right.ip = "192.0.2.1; reboot"
+    service.busy.add(LEFT)
+    with pytest.raises(Exception) as exc:
+        await service.create(LEFT, RIGHT, "Valid name")
+    assert getattr(exc.value, "code", None) == "stereo_device_invalid"
+    assert service.busy == {LEFT}
+    service.zones.get_zone_status.assert_not_awaited()
+    service.devices.reboot_device.assert_not_awaited()
