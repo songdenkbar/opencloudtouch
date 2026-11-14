@@ -402,10 +402,18 @@ class StereoService:
         try:
             left = await self.repo.get_by_device_id(ids[0])
             right = await self.repo.get_by_device_id(ids[1])
-            if not left or not right:
-                raise_coded(503, "device_unreachable", "Pair member missing")
+            if left is None or right is None:
+                if not force or (left is None and right is None):
+                    missing_id = ids[0] if left is None else ids[1]
+                    raise_coded(
+                        503, "device_unreachable", "Pair member missing",
+                        params={"device_id": missing_id},
+                    )
             reachable: list[Any] = []
             for device in (left, right):
+                if device is None:
+                    # force=true may process the surviving registered speaker.
+                    continue
                 group, ok = await self._group_safe(device)
                 if not ok:
                     if force:
