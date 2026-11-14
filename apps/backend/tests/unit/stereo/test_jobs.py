@@ -1395,3 +1395,54 @@ async def test_pair_list_ignores_equivalent_role_element_order(service):
     pair = (await service.list_pairs())["pairs"][0]
     assert pair["partial"] is False
     assert pair["inconsistent"] is False
+
+
+
+@pytest.mark.asyncio
+async def test_reboot_timeout_restores_survivor_and_keeps_both_journals(service):
+    """A speaker that never returns must not prevent restoring its peer."""
+    from opencloudtouch.stereo.group_files import build_group_xml
+
+    backend = service.backend
+    left_ip, right_ip = "192.168.1.101", "192.168.1.103"
+    job_id = "6" * 32
+    for ip, right_file in ((left_ip, False), (right_ip, True)):
+        content = build_group_xml(
+            "1234567", "Temporary", LEFT, left_ip, RIGHT, right_ip,
+            right_file=right_file,
+        )
+        await backend.prepare(ip, job_id, "create", content)
+        await backend.commit(ip, job_id)
+
+    original_group_safe = service._group_safe
+
+    async def speaker_status(device):
+        if device.device_id == RIGHT:
+            return None, False
+        return await original_group_safe(device)
+
+    service._group_safe = speaker_status
+    service._reboot = AsyncMock()
+    service._wait_reachable = AsyncMock()
+    job = {"job_id": job_id, "step": "waiting_for_devices",
+           "failed_device_id": RIGHT}
+
+    result = await service._rollback_job(
+        job,
+        [await service.repo.get_by_device_id(LEFT),
+         await service.repo.get_by_device_id(RIGHT)],
+        committed=True, reboot_started=True,
+        previous={LEFT: None, RIGHT: None}, cancelled=False,
+    )
+
+    assert result is False
+    assert mock_group_store[left_ip].content is None
+    assert mock_group_store[left_ip].journal["state"] == "restored"
+    assert mock_group_store[right_ip].content is not None
+    assert mock_group_store[right_ip].journal["state"] == "committed"
+    assert await backend.leftover(left_ip)
+    assert await backend.leftover(right_ip)
+    service._reboot.assert_awaited_once()
+    rebooted = service._reboot.await_args.args[0]
+    assert [device.device_id for device in rebooted] == [LEFT]
+    assert service._wait_reachable.await_count == 1
