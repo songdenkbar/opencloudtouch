@@ -473,7 +473,7 @@ async def test_service_recovers_both_pending_speaker_journals(service):
     await service.tasks[recovery["job_id"]]
     assert service.job(recovery["job_id"])["state"] == "succeeded"
     assert all(mock_group_store[ip].content is None for ip in ips)
-    assert all(not await backend.leftover(ip) for ip in ips)
+    assert not any([await backend.leftover(ip) for ip in ips])
 
 
 @pytest.mark.asyncio
@@ -497,7 +497,7 @@ async def test_service_recovers_mixed_verified_and_committed_as_completed_pair(s
     await service.tasks[recovery["job_id"]]
     assert service.job(recovery["job_id"])["state"] == "succeeded"
     assert len((await service.list_pairs())["pairs"]) == 1
-    assert all(not await backend.leftover(ip) for ip in (left_ip, right_ip))
+    assert not any([await backend.leftover(ip) for ip in (left_ip, right_ip)])
 
 
 @pytest.mark.asyncio
@@ -523,10 +523,10 @@ async def test_service_recovery_restarts_after_interrupted_rollback_decision(ser
     first = await service.recover(LEFT)
     await service.tasks[first["job_id"]]
     assert service.job(first["job_id"])["state"] == "failed"
-    assert any(await backend.leftover(ip) for ip in ips)
+    assert any([await backend.leftover(ip) for ip in ips])
 
     second = await service.recover(RIGHT)
     await service.tasks[second["job_id"]]
     assert service.job(second["job_id"])["state"] == "succeeded"
     assert all(mock_group_store[ip].content is None for ip in ips)
-    assert all(not await backend.leftover(ip) for ip in ips)
+    assert not any([await backend.leftover(ip) for ip in ips])
