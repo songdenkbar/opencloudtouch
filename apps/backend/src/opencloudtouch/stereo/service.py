@@ -12,6 +12,11 @@ from typing import Any
 import httpx
 
 from opencloudtouch.core.exceptions import raise_coded
+from opencloudtouch.stereo.jobs import (
+    CREATE_REMOVE_BUDGET_SECONDS,
+    ROLLBACK_BUDGET_SECONDS,
+    phase_budget,
+)
 from opencloudtouch.stereo.group_backend import (
     GroupBackend, MockGroupBackend, SSHGroupBackend, mock_group_store,
 )
@@ -36,6 +41,8 @@ class StereoService:
         self.jobs: dict[str, dict[str, Any]] = {}
         self.tasks: dict[str, asyncio.Task[None]] = {}
         self.busy: set[str] = set()
+        self.primary_budget_seconds = CREATE_REMOVE_BUDGET_SECONDS
+        self.rollback_budget_seconds = ROLLBACK_BUDGET_SECONDS
 
     async def _group(self, device: Any) -> GroupInfo | None:
         if self.mock_mode:
@@ -300,96 +307,182 @@ class StereoService:
             await asyncio.sleep(10 if not self.mock_mode else 0)
         raise RuntimeError("stereo_verify_failed")
 
-    async def _execute(self, job: dict[str, Any], ids: list[str],
-                       left: Any | None, right: Any | None) -> None:
+    async def _verify_previous(
+        self, devices: list[Any], previous: dict[str, GroupInfo | None]
+    ) -> None:
+        """Compare every speaker's actual group with its pre-job response."""
+        for attempt in range(6):
+            responses = await asyncio.gather(*(self._group_safe(d) for d in devices))
+            if all(online and group == previous[d.device_id]
+                   for d, (group, online) in zip(devices, responses)):
+                return
+            if attempt < 5:
+                await asyncio.sleep(0 if self.mock_mode else 10)
+        raise RuntimeError("stereo_rollback_failed")
+
+    async def _wait_reachable(self, devices: list[Any]) -> None:
+        """Rollback may reissue a reboot to a speaker already rebooting.
+
+        Unlike the initial wait, do not require observing a second offline
+        transition: the speaker may already be down when the command is sent.
+        """
+        if self.mock_mode:
+            return
+
+        async def wait_one(device: Any) -> None:
+            for _ in range(36):
+                _, online = await self._group_safe(device)
+                if online:
+                    return
+                await asyncio.sleep(5)
+            raise RuntimeError("stereo_timeout")
+
+        await asyncio.gather(*(wait_one(d) for d in devices))
+
+    async def _rollback_job(
+        self,
+        job: dict[str, Any],
+        prepared: list[Any],
+        *,
+        committed: bool,
+        reboot_started: bool,
+        previous: dict[str, GroupInfo | None],
+        cancelled: bool,
+    ) -> bool:
+        """Keep recovery artifacts unless restoration and verification succeed."""
+        job["step"] = "rolling_back"
+        if not prepared:
+            return True
+        complete = True
+        async with phase_budget(self.rollback_budget_seconds, "stereo_rollback_failed"):
+            for device in reversed(prepared):
+                try:
+                    if await self.backend.leftover(device.ip):
+                        # Before the first commit all original files are intact.
+                        # Cleanup of a staged transaction is enough.
+                        if committed:
+                            await self.backend.rollback(device.ip, job["job_id"])
+                        elif cancelled:
+                            # Shutdown leaves the journal as evidence even after
+                            # best-effort file-only restoration.
+                            continue
+                except Exception:
+                    complete = False
+                    job["failed_device_id"] = device.device_id
+            if not complete or cancelled:
+                return False
+            if reboot_started:
+                # A failed reboot command may have rebooted one speaker anyway.
+                # Only request another reboot on currently reachable speakers.
+                online = await asyncio.gather(*(self._group_safe(d) for d in prepared))
+                available = [d for d, (_group, reachable) in zip(prepared, online) if reachable]
+                if available:
+                    await self._reboot(available)
+                await self._wait_reachable(prepared)
+            await self._verify_previous(prepared, previous)
+            for device in prepared:
+                if await self.backend.leftover(device.ip):
+                    await self.backend.cleanup(device.ip, job["job_id"])
+        return True
+
+    async def _execute(
+        self, job: dict[str, Any], ids: list[str],
+        left: Any | None, right: Any | None,
+    ) -> None:
         operation = job["operation"]
         devices = [d for d in (left, right) if d is not None]
         prepared: list[Any] = []
+        previous: dict[str, GroupInfo | None] = {}
         committed = False
+        reboot_started = False
         verified = False
         try:
             if operation == "recover":
                 if left is None:
                     raise RuntimeError("stereo_device_invalid")
-                job["step"] = "rolling_back"
-                if not await self.backend.recover(left.ip):
-                    raise RuntimeError("stereo_nothing_to_recover")
-                job["step"] = "rebooting"
-                await self._reboot(devices)
-                job["step"] = "waiting_for_devices"
-                await self._wait_online(devices)
+                async with phase_budget(self.primary_budget_seconds, "stereo_timeout"):
+                    job["step"] = "rolling_back"
+                    if not await self.backend.recover(left.ip):
+                        raise RuntimeError("stereo_nothing_to_recover")
+                    job["step"] = "rebooting"
+                    await self._reboot(devices)
+                    job["step"] = "waiting_for_devices"
+                    await self._wait_online(devices)
             else:
                 if operation == "create" and (left is None or right is None):
                     raise RuntimeError("stereo_device_invalid")
-                job["step"] = "backing_up"
-                for index, device in enumerate(devices):
-                    xml = None
-                    if operation == "create":
-                        assert left is not None and right is not None
-                        xml = build_group_xml(
-                            job["group_id"], job["name"], left.device_id, left.ip,
-                            right.device_id, right.ip, right_file=(index == 1),
+                async with phase_budget(self.primary_budget_seconds, "stereo_timeout"):
+                    # Capture the exact old firmware state on every processed
+                    # device; a rollback must restore that state, not merely
+                    # pass the verification rules of the opposite operation.
+                    for device in devices:
+                        group, online = await self._group_safe(device)
+                        if not online:
+                            raise RuntimeError("device_unreachable")
+                        previous[device.device_id] = group
+                    job["step"] = "backing_up"
+                    for device in devices:
+                        xml = None
+                        if operation == "create":
+                            assert left is not None and right is not None
+                            xml = build_group_xml(
+                                job["group_id"], job["name"], left.device_id,
+                                left.ip, right.device_id, right.ip,
+                                right_file=(device.device_id == right.device_id),
+                            )
+                        # Journal creation can succeed before prepare fails.
+                        prepared.append(device)
+                        await self.backend.prepare(device.ip, job["job_id"], operation, xml)
+                    job["step"] = "writing_files"
+                    for device in devices:
+                        committed = True
+                        await self.backend.commit(
+                            device.ip, job["job_id"], removing=operation == "remove"
                         )
-                    # Track BEFORE the prepare: journal may already exist if staging fails.
-                    prepared.append(device)
-                    await self.backend.prepare(device.ip, job["job_id"], operation, xml)
-                job["step"] = "writing_files"
-                for device in devices:
-                    committed = True
-                    await self.backend.commit(
-                        device.ip, job["job_id"], removing=operation == "remove"
+                    job["step"] = "rebooting"
+                    reboot_started = True
+                    await self._reboot(devices)
+                    job["step"] = "waiting_for_devices"
+                    await self._wait_online(devices)
+                    job["step"] = "verifying"
+                    await self._verify(
+                        devices, job["group_id"] if operation == "create" else None
                     )
-                job["step"] = "rebooting"
-                await self._reboot(devices)
-                job["step"] = "waiting_for_devices"
-                await self._wait_online(devices)
-                job["step"] = "verifying"
-                await self._verify(devices, job["group_id"] if operation == "create" else None)
-                for device in devices:
-                    await self.backend.mark_verified(device.ip, job["job_id"])
-                verified = True
-                for device in devices:
-                    await self.backend.cleanup(device.ip, job["job_id"])
+                    for device in devices:
+                        await self.backend.mark_verified(device.ip, job["job_id"])
+                    verified = True
+                    for device in devices:
+                        await self.backend.cleanup(device.ip, job["job_id"])
             job["state"] = "succeeded"
             job["step"] = "done"
         except BaseException as exc:
+            cancelled = isinstance(exc, asyncio.CancelledError)
             logger.warning("Stereo job %s failed: %s", job["job_id"], type(exc).__name__)
             job["state"] = "failed"
-            job["error_code"] = str(exc) if str(exc).startswith("stereo_") else "stereo_ssh_failed"
+            job["error_code"] = (
+                str(exc) if str(exc).startswith(("stereo_", "device_"))
+                else "stereo_ssh_failed"
+            )
             if verified:
-                # Do not restore just one side after a successful pair verification.
-                # Any remaining journal is marked verified and recovery cleans it.
+                # No asymmetric rollback after verification. The remaining
+                # verified journal can be cleaned by explicit recovery.
                 job["rolled_back"] = False
             elif prepared:
-                job["step"] = "rolling_back"
-                restored = True
-                for device in reversed(prepared):
-                    try:
-                        if committed and await self.backend.leftover(device.ip):
-                            await self.backend.rollback(device.ip, job["job_id"])
-                    except Exception:
-                        restored = False
-                        job["failed_device_id"] = device.device_id
-                cancelled = isinstance(exc, asyncio.CancelledError)
-                if restored and committed and not cancelled:
-                    try:
-                        await self._reboot(devices)
-                        await self._wait_online(devices)
-                        await self._verify(devices, job['group_id'] if operation == 'remove' else None)
-                    except Exception:
-                        restored = False
-                if restored and not cancelled:
-                    for device in prepared:
-                        try:
-                            if await self.backend.leftover(device.ip):
-                                await self.backend.cleanup(device.ip, job["job_id"])
-                        except Exception:
-                            restored = False
-                job["rolled_back"] = restored and not cancelled
+                try:
+                    # The second deadline starts only when the main operation
+                    # fails; shutdown uses file-only best effort, no reboot.
+                    restored = await asyncio.shield(self._rollback_job(
+                        job, prepared, committed=committed,
+                        reboot_started=reboot_started and not cancelled,
+                        previous=previous, cancelled=cancelled,
+                    ))
+                except BaseException:
+                    restored = False
+                job["rolled_back"] = restored
                 if not restored and job["error_code"] != "stereo_timeout":
                     job["error_code"] = "stereo_rollback_failed"
-            if isinstance(exc, asyncio.CancelledError):
-                logger.warning("Stereo job cancelled, recovery files retained if necessary")
+            if cancelled:
+                logger.warning("Stereo job cancelled; recovery files retained if needed")
         finally:
             job["finished_at"] = _now()
 
