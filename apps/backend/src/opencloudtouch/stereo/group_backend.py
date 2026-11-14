@@ -177,7 +177,10 @@ class SSHGroupBackend:
         # The journal must exist before the backup. 'preparing' means no
         # commit was attempted; a crash before backup completion must not
         # trigger restoration from a nonexistent or incomplete backup.
-        await self._run(ip, [self._write(journal, json.dumps(record))], writable=True)
+        await self._run(ip, [
+            self._write(journal + ".tmp", json.dumps(record)),
+            f"mv {journal}.tmp {journal}",
+        ], writable=True)
         commands: list[str | tuple[str, str]] = []
         if had_file:
             commands += [f"cp {GROUP_FILE} {backup}", f"test -s {backup}"]
@@ -236,8 +239,27 @@ class SSHGroupBackend:
             f"if test -f {GROUP_FILE}.oct-job; then cat {GROUP_FILE}.oct-job; fi"
         ]))[0]
         if not data:
+            # An interruption during the first journal upload leaves only a
+            # .oct-job.tmp artifact. Removing it is safe only when no backup
+            # or staged transaction exists; otherwise require manual review.
+            state = (await self._run(ip, [
+                f"if ls {GROUP_FILE}.oct-bak.* {GROUP_FILE}.oct-new.* "
+                f">/dev/null 2>&1; then echo unsafe; "
+                f"elif test -e {GROUP_FILE}.oct-job.tmp; then echo pending; "
+                "else echo none; fi"
+            ]))[0]
+            if state == "unsafe":
+                raise RuntimeError("stereo_recovery_needed")
+            if state == "pending":
+                await self._run(
+                    ip, [f"rm -f {GROUP_FILE}.oct-job.tmp"], writable=True
+                )
+                return True
             return False
-        record = json.loads(data)
+        try:
+            record = json.loads(data)
+        except (ValueError, TypeError) as exc:
+            raise RuntimeError("stereo_recovery_needed") from exc
         job = record["job_id"]
         self._suffix(job)
         if record.get("state") not in {"verified", "preparing"}:
