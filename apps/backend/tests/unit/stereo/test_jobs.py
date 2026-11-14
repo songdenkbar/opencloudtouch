@@ -1237,3 +1237,67 @@ async def test_busy_device_error_contains_device_id(service):
     error = exc.value
     assert getattr(error, "code", None) == "stereo_job_in_progress"
     assert error.params == {"device_id": RIGHT}
+
+
+
+@pytest.mark.asyncio
+async def test_recover_pair_with_unfinished_second_preparation(service):
+    """An absent backup on a preparing peer must not block paired recovery."""
+    backend = service.backend
+    left_ip, right_ip = "192.168.1.101", "192.168.1.103"
+    job_id = "8" * 32
+    from opencloudtouch.stereo.group_files import build_group_xml
+
+    staged = build_group_xml(
+        "1234567", "Interrupted", LEFT, left_ip, RIGHT, right_ip,
+        right_file=False,
+    )
+    # LEFT was committed; RIGHT crashed immediately after writing its journal
+    # and before creating a backup or stage file. Its original file is intact.
+    await backend.prepare(left_ip, job_id, "create", staged)
+    await backend.commit(left_ip, job_id)
+    mock_group_store[right_ip] = StoredGroup(
+        content=None,
+        journal={
+            "job_id": job_id, "operation": "create",
+            "had_file": False, "state": "preparing",
+        },
+        backup=None,
+        staged=None,
+    )
+
+    recovery = await service.recover(RIGHT)
+    await service.tasks[recovery["job_id"]]
+    result = service.job(recovery["job_id"])
+    assert result["state"] == "succeeded", result
+    assert mock_group_store[left_ip].content is None
+    assert mock_group_store[right_ip].content is None
+    assert not await backend.leftover(left_ip)
+    assert not await backend.leftover(right_ip)
+
+
+@pytest.mark.asyncio
+async def test_recover_pair_preparing_peer_with_original_file(service):
+    """A preparing peer's original must be read from the untouched file."""
+    backend = service.backend
+    left_ip, right_ip = "192.168.1.101", "192.168.1.103"
+    job_id = "9" * 32
+    original = "<group />"
+    mock_group_store[right_ip] = StoredGroup(
+        content=original,
+        journal={
+            "job_id": job_id, "operation": "remove",
+            "had_file": True, "state": "preparing",
+        },
+    )
+    mock_group_store[left_ip] = StoredGroup(content=original)
+    await backend.prepare(left_ip, job_id, "remove", None)
+    await backend.commit(left_ip, job_id)
+    recovery = await service.recover(RIGHT)
+    await service.tasks[recovery["job_id"]]
+    result = service.job(recovery["job_id"])
+    assert result["state"] == "succeeded", result
+    assert mock_group_store[left_ip].content == original
+    assert mock_group_store[right_ip].content == original
+    assert not await backend.leftover(left_ip)
+    assert not await backend.leftover(right_ip)
