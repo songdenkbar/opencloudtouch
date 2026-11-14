@@ -218,7 +218,14 @@ class StereoService:
                     params={"device_id": device.device_id},
                 )
         for device in (left, right):
-            if await self.backend.leftover(device.ip):
+            try:
+                leftovers = await self.backend.leftover(device.ip)
+            except (OSError, TimeoutError):
+                raise_coded(
+                    503, "stereo_ssh_unreachable", "Unable to inspect recovery files",
+                    params={"device_id": device.device_id},
+                )
+            if leftovers:
                 raise_coded(
                     409, "stereo_recovery_needed", "Recovery required before pairing",
                     params={"device_id": device.device_id},
@@ -226,8 +233,12 @@ class StereoService:
         return left, right
 
     def _reserve(self, ids: list[str]) -> None:
-        if any(d in self.busy for d in ids):
-            raise_coded(409, "stereo_job_in_progress", "Device already has a stereo job")
+        busy_device = next((device_id for device_id in ids if device_id in self.busy), None)
+        if busy_device is not None:
+            raise_coded(
+                409, "stereo_job_in_progress", "Device already has a stereo job",
+                params={"device_id": busy_device},
+            )
         if len(self.tasks) >= 2:
             raise_coded(409, "stereo_job_limit_reached", "Too many active stereo jobs")
         self.busy.update(ids)
@@ -538,6 +549,13 @@ class StereoService:
                     ):
                         return
             await asyncio.sleep(10 if not self.mock_mode else 0)
+        for device, (group, reachable) in zip(devices, groups):
+            if not reachable or group is None or (
+                group_id is None and group is not None
+            ) or (group_id is not None and (
+                group.group_id != group_id or group.status != "GROUP_OK"
+            )):
+                raise StereoDeviceFailure("stereo_verify_failed", device.device_id)
         raise RuntimeError("stereo_verify_failed")
 
     async def _verify_previous(
@@ -551,6 +569,9 @@ class StereoService:
                 return
             if attempt < 5:
                 await asyncio.sleep(0 if self.mock_mode else 10)
+        for device, (group, reachable) in zip(devices, responses):
+            if not reachable or group != previous[device.device_id]:
+                raise StereoDeviceFailure("stereo_rollback_failed", device.device_id)
         raise RuntimeError("stereo_rollback_failed")
 
     async def _wait_reachable(self, devices: list[Any]) -> None:
