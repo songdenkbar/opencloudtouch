@@ -1090,3 +1090,99 @@ async def test_live_ssh_port_failure_returns_coded_503_without_writes(service, f
     service.backend.leftover.assert_not_awaited()
     service.devices.reboot_device.assert_not_awaited()
     assert not service.busy
+
+
+
+@pytest.mark.asyncio
+async def test_write_failure_identifies_second_speaker(service):
+    """A failed second commit is a write error, not an unclassified SSH error."""
+    class FailsRightCommit(MockGroupBackend):
+        async def commit(self, ip, job, *, removing=False):
+            if ip == "192.168.1.103":
+                raise OSError("simulated write interruption")
+            await super().commit(ip, job, removing=removing)
+
+    service.backend = FailsRightCommit()
+    created = await service.create(LEFT, RIGHT, "Write failure")
+    await service.tasks[created["job_id"]]
+    result = service.job(created["job_id"])
+    assert result["state"] == "failed"
+    assert result["error_code"] == "stereo_write_failed"
+    assert result["failed_device_id"] == RIGHT
+    assert result["rolled_back"] is True
+    assert all(state.content is None for state in mock_group_store.values())
+
+
+@pytest.mark.asyncio
+async def test_reboot_error_identifies_failing_speaker(service):
+    from opencloudtouch.stereo.service import StereoDeviceFailure
+
+    left = await service.repo.get_by_device_id(LEFT)
+    right = await service.repo.get_by_device_id(RIGHT)
+
+    async def reboot(device_id):
+        if device_id == RIGHT:
+            raise OSError("reboot unavailable")
+
+    service.mock_mode = False
+    service.devices.reboot_device.side_effect = reboot
+    with pytest.raises(StereoDeviceFailure) as exc:
+        await service._reboot([left, right])
+    assert str(exc.value) == "stereo_reboot_failed"
+    assert exc.value.device_id == RIGHT
+
+
+@pytest.mark.asyncio
+async def test_verification_failure_identifies_speaker(service):
+    from opencloudtouch.stereo.group_files import GroupInfo, GroupRole
+    from opencloudtouch.stereo.service import StereoDeviceFailure
+
+    left = await service.repo.get_by_device_id(LEFT)
+    right = await service.repo.get_by_device_id(RIGHT)
+    roles = [
+        GroupRole(LEFT, "LEFT", left.ip),
+        GroupRole(RIGHT, "RIGHT", right.ip),
+    ]
+
+    async def group_safe(device):
+        return GroupInfo(
+            "1234567" if device.device_id == LEFT else "9999999",
+            "Pair", LEFT, roles, "GROUP_OK",
+        ), True
+
+    service._group_safe = group_safe
+    with pytest.raises(StereoDeviceFailure) as exc:
+        await service._verify([left, right], "1234567")
+    assert str(exc.value) == "stereo_verify_failed"
+    assert exc.value.device_id == RIGHT
+
+
+@pytest.mark.asyncio
+async def test_list_pairs_uses_master_report_even_if_slave_responds_first(service):
+    from opencloudtouch.stereo.group_files import GroupInfo, GroupRole
+
+    left = await service.repo.get_by_device_id(LEFT)
+    right = await service.repo.get_by_device_id(RIGHT)
+    service.repo.get_all.return_value = [right, left]
+    roles = [GroupRole(LEFT, "LEFT", left.ip), GroupRole(RIGHT, "RIGHT", right.ip)]
+
+    async def group_safe(device):
+        return GroupInfo(
+            "1234567", "Master name" if device.device_id == LEFT else "Old name",
+            LEFT, roles, "GROUP_OK",
+        ), True
+
+    service._group_safe = group_safe
+    result = await service.list_pairs()
+    assert result["pairs"][0]["name"] == "Master name"
+    assert result["pairs"][0]["inconsistent"] is True
+
+
+@pytest.mark.asyncio
+async def test_busy_device_error_contains_device_id(service):
+    service.busy.add(RIGHT)
+    with pytest.raises(Exception) as exc:
+        await service.create(LEFT, RIGHT, "Busy")
+    error = exc.value
+    assert getattr(error, "code", None) == "stereo_job_in_progress"
+    assert error.params == {"device_id": RIGHT}
