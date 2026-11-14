@@ -111,7 +111,7 @@ class SSHGroupBackend:
         connection = await ssh.connect()
         if not connection.success:
             raise OSError("SSH connection failed")
-        output = []
+        output: list[str] = []
         try:
             for command in commands:
                 if isinstance(command, tuple):
@@ -120,15 +120,16 @@ class SSHGroupBackend:
                     session = cast("SSHClientConnection | None", ssh._connection)
                     if session is None:
                         raise OSError("SSH connection closed")
-                    result = await session.run(shell, input=payload, check=False)
-                    if result.exit_status != 0:
+                    process = await session.run(shell, input=payload, check=False)
+                    if process.exit_status != 0:
                         raise OSError("SSH transfer failed")
-                    output.append((result.stdout or "").strip())
+                    stdout = process.stdout or ""
+                    output.append(stdout.decode("utf-8").strip() if isinstance(stdout, bytes) else stdout.strip())
                 else:
-                    result = await ssh.execute(command)
-                    if not result.success:
+                    command_result = await ssh.execute(command)
+                    if not command_result.success:
                         raise OSError("SSH command failed")
-                    output.append(result.output.strip())
+                    output.append(command_result.output.strip())
             return output
         finally:
             await ssh.close()
@@ -159,7 +160,7 @@ class SSHGroupBackend:
             "job_id": job, "operation": operation, "had_file": had_file,
             "state": "prepared",
         }, separators=(",", ":"))
-        commands = [self._write(journal, data)]
+        commands: list[str | tuple[str, str]] = [self._write(journal, data)]
         if had_file:
             commands.append(f"cp {GROUP_FILE} {backup}")
         if new is not None:
