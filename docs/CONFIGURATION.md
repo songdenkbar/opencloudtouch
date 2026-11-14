@@ -93,6 +93,18 @@ are not prevented for stereo-pair members. Do not run those actions during
 stereo jobs. Devices may appear offline temporarily while rebooting.
 Mock-mode tests do not replace real channel-separation hardware tests.
 
+For an optional **manual rollback test**, the script
+`apps/backend/scripts/test_stereo_hardware_rollback.py` accepts explicit
+`--left-id`, `--left-ip`, `--right-id`, `--right-ip`,
+`--left-original` and `--right-original` arguments. Each original must be
+either the literal `absent` or an existing local byte-for-byte file backup.
+The script has no built-in device addresses or backup checksums. By default it
+performs a **read-only preflight**. Only an additional explicit `--execute`
+enables the temporary on-device write and injected rollback failure.
+Run it only on two deliberately unpaired speakers with empty /getGroup and
+/getZone responses, verified SSH access and a reliable restoration plan.
+Never repeat the write test after any failure.
+
 ## Server
 
 | Variable | Default | Description |
