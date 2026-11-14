@@ -310,3 +310,78 @@ async def test_ssh_invalid_journal_does_not_trigger_recovery_writes():
 
     with pytest.raises(RuntimeError, match="stereo_recovery_needed"):
         await CorruptJournal().journal_record("192.0.2.10")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fail_at", [1, 2])
+async def test_ssh_cleanup_interruption_preserves_journal_and_can_retry(fail_at):
+    """Cleanup is resumable if the first or final removal command fails."""
+    import json
+
+    job = "c" * 32
+    backend = SSHGroupBackend()
+    journal, backup, stage = backend._suffix(job)
+    original_group = "<group id='123'/>"
+    files = {
+        journal: json.dumps({
+            "job_id": job, "operation": "create",
+            "had_file": False, "state": "verified",
+        }),
+        backup: "<old/>",
+        stage: "staged",
+        journal + ".tmp": "temporary",
+    }
+    removal_count = 0
+
+    class InterruptedCleanup(SSHGroupBackend):
+        async def _run(self, ip, commands, *, writable=False):
+            nonlocal removal_count
+            output = []
+            for command in commands:
+                if command.startswith("cat "):
+                    output.append(files[command[4:]])
+                elif command.startswith("rm -f "):
+                    removal_count += 1
+                    if removal_count == fail_at:
+                        raise OSError("simulated SSH interruption")
+                    for pathname in command[len("rm -f "):].split():
+                        files.pop(pathname, None)
+                    output.append("")
+                else:
+                    raise AssertionError("Unexpected SSH command")
+            return output
+
+    interrupted = InterruptedCleanup()
+    with pytest.raises(OSError, match="simulated SSH interruption"):
+        await interrupted.cleanup("192.0.2.10", job)
+    assert journal in files, "Journal must be the last artifact removed"
+
+    # The real group file is not part of cleanup, even on a retry.
+    assert original_group == "<group id='123'/>"
+    await interrupted.cleanup("192.0.2.10", job)
+    assert files == {}
+
+
+@pytest.mark.asyncio
+async def test_ssh_cleanup_command_order_keeps_journal_last():
+    """The durable journal is removed in a separate, last SSH command."""
+    import json
+
+    job = "d" * 32
+    journal, backup, stage = SSHGroupBackend._suffix(job)
+    operations = []
+
+    class RecordingBackend(SSHGroupBackend):
+        async def _run(self, ip, commands, *, writable=False):
+            operations.append((list(commands), writable))
+            if not writable:
+                return [json.dumps({"job_id": job})]
+            return [""] * len(commands)
+
+    await RecordingBackend().cleanup("192.0.2.10", job)
+    commands, writable = operations[1]
+    assert writable
+    assert commands == [
+        f"rm -f {backup} {stage} {journal}.tmp",
+        f"rm -f {journal}",
+    ]
