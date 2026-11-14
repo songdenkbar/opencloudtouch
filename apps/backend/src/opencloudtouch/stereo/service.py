@@ -285,9 +285,10 @@ class StereoService:
                     "Remove device from zone first",
                     params={"device_id": device.device_id},
                 )
-        group_checks = [
-            (device, *await self._group_safe(device)) for device in (left, right)
-        ]
+        group_checks = []
+        for device in (left, right):
+            group, reachable = await self._group_safe(device)
+            group_checks.append((device, group, reachable))
         # The specified validation order gives an existing pair priority over
         # an offline peer, irrespective of the LEFT/RIGHT request ordering.
         for device, group, reachable in group_checks:
