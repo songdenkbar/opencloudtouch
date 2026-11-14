@@ -243,30 +243,131 @@ class StereoService:
             raise
 
     async def recover(self, device_id: str) -> dict[str, Any]:
-        self._reserve([device_id])
+        device = await self.repo.get_by_device_id(device_id)
+        if device is None:
+            raise_coded(404, "device_not_found", "Device not found")
+        if not await self.backend.leftover(device.ip):
+            raise_coded(409, "stereo_nothing_to_recover", "No recovery information found")
+        record = await self.backend.journal_record(device.ip)
+        if record is None or record["state"] in {"verified", "preparing"}:
+            self._reserve([device_id])
+            try:
+                return self._enqueue("recover", [device_id], None, None, device, None)
+            except BaseException:
+                self.busy.discard(device_id)
+                raise
+
+        # Pending writes require a two-speaker transaction decision, never an
+        # independent per-speaker rollback. Both journals carry the same job ID.
+        participants = []
+        for candidate in await self.repo.get_all():
+            if candidate.model.strip().casefold() != "soundtouch 10":
+                continue
+            try:
+                peer_record = await self.backend.journal_record(candidate.ip)
+            except Exception:
+                raise_coded(503, "device_unreachable", "Cannot inspect all stereo journals")
+            if peer_record and peer_record["job_id"] == record["job_id"]:
+                participants.append((candidate, peer_record))
+        if len(participants) != 2 or device_id not in {
+            d.device_id for d, _record in participants
+        }:
+            raise_coded(
+                409, "stereo_recovery_needed",
+                "Both transaction journals are required for pair-wide recovery",
+            )
+        if any(p["operation"] != record["operation"] for _, p in participants):
+            raise_coded(409, "stereo_recovery_needed", "Conflicting stereo journals")
+        # Preserve the original creation order for LEFT/RIGHT verification.
+        # Reboot and status verification work in either order; left identity
+        # matters only when checking a successful GROUP_OK pair.
+        participants.sort(key=lambda item: item[0].device_id)
+        first, second = (participants[0][0], participants[1][0])
+        ids = [first.device_id, second.device_id]
+        self._reserve(ids)
         try:
-            device = await self.repo.get_by_device_id(device_id)
-            if device is None:
-                raise_coded(404, "device_not_found", "Device not found")
-            if not await self.backend.leftover(device.ip):
-                raise_coded(409, "stereo_nothing_to_recover", "No recovery information found")
-            state = await self.backend.journal_state(device.ip)
-            # A prepared/committed transaction may involve two speakers.
-            # Rolling back only this speaker could split a functioning pair.
-            # Keep both journals intact pending coordinated pair recovery.
-            if state in {"prepared", "committed"}:
-                raise_coded(
-                    409, "stereo_recovery_needed",
-                    "Pair-wide recovery required; single-speaker rollback is unsafe",
-                )
-            if state is None:
-                # A lone initial .tmp journal can be discarded safely by
-                # backend.recover; orphaned backup/stage files are not safe.
-                pass
-            return self._enqueue("recover", [device_id], None, None, device, None)
+            return self._enqueue("recover", ids, None, None, first, second)
         except BaseException:
-            self.busy.discard(device_id)
+            self.busy.difference_update(ids)
             raise
+
+    async def _recover_pair(self, devices: list[Any]) -> None:
+        """Coordinate one interrupted transaction across both persisted journals."""
+        records = [await self.backend.journal_record(d.ip) for d in devices]
+        if any(r is None for r in records):
+            raise RuntimeError("stereo_recovery_needed")
+        first, second = records
+        if first["job_id"] != second["job_id"] or first["operation"] != second["operation"]:
+            raise RuntimeError("stereo_recovery_needed")
+        job_id = first["job_id"]
+
+        async def matching_final_state() -> bool:
+            responses = await asyncio.gather(*(self._group_safe(d) for d in devices))
+            if not all(ok for _group, ok in responses):
+                return False
+            groups = [group for group, _ok in responses]
+            if first["operation"] == "remove":
+                return all(g is None for g in groups)
+            if not all(g is not None for g in groups):
+                return False
+            left_group, right_group = groups
+            return (
+                left_group.group_id == right_group.group_id
+                and left_group.master_device_id == right_group.master_device_id
+                and left_group.name == right_group.name
+                and all(g.status == "GROUP_OK" for g in groups)
+                and len(left_group.roles) == 2
+                and {(r.device_id, r.role) for r in left_group.roles}
+                == {(r.device_id, r.role) for r in right_group.roles}
+                and {r.role for r in left_group.roles} == {"LEFT", "RIGHT"}
+                and {r.device_id for r in left_group.roles}
+                == {d.device_id for d in devices}
+            )
+
+        if any(r["state"] == "verified" for r in records):
+            # A verified marker is written only after both speakers passed
+            # the firmware-level check. Never undo one half of that decision.
+            if not await matching_final_state():
+                raise RuntimeError("stereo_recovery_needed")
+        else:
+            # Both backups must be readable before touching either speaker.
+            from opencloudtouch.stereo.group_files import parse_group_xml
+            previous = [
+                parse_group_xml(await self.backend.previous_content(d.ip) or "<group />")
+                for d in devices
+            ]
+            for device in devices:
+                await self.backend.rollback(device.ip, job_id)
+            if any(r["state"] == "committed" for r in records):
+                await self._reboot(devices)
+                await self._wait_reachable(devices)
+
+            for attempt in range(6):
+                responses = await asyncio.gather(*(self._group_safe(d) for d in devices))
+                if all(
+                    online and (
+                        (current is None and original is None)
+                        or (
+                            current is not None and original is not None
+                            and current.group_id == original.group_id
+                            and current.master_device_id == original.master_device_id
+                            and current.roles == original.roles
+                            and current.name == original.name
+                        )
+                    )
+                    for (current, online), original in zip(responses, previous)
+                ):
+                    break
+                if attempt < 5:
+                    await asyncio.sleep(0 if self.mock_mode else 10)
+            else:
+                raise RuntimeError("stereo_rollback_failed")
+
+        # Complete both decisions before deleting either backup.
+        for device in devices:
+            await self.backend.mark_verified(device.ip, job_id)
+        for device in devices:
+            await self.backend.cleanup(device.ip, job_id)
 
     async def _reboot(self, devices: list[Any]) -> None:
         if self.mock_mode:
@@ -434,12 +535,15 @@ class StereoService:
                     raise RuntimeError("stereo_device_invalid")
                 async with phase_budget(self.primary_budget_seconds, "stereo_timeout"):
                     job["step"] = "rolling_back"
-                    if not await self.backend.recover(left.ip):
-                        raise RuntimeError("stereo_nothing_to_recover")
-                    job["step"] = "rebooting"
-                    await self._reboot(devices)
-                    job["step"] = "waiting_for_devices"
-                    await self._wait_online(devices)
+                    if len(devices) == 2:
+                        await self._recover_pair(devices)
+                    else:
+                        if not await self.backend.recover(left.ip):
+                            raise RuntimeError("stereo_nothing_to_recover")
+                        job["step"] = "rebooting"
+                        await self._reboot(devices)
+                        job["step"] = "waiting_for_devices"
+                        await self._wait_online(devices)
             else:
                 if operation == "create" and (left is None or right is None):
                     raise RuntimeError("stereo_device_invalid")
