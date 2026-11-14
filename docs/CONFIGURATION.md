@@ -67,8 +67,10 @@ After arranging writable access using OCT's SSH write guard, the equivalent
 per-speaker recovery commands are:
 
 ```sh
+# Use the job_id from the inspected journal (32 lowercase hex characters):
+JOB_ID=replace_with_verified_job_id
 # Only for an UNVERIFIED transaction, with a matching readable backup:
-cp GroupService.xml.oct-bak.<job_id> GroupService.xml  # had_file=true
+cp "GroupService.xml.oct-bak.$JOB_ID" GroupService.xml  # had_file=true
 # OR, only when the journal explicitly records had_file=false:
 rm -f GroupService.xml
 ```
