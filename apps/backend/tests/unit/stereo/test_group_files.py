@@ -88,3 +88,18 @@ def test_rejects_same_device() -> None:
 )
 def test_unparseable_or_unsafe_xml_returns_none(xml: str) -> None:
     assert parse_group_xml(xml) is None
+
+
+
+def test_group_models_use_the_device_client_contract():
+    """No duplicate GroupInfo/GroupRole types between client and XML parser."""
+    from opencloudtouch.devices.client import (
+        DeviceClient,
+        GroupInfo as ClientGroupInfo,
+        GroupRole as ClientGroupRole,
+    )
+    from opencloudtouch.stereo.group_files import GroupInfo, GroupRole
+
+    assert GroupInfo is ClientGroupInfo
+    assert GroupRole is ClientGroupRole
+    assert "get_group" in DeviceClient.__abstractmethods__
