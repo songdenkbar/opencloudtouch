@@ -326,9 +326,15 @@ class StereoService:
     async def recover(self, device_id: str) -> dict[str, Any]:
         device = await self.repo.get_by_device_id(device_id)
         if device is None:
-            raise_coded(404, "device_not_found", "Device not found")
+            raise_coded(
+                404, "device_not_found", "Device not found",
+                params={"device_id": device_id},
+            )
         if not await self.backend.leftover(device.ip):
-            raise_coded(409, "stereo_nothing_to_recover", "No recovery information found")
+            raise_coded(
+                409, "stereo_nothing_to_recover", "No recovery information found",
+                params={"device_id": device_id},
+            )
         record = await self.backend.journal_record(device.ip)
         if record is None or record["state"] == "preparing":
             self._reserve([device_id])
@@ -549,12 +555,29 @@ class StereoService:
                     ):
                         return
             await asyncio.sleep(10 if not self.mock_mode else 0)
+        expected_roles = (
+            {(devices[0].device_id, "LEFT"), (devices[1].device_id, "RIGHT")}
+            if len(devices) == 2 else None
+        )
         for device, (group, reachable) in zip(devices, groups):
-            if not reachable or group is None or (
+            if not reachable or (
                 group_id is None and group is not None
-            ) or (group_id is not None and (
-                group.group_id != group_id or group.status != "GROUP_OK"
-            )):
+            ) or (
+                group_id is not None and (
+                    group is None or group.group_id != group_id
+                    or group.status != "GROUP_OK"
+                    or len(group.roles) != 2
+                    or {role.role for role in group.roles} != {"LEFT", "RIGHT"}
+                    or not any(role.device_id == device.device_id for role in group.roles)
+                    or (
+                        expected_roles is not None and (
+                            group.master_device_id != devices[0].device_id
+                            or {(r.device_id, r.role) for r in group.roles}
+                            != expected_roles
+                        )
+                    )
+                )
+            ):
                 raise StereoDeviceFailure("stereo_verify_failed", device.device_id)
         raise RuntimeError("stereo_verify_failed")
 
@@ -588,7 +611,7 @@ class StereoService:
                 if await self._info_online(device):
                     return
                 await asyncio.sleep(5)
-            raise RuntimeError("stereo_timeout")
+            raise StereoDeviceFailure("stereo_timeout", device.device_id)
 
         await asyncio.gather(*(wait_one(d) for d in devices))
 
