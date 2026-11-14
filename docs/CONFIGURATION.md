@@ -4,7 +4,7 @@ OpenCloudTouch is configured via `OCT_`-prefixed environment variables (case-ins
 
 ## Stereo pairs (SoundTouch 10)
 
-**Experimental backend implementation — hardware verification pending.** Stereo pairs
+**Experimental backend-only implementation.** Stereo pairs
 are separate from multi-room zones. Only two SoundTouch 10 speakers are supported:
 LEFT is the master and RIGHT plays the right channel. OCT discovers pairs through
 GET /getGroup; no stereo pair database records are created.
@@ -35,13 +35,17 @@ a missing backup.
 OCT blocks subsequent writes while such files remain. Use
 POST /api/stereo-pairs/recover/{device_id} to restore the previous configuration
 from journal and backup, followed by reboot. If the journal indicates that a
-pair was already verified, recovery only cleans leftover artifacts instead of
-reversing an otherwise successful pairing. Before running recovery, verify
-which speaker has the interrupted operation.
+pair was already verified, recovery preserves that pair and cleans up remaining
+artifacts once the related transaction state has been checked. For interrupted
+transactions affecting both speakers, OCT coordinates recovery to avoid
+restoring only one side. Before running recovery, verify which speaker has the
+interrupted operation.
 
-**Caution:** Removing a pair by deleting its file, target-shell support,
-recovery after interruption, and reboot timing must still be verified on
-real SoundTouch 10 devices. Multi-room zone creation and automatic grouping
+**Caution:** Pair creation, audible LEFT/RIGHT separation, removal, and
+rollback after an injected failure before the second file commit were tested
+on real SoundTouch 10 devices. Recovery after a process interruption during
+reboot, a speaker being unplugged mid-job, and all reboot timings have not
+been verified on hardware. Multi-room zone creation and automatic grouping
 are not prevented for stereo-pair members. Do not run those actions during
 stereo jobs. Devices may appear offline temporarily while rebooting.
 Mock-mode tests do not replace real channel-separation hardware tests.
