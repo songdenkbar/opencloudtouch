@@ -754,3 +754,19 @@ async def test_stereo_pair_listing_limits_parallel_group_reads(service):
         release.set()
         await asyncio.wait_for(task, timeout=1)
     assert maximum == 5
+
+
+@pytest.mark.asyncio
+async def test_request_field_errors_take_priority_over_busy_lock(service):
+    """Spec #549 requires same-device/name errors before lock/limit checks."""
+    service.busy.add(LEFT)
+    service.repo.get_by_device_id.reset_mock()
+    with pytest.raises(Exception) as exc:
+        await service.create(LEFT, LEFT, "Good name")
+    assert getattr(exc.value, "code", None) == "stereo_same_device"
+    with pytest.raises(Exception) as exc:
+        await service.create(LEFT, RIGHT, "")
+    assert getattr(exc.value, "code", None) == "stereo_name_invalid"
+    service.repo.get_by_device_id.assert_not_awaited()
+    assert service.busy == {LEFT}
+    assert not service.tasks
