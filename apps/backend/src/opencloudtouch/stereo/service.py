@@ -314,7 +314,14 @@ class StereoService:
                         409, "stereo_pair_not_found", "Pair membership changed",
                         params={"device_id": device.device_id},
                     )
-                if await self.backend.leftover(device.ip):
+                try:
+                    leftovers = await self.backend.leftover(device.ip)
+                except (OSError, TimeoutError):
+                    raise_coded(
+                        503, "stereo_ssh_unreachable", "Unable to inspect recovery files",
+                        params={"device_id": device.device_id},
+                    )
+                if leftovers:
                     raise_coded(
                         409, "stereo_recovery_needed", "Recovery required",
                         params={"device_id": device.device_id},
@@ -339,7 +346,14 @@ class StereoService:
                 404, "device_not_found", "Device not found",
                 params={"device_id": device_id},
             )
-        if not await self.backend.leftover(device.ip):
+        try:
+            leftovers = await self.backend.leftover(device.ip)
+        except (OSError, TimeoutError):
+            raise_coded(
+                503, "stereo_ssh_unreachable", "Unable to inspect recovery files",
+                params={"device_id": device_id},
+            )
+        if not leftovers:
             raise_coded(
                 409, "stereo_nothing_to_recover", "No recovery information found",
                 params={"device_id": device_id},
