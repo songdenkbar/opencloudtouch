@@ -1,9 +1,30 @@
 # Stereo #549 – hardware acceptance runbook
 
-This runbook covers the three **still-open hardware acceptance scenarios**:
-power loss during a running job, recovery after OCT restart, and normal operation
-after recovery. It also rechecks normal create/remove on the latest build.
+This runbook covers power loss during a running job, recovery after OCT restart,
+and normal operation after recovery, as well as normal create/remove. Hardware
+observations from 2026-11-14 are recorded below; remaining checks are not marked
+as complete.
 All writes/reboots are opt-in; there is no automatic power-cut or server restart.
+
+## Hardware evidence from 2026-11-14 (SoundTouch 10, firmware 27.0.6)
+
+- Normal create, LEFT/RIGHT audio playback, remove, and final baseline passed.
+- A deliberate **LEFT** power interruption at the observed
+  `waiting_for_devices` phase produced `stereo_timeout`, `rolled_back: false`
+  and a finished failed job; RIGHT eventually reported an empty group.
+- After LEFT was powered again, its `/getGroup` reported `GROUP_ERROR`,
+  journal `prepared`; RIGHT had an empty group and journal `restored`.
+  Both devices were listed under `recovery_needed_device_ids`.
+- The matching journals had `operation: create` and `had_file: false`.
+  Pair-coordinated API recovery succeeded, removed both journals, and a final
+  independent test passed with original files absent on both devices.
+- **Still pending:** an independent create/paired/remove/final round trip
+  *after* recovery. A real OCT restart during the interrupted state is not
+  independently established by an `after-restart` test invocation; preserve
+  this as an open verification unless server restart evidence is available.
+
+Do not publish local device identifiers, addresses, or copied journal contents
+as part of a PR without explicit review.
 
 ## Safety first
 
@@ -69,18 +90,20 @@ zone APIs are empty, and neither speaker has any recovery leftovers.
 
 Repeat the read-only baseline first. Only after it passes:
 
-1. With RIGHT's power plug accessible, run
+1. With the chosen test speaker's power plug accessible, run
    `PYTHONPATH=src "${STEREO_TEST[@]}" --phase create --execute`.
-2. The monitor announces the `rebooting` step. **Physically disconnect
-   RIGHT at that point** and keep it offline long enough for the job to
-   encounter the timeout. The signal is best effort: the transition can be
-   faster than monitoring. Record precisely **when** power was removed.
+2. The monitor may skip the brief `rebooting` step. For an outage during
+   the subsequent device wait, **physically disconnect the chosen speaker**
+   as soon as `waiting_for_devices` appears and keep it offline for the job to
+   encounter the timeout. This is a best-effort timing signal: a power cut
+   at this phase may not exercise every reboot-command failure path. Record
+   the actual point at which power was removed.
 3. The job is expected to fail; inspect `error_code`, `rolled_back`,
    `failed_device_id`, and both speakers' SSH/journal state. In particular,
-   the available LEFT must be restored as far as possible. The disconnected
-   RIGHT must **not** be claimed as successfully rolled back; the surviving
+   the available peer must be restored as far as possible. The disconnected
+   speaker must **not** be claimed as successfully rolled back; the surviving
    journal(s) must not be silently cleared.
-4. Reconnect RIGHT **only after recording the failure and initial state**.
+4. Reconnect the disconnected speaker **only after recording the failure and initial state**.
    Run the read-only audit, and do not create another pair yet:
 
 ```bash
