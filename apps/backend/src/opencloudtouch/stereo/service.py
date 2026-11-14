@@ -55,11 +55,19 @@ class StereoService:
             return parse_group_xml(result.content)
 
     async def _group_safe(self, device: Any) -> tuple[GroupInfo | None, bool]:
-        try:
-            return await self._group(device), True
-        except Exception:
-            logger.debug("Stereo group status unavailable for %s", device.device_id)
-            return None, False
+        # Standby transitions can briefly interrupt /getGroup. Keep the safety
+        # check, but do not mark a speaker unreachable after a single failure.
+        for attempt in range(3):
+            try:
+                return await self._group(device), True
+            except (httpx.HTTPError, OSError, ValueError) as exc:
+                logger.debug(
+                    "Stereo group status unavailable for %s (attempt %d/3): %s",
+                    device.device_id, attempt + 1, exc,
+                )
+                if attempt < 2:
+                    await asyncio.sleep(0.5)
+        return None, False
 
     async def list_pairs(self) -> dict[str, Any]:
         all_devices = await self.repo.get_all()
