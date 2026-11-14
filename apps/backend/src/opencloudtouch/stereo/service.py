@@ -249,7 +249,7 @@ class StereoService:
         if not await self.backend.leftover(device.ip):
             raise_coded(409, "stereo_nothing_to_recover", "No recovery information found")
         record = await self.backend.journal_record(device.ip)
-        if record is None or record["state"] in {"verified", "restored", "preparing"}:
+        if record is None or record["state"] == "preparing":
             self._reserve([device_id])
             try:
                 return self._enqueue("recover", [device_id], None, None, device, None)
@@ -257,8 +257,9 @@ class StereoService:
                 self.busy.discard(device_id)
                 raise
 
-        # Pending writes require a two-speaker transaction decision, never an
-        # independent per-speaker rollback. Both journals carry the same job ID.
+        # Even a 'restored' or 'verified' journal may have a peer from the
+        # same transaction that has not reached that state yet. Discover the
+        # whole transaction before deciding whether cleanup can be unilateral.
         participants = []
         for candidate in await self.repo.get_all():
             if candidate.model.strip().casefold() != "soundtouch 10":
@@ -269,6 +270,15 @@ class StereoService:
                 raise_coded(503, "device_unreachable", "Cannot inspect all stereo journals")
             if peer_record and peer_record["job_id"] == record["job_id"]:
                 participants.append((candidate, peer_record))
+        if len(participants) == 1 and record["state"] in {"verified", "restored"}:
+            # The peer journal has already been cleaned. This device has a
+            # durable final decision and only needs its own artifacts removed.
+            self._reserve([device_id])
+            try:
+                return self._enqueue("recover", [device_id], None, None, device, None)
+            except BaseException:
+                self.busy.discard(device_id)
+                raise
         if len(participants) != 2 or device_id not in {
             d.device_id for d, _record in participants
         }:
