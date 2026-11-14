@@ -1311,6 +1311,8 @@ async def test_force_remove_when_peer_missing_from_repository(service):
     await service.tasks[job["job_id"]]
     group_id = service.job(job["job_id"])["group_id"]
     original_get = service.repo.get_by_device_id.side_effect
+    surviving = await service.repo.get_by_device_id(LEFT)
+    service.repo.get_all.return_value = [surviving]
     service.repo.get_by_device_id.side_effect = (
         lambda key: None if key == RIGHT else original_get(key)
     )
