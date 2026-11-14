@@ -386,7 +386,9 @@ class StereoService:
             "started_at": self._now(),
             "finished_at": None,
             "error_code": None,
-            "failed_device_id": (recovery_target_id or ids[0]) if op == "recover" else None,
+            "failed_device_id": (
+                (recovery_target_id or ids[0]) if op == "recover" else None
+            ),
             "rolled_back": None,
         }
         self.jobs[job_id] = job
@@ -595,7 +597,12 @@ class StereoService:
         self._reserve(ids)
         try:
             return self._enqueue(
-                "recover", ids, None, None, first, second,
+                "recover",
+                ids,
+                None,
+                None,
+                first,
+                second,
                 recovery_target_id=device_id,
             )
         except BaseException:

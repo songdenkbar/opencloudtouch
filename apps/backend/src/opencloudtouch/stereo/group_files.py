@@ -9,6 +9,7 @@ from __future__ import annotations
 from unicodedata import category
 from ipaddress import ip_address
 import re
+
 # XML text escaping only; untrusted XML parsing uses defusedxml below.
 from xml.sax.saxutils import escape  # nosec B406
 
