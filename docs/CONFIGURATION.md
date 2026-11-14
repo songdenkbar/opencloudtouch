@@ -16,6 +16,10 @@ access enabled. The backend backs up the persistent file at
 commits both files, reboots both speakers, and verifies the reported group.
 Creating, removing and recovering a pair are long-running jobs (HTTP 202),
 polled with GET /api/stereo-pairs/jobs/{job_id}.
+The create/remove operation has a six-minute deadline, followed by a separate
+four-minute rollback budget if it fails. OCT polls device /info during reboot
+and verifies the final pair through /getGroup. An interrupted or timed-out
+recovery must be investigated before starting another stereo operation.
 
 On each affected speaker a job may leave:
 - GroupService.xml.oct-job — a JSON journal
