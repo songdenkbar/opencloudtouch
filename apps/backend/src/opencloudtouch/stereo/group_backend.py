@@ -316,7 +316,13 @@ class SSHGroupBackend:
         record = json.loads(raw)
         if record.get("job_id") != job:
             raise RuntimeError("stereo_recovery_needed")
-        await self._run(ip, [f"rm -f {backup} {stage} {journal} {journal}.tmp"], writable=True)
+        # Remove disposable artifacts first, retaining the durable journal
+        # until the very last command. An SSH interruption between commands
+        # leaves a recoverable transaction rather than orphaned backups.
+        await self._run(ip, [
+            f"rm -f {backup} {stage} {journal}.tmp",
+            f"rm -f {journal}",
+        ], writable=True)
 
     async def recover(self, ip: str) -> bool:
         data = (await self._run(ip, [
