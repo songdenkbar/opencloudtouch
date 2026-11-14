@@ -84,14 +84,25 @@ unreachable or the correct backup is missing, retain the artifacts and seek
 assistance rather than guessing. The application-managed recovery endpoint
 remains the normal and safer method.
 
-**Caution:** Pair creation, audible LEFT/RIGHT separation, removal, and
-rollback after an injected failure before the second file commit were tested
-on real SoundTouch 10 devices. Recovery after a process interruption during
-reboot, a speaker being unplugged mid-job, and all reboot timings have not
-been verified on hardware. Multi-room zone creation and automatic grouping
-are not prevented for stereo-pair members. Do not run those actions during
-stereo jobs. Devices may appear offline temporarily while rebooting.
-Mock-mode tests do not replace real channel-separation hardware tests.
+**Hardware verification (2026-11-14):** On two SoundTouch 10 speakers running
+firmware 27.0.6, create, consistent LEFT/RIGHT group reporting, audible stereo
+playback, removal, and restoration to the original absent-file state were
+confirmed. A deliberate power interruption of LEFT during `waiting_for_devices`
+produced `stereo_timeout` with `rolled_back: false`. After reconnecting,
+both device journals were present (LEFT `prepared`, RIGHT `restored`);
+coordinated recovery through the API succeeded and a final independent
+snapshot confirmed both original files absent, empty `/getGroup` and
+`/getZone`, and no remaining transaction artifacts. The existing unrelated
+stereo pair remained intact. This does not validate other firmware revisions.
+
+**Remaining hardware checks:** A fresh create/paired/remove/final cycle
+*after* recovery is still pending. A backend-restart recovery scenario is
+not independently proven unless the development server restart is verified;
+the read-only `after-restart` runner alone does not prove a restart.
+Multi-room zone creation and automatic grouping are not prevented for
+stereo-pair members; do not run those actions during stereo jobs.
+Devices may appear offline while rebooting. Mock tests do not replace
+real channel-separation tests.
 
 For an optional **manual rollback test**, the script
 `apps/backend/scripts/test_stereo_hardware_rollback.py` accepts explicit
@@ -105,8 +116,8 @@ Run it only on two deliberately unpaired speakers with empty /getGroup and
 /getZone responses, verified SSH access and a reliable restoration plan.
 Never repeat the write test after any failure.
 
-For the remaining physical outage, OCT-restart recovery and post-recovery
-regression tests, follow
+For physical outage, OCT-restart recovery, and post-recovery
+regression procedures, follow
 [`STEREO_HARDWARE_TEST_PLAN.md`](../apps/backend/scripts/STEREO_HARDWARE_TEST_PLAN.md)
 using the read-only-by-default `test_stereo_hardware_scenarios.py` runner.
 It requires explicit `--execute` for any API write/reboot operation; power
