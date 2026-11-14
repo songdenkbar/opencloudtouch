@@ -211,7 +211,7 @@ class StereoService:
             raise
 
     async def remove(self, group_id: str, force: bool = False) -> dict[str, Any]:
-        if not group_id.isdecimal() or len(group_id) > 12:
+        if not (1 <= len(group_id) <= 12 and group_id.isascii() and group_id.isdecimal()):
             raise_coded(422, "stereo_group_id_invalid", "Invalid stereo group ID")
         pair = next((p for p in (await self.list_pairs())["pairs"] if p["group_id"] == group_id), None)
         if pair is None:
