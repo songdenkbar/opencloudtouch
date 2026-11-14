@@ -9,7 +9,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from opencloudtouch.core.exceptions import register_exception_handlers
+from opencloudtouch.core.exception_handlers import register_exception_handlers
 from opencloudtouch.stereo.api.routes import router as stereo_router
 from opencloudtouch.stereo.group_backend import mock_group_store
 from opencloudtouch.stereo.service import StereoService
