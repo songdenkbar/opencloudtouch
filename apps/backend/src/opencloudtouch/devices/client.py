@@ -68,6 +68,26 @@ class BassCapabilities:
     default: int
 
 
+@dataclass(frozen=True)
+class GroupRole:
+    """One LEFT/RIGHT member reported by the SoundTouch group endpoint."""
+
+    device_id: str
+    role: str
+    ip_address: str | None
+
+
+@dataclass(frozen=True)
+class GroupInfo:
+    """Decoded SoundTouch stereo group status."""
+
+    group_id: str
+    name: str | None
+    master_device_id: str
+    roles: list[GroupRole]
+    status: str | None
+
+
 class DeviceClient(ABC):
     """Abstract client for device HTTP API."""
 
@@ -199,13 +219,10 @@ class DeviceClient(ABC):
         """
         pass
 
-    async def get_group(self):
-        """Read the persistent stereo group from the device.
-
-        Returns None when no group is configured or its XML cannot be parsed.
-        Not abstract for compatibility with existing third-party DeviceClient fakes.
-        """
-        raise NotImplementedError("get_group not implemented")
+    @abstractmethod
+    async def get_group(self) -> GroupInfo | None:
+        """Read /getGroup; return None for empty or unparsable XML."""
+        pass
 
     # ---- Zone Methods ----
 
