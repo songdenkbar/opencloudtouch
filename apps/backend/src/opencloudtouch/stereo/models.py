@@ -2,13 +2,13 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class CreateStereoPair(BaseModel):
     left_device_id: str
     right_device_id: str
-    name: str = Field(min_length=1, max_length=30)
+    name: str
 
 
 class StereoPair(BaseModel):
