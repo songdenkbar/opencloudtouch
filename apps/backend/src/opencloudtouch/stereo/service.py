@@ -210,7 +210,7 @@ class StereoService:
         except ValueError:
             raise_coded(422, "stereo_name_invalid", "Invalid stereo name", field="name")
 
-    async def _eligible(self, left_id: str, right_id: str) -> tuple[Any, Any]:
+    async def _eligible_local(self, left_id: str, right_id: str) -> tuple[Any, Any]:
         left = await self.repo.get_by_device_id(left_id)
         right = await self.repo.get_by_device_id(right_id)
         if left is None or right is None:
@@ -250,6 +250,11 @@ class StereoService:
                         "Permanent SSH is required",
                         params={"device_id": device.device_id},
                     )
+        return left, right
+
+    async def _eligible(self, left: Any, right: Any) -> tuple[Any, Any]:
+        """Check remote eligibility only after both device locks are held."""
+        if not self.mock_mode:
             from opencloudtouch.setup.ssh_client import check_ssh_port
 
             for device in (left, right):
@@ -385,9 +390,12 @@ class StereoService:
 
     async def create(self, left_id: str, right_id: str, name: str) -> dict[str, Any]:
         clean = self._validate_request(left_id, right_id, name)
+        # Spec validation priority: unknown/unsupported/invalid stored data
+        # takes precedence over a concurrent lock, without any remote access.
+        left, right = await self._eligible_local(left_id, right_id)
         self._reserve([left_id, right_id])
         try:
-            left, right = await self._eligible(left_id, right_id)
+            await self._eligible(left, right)
             existing = {p["group_id"] for p in (await self.list_pairs())["pairs"]}
             group_id = str(secrets.randbelow(9_000_000) + 1_000_000)
             while group_id in existing:
