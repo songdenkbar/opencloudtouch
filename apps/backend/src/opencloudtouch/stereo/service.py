@@ -257,23 +257,35 @@ class StereoService:
         if any(isinstance(r, BaseException) for r in results):
             raise RuntimeError("stereo_reboot_failed")
 
+    async def _info_online(self, device: Any) -> bool:
+        """Poll the existing SoundTouch /info API for reboot transitions."""
+        if self.mock_mode:
+            return True
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(5.0, connect=2.0)
+            ) as client:
+                response = await client.get(f"http://{device.ip}:8090/info")
+                response.raise_for_status()
+                return True
+        except (httpx.HTTPError, OSError):
+            return False
+
     async def _wait_online(self, devices: list[Any]) -> None:
         if self.mock_mode:
             return
 
         async def wait_one(device: Any) -> None:
-            # All speakers must be watched concurrently. Otherwise the second
-            # speaker may have already rebooted by the time it is polled.
+            # Observe both speakers concurrently. A missed offline transition
+            # must not be mistaken for a successful reboot.
             for _ in range(30):
-                _, online = await self._group_safe(device)
-                if not online:
+                if not await self._info_online(device):
                     break
                 await asyncio.sleep(2)
             else:
                 raise RuntimeError("stereo_timeout")
             for _ in range(36):
-                _, online = await self._group_safe(device)
-                if online:
+                if await self._info_online(device):
                     return
                 await asyncio.sleep(5)
             raise RuntimeError("stereo_timeout")
@@ -331,8 +343,7 @@ class StereoService:
 
         async def wait_one(device: Any) -> None:
             for _ in range(36):
-                _, online = await self._group_safe(device)
-                if online:
+                if await self._info_online(device):
                     return
                 await asyncio.sleep(5)
             raise RuntimeError("stereo_timeout")
