@@ -615,9 +615,12 @@ class StereoService:
                     await self._verify(
                         devices, job["group_id"] if operation == "create" else None
                     )
+                    # Both firmware responses now confirm the final pair.
+                    # From here onward, a journal/SSH failure must not trigger
+                    # an asymmetric rollback after the first verified marker.
+                    verified = True
                     for device in devices:
                         await self.backend.mark_verified(device.ip, job["job_id"])
-                    verified = True
                     for device in devices:
                         await self.backend.cleanup(device.ip, job["job_id"])
             job["state"] = "succeeded"
