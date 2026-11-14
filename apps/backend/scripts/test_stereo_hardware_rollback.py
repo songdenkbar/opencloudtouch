@@ -135,9 +135,10 @@ async def execute(speakers: tuple[Speaker, Speaker]) -> None:
         await service.tasks[job["job_id"]]
         result = service.job(job["job_id"])
         current = await asyncio.gather(*(read_file(s.ip) for s in speakers))
-        no_leftovers = all(
-            not await backend.leftover(s.ip) for s in speakers
+        leftover_results = await asyncio.gather(
+            *(backend.leftover(s.ip) for s in speakers)
         )
+        no_leftovers = not any(leftover_results)
         api_ok = True
         for s in speakers:
             try:
