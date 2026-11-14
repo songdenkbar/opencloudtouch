@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -52,9 +54,21 @@ async def stereo_api():
         mock_group_store.clear()
 
 
+async def wait_for_job(client: AsyncClient, job_id: str) -> dict:
+    """Poll the public API; finished jobs need not remain in service.tasks."""
+    for _ in range(100):
+        response = await client.get(f"/api/stereo-pairs/jobs/{job_id}")
+        assert response.status_code == 200
+        job = response.json()
+        if job["state"] != "running":
+            return job
+        await asyncio.sleep(0.01)
+    pytest.fail(f"Stereo job {job_id} did not finish")
+
+
 @pytest.mark.asyncio
 async def test_http_create_read_job_list_remove(stereo_api):
-    client, service, devices = stereo_api
+    client, _, devices = stereo_api
 
     initial = await client.get("/api/stereo-pairs")
     assert initial.status_code == 200
@@ -73,10 +87,8 @@ async def test_http_create_read_job_list_remove(stereo_api):
     assert job_id
     assert (await client.get("/api/stereo-pairs/jobs")).status_code == 200
 
-    await service.tasks[job_id]
-    job = await client.get(f"/api/stereo-pairs/jobs/{job_id}")
-    assert job.status_code == 200
-    assert job.json()["state"] == "succeeded"
+    job = await wait_for_job(client, job_id)
+    assert job["state"] == "succeeded"
 
     pairs = (await client.get("/api/stereo-pairs")).json()["pairs"]
     assert len(pairs) == 1
@@ -86,7 +98,8 @@ async def test_http_create_read_job_list_remove(stereo_api):
 
     removed = await client.delete(f"/api/stereo-pairs/{pairs[0]['group_id']}")
     assert removed.status_code == 202
-    await service.tasks[removed.json()["job_id"]]
+    removal_job = await wait_for_job(client, removed.json()["job_id"])
+    assert removal_job["state"] == "succeeded"
     assert (await client.get("/api/stereo-pairs")).json()["pairs"] == []
 
     # No real network operations: the mock implementation short-circuits reboot.
