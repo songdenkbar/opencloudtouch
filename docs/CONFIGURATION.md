@@ -41,6 +41,47 @@ transactions affecting both speakers, OCT coordinates recovery to avoid
 restoring only one side. Before running recovery, verify which speaker has the
 interrupted operation.
 
+### Manual recovery when an interrupted job cannot be resumed
+
+Prefer `POST /api/stereo-pairs/recover/{device_id}` while both speakers are
+reachable. For a shared transaction, OCT checks both journals and coordinates
+the decision before deleting either backup. **Do not separately restore or
+delete one speaker's files while the other speaker is still in an unresolved
+transaction.** A single-speaker recovery is safe only for an incomplete
+preparation or a previously verified/restored decision.
+
+If the endpoint cannot complete, stop further stereo operations. Inspect both
+speakers over SSH and save the following files to a computer **before any
+manual write**, including their hashes:
+
+```sh
+# On EACH speaker, via an SSH shell with existing remote_services access:
+cd /mnt/nv/BoseApp-Persistence/1
+ls -l GroupService.xml GroupService.xml.oct-* 2>/dev/null
+cat GroupService.xml.oct-job  # inspect job_id, had_file and state
+```
+
+Manual restoration must be based on the matching `job_id` and the journal's
+`had_file` value, with both devices' transaction states considered together.
+After arranging writable access using OCT's SSH write guard, the equivalent
+per-speaker recovery commands are:
+
+```sh
+# Only for an UNVERIFIED transaction, with a matching readable backup:
+cp GroupService.xml.oct-bak.<job_id> GroupService.xml  # had_file=true
+# OR, only when the journal explicitly records had_file=false:
+rm -f GroupService.xml
+```
+
+These are **alternatives**, not commands to run together. Do not use them for
+`verified` or `restored` journals, and never remove a backup just because a
+write or reboot command returned successfully. Both speakers must be restarted
+and their `GET /getGroup` state verified against their pre-job states before
+deleting the journal and backup/staged artifacts. If either speaker is
+unreachable or the correct backup is missing, retain the artifacts and seek
+assistance rather than guessing. The application-managed recovery endpoint
+remains the normal and safer method.
+
 **Caution:** Pair creation, audible LEFT/RIGHT separation, removal, and
 rollback after an injected failure before the second file commit were tested
 on real SoundTouch 10 devices. Recovery after a process interruption during
