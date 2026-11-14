@@ -273,21 +273,31 @@ async def test_ssh_missing_backup_blocks_rollback_before_file_changes():
         "job_id": job, "operation": "remove",
         "had_file": True, "state": "committed",
     })
-    calls = []
+    executed = []
 
     class MissingBackup(SSHGroupBackend):
         async def _run(self, ip, commands, *, writable=False):
-            calls.extend(commands)
-            if any(str(cmd).startswith("cat ") for cmd in commands):
-                return [journal]
-            if any(str(cmd).startswith("test -s ") for cmd in commands):
-                raise OSError("SSH command failed")
-            raise AssertionError("Unexpected file modification")
+            outputs = []
+            # _run executes commands in order. A failed precondition prevents
+            # later commands in the same batch from actually executing.
+            for command in commands:
+                if str(command).startswith("test -s "):
+                    executed.append(command)
+                    raise OSError("SSH command failed")
+                if str(command).startswith(("cp ", "rm -f ", "mv ")):
+                    raise AssertionError("Unexpected file modification")
+                executed.append(command)
+                if str(command).startswith("cat "):
+                    outputs.append(journal)
+                else:
+                    outputs.append("")
+            return outputs
 
     with pytest.raises(OSError, match="SSH command failed"):
         await MissingBackup().rollback("192.0.2.10", job)
-    assert not any(str(cmd).startswith(("cp ", "rm -f ", "mv "))
-                   for cmd in calls)
+    assert any(str(command).startswith("test -s ") for command in executed)
+    assert not any(str(command).startswith(("cp ", "rm -f ", "mv "))
+                   for command in executed)
 
 
 @pytest.mark.asyncio
