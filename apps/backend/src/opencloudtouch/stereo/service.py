@@ -135,7 +135,10 @@ class StereoService:
         left = await self.repo.get_by_device_id(left_id)
         right = await self.repo.get_by_device_id(right_id)
         if left is None or right is None:
-            raise_coded(404, "device_not_found", "SoundTouch device not found")
+            raise_coded(
+                404, "device_not_found", "SoundTouch device not found",
+                params={"device_id": left_id if left is None else right_id},
+            )
         # Validate each prerequisite for both speakers in the order specified
         # by #549. Do not contact either speaker while the other still has an
         # invalid stored model or address.
@@ -162,7 +165,11 @@ class StereoService:
                     )
             from opencloudtouch.setup.ssh_client import check_ssh_port
             for device in (left, right):
-                if not await check_ssh_port(device.ip):
+                try:
+                    ssh_reachable = await check_ssh_port(device.ip)
+                except (OSError, TimeoutError):
+                    ssh_reachable = False
+                if not ssh_reachable:
                     raise_coded(
                         503, "stereo_ssh_unreachable", "SSH is unreachable",
                         params={"device_id": device.device_id},
