@@ -95,8 +95,13 @@ snapshot confirmed both original files absent, empty `/getGroup` and
 `/getZone`, and no remaining transaction artifacts. The existing unrelated
 stereo pair remained intact. This does not validate other firmware revisions.
 
-**Remaining hardware checks:** A fresh create/paired/remove/final cycle
-*after* recovery is still pending. A backend-restart recovery scenario is
+**Post-recovery regression (2026-11-14):** A new stereo pair was created,
+verified as `GROUP_OK` on both speakers, and audibly tested with correct
+LEFT/RIGHT separation. Normal removal succeeded; a separate final read-only
+check confirmed the original files absent, empty `/getGroup` and `/getZone`,
+no leftover artifacts, and the unrelated stereo pair unchanged.
+
+**Remaining hardware verification:** A backend-restart recovery scenario is
 not independently proven unless the development server restart is verified;
 the read-only `after-restart` runner alone does not prove a restart.
 Multi-room zone creation and automatic grouping are not prevented for
