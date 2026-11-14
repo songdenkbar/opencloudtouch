@@ -108,5 +108,5 @@ async def recover(device_id: str, stereo: StereoServiceDep):
         },
     },
 )
-async def remove_pair(group_id: str, force: bool = False, stereo: StereoServiceDep):
+async def remove_pair(group_id: str, stereo: StereoServiceDep, force: bool = False):
     return await stereo.remove(group_id, force)
