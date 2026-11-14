@@ -93,7 +93,21 @@ class StereoService:
         async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, connect=2.0)) as client:
             result = await client.get(f"http://{device.ip}:8090/getGroup")
             result.raise_for_status()
-            return parse_group_xml(result.content)
+            parsed = parse_group_xml(result.content)
+            if parsed is None:
+                # An empty <group /> is safe, but malformed or incomplete XML
+                # must not be treated as proof that the speaker is unpaired.
+                from defusedxml import ElementTree
+
+                root = ElementTree.fromstring(result.content)
+                if (
+                    root.tag != "group"
+                    or root.attrib
+                    or list(root)
+                    or (root.text or "").strip()
+                ):
+                    raise ValueError("Unexpected SoundTouch group response")
+            return parsed
 
     async def _group_safe(self, device: Any) -> tuple[GroupInfo | None, bool]:
         # Standby transitions can briefly interrupt /getGroup. Keep the safety
