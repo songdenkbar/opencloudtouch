@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Experimental backend-only SoundTouch 10 stereo-pair jobs with persistent LEFT/RIGHT group files, device-derived pair discovery, on-speaker transaction journal, backups, recovery endpoints, and mock-mode tests. Create, playback, remove, power-loss timeout and coordinated recovery were verified on SoundTouch 10 firmware 27.0.6; post-recovery create/remove regression and cross-firmware verification remain open.
+- Experimental backend-only SoundTouch 10 stereo-pair jobs with persistent LEFT/RIGHT group files, device-derived pair discovery, on-speaker transaction journal, backups, recovery endpoints, and mock-mode tests. Create, playback, remove, power-loss timeout and coordinated recovery were verified on SoundTouch 10 firmware 27.0.6; post-recovery create/playback/remove regression also passed; cross-firmware and restart-interruption verification remain open.
 
 ---
 
