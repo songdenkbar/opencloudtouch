@@ -1508,3 +1508,30 @@ async def test_shutdown_after_first_commit_restores_files_and_retains_journal(se
     assert all(s.journal is not None for s in mock_group_store.values())
     assert not service.tasks
     assert not service.busy
+
+
+
+@pytest.mark.asyncio
+async def test_pair_list_detects_conflicting_role_ip(service):
+    """Roles include their reported IP addresses, not only identity/side."""
+    from opencloudtouch.stereo.group_files import GroupInfo, GroupRole
+
+    left = await service.repo.get_by_device_id(LEFT)
+    right = await service.repo.get_by_device_id(RIGHT)
+    original = [
+        GroupRole(LEFT, "LEFT", left.ip),
+        GroupRole(RIGHT, "RIGHT", right.ip),
+    ]
+    conflicting = [
+        GroupRole(RIGHT, "RIGHT", "192.0.2.200"),
+        GroupRole(LEFT, "LEFT", left.ip),
+    ]
+
+    async def group_safe(device):
+        roles = original if device.device_id == LEFT else conflicting
+        return GroupInfo("1234567", "Stereo", LEFT, roles, "GROUP_OK"), True
+
+    service._group_safe = group_safe
+    pair = (await service.list_pairs())["pairs"][0]
+    assert pair["inconsistent"] is True
+    assert pair["partial"] is False
