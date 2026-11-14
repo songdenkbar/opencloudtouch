@@ -770,3 +770,31 @@ async def test_request_field_errors_take_priority_over_busy_lock(service):
     service.repo.get_by_device_id.assert_not_awaited()
     assert service.busy == {LEFT}
     assert not service.tasks
+
+
+@pytest.mark.asyncio
+async def test_both_models_validated_before_zone_or_group_queries(service):
+    """An invalid RIGHT model wins over LEFT's later zone failure."""
+    right = await service.repo.get_by_device_id(RIGHT)
+    right.model = "SoundTouch 20"
+    service.zones.get_zone_status.side_effect = RuntimeError("zone offline")
+    with pytest.raises(Exception) as exc:
+        await service.create(LEFT, RIGHT, "Pair")
+    assert getattr(exc.value, "code", None) == "stereo_model_unsupported"
+    service.zones.get_zone_status.assert_not_awaited()
+    assert not service.busy
+    assert not service.tasks
+
+
+@pytest.mark.asyncio
+async def test_both_stored_addresses_validated_before_remote_queries(service):
+    """Malformed RIGHT IP must not be masked by LEFT's offline zone service."""
+    right = await service.repo.get_by_device_id(RIGHT)
+    right.ip = "192.0.2.1; reboot"
+    service.zones.get_zone_status.side_effect = RuntimeError("zone offline")
+    with pytest.raises(Exception) as exc:
+        await service.create(LEFT, RIGHT, "Pair")
+    assert getattr(exc.value, "code", None) == "stereo_device_invalid"
+    service.zones.get_zone_status.assert_not_awaited()
+    assert not service.busy
+    assert not service.tasks
