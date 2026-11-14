@@ -645,3 +645,39 @@ async def test_pair_recovery_after_backup_deleted_but_journals_restored(service)
     assert not any([await backend.leftover(ip) for ip in ips])
     assert all(mock_group_store[ip].content == "<original/>" for ip in ips)
     service.devices.reboot_device.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_verified_pair_survives_failure_marking_second_journal(service):
+    """Once both firmware responses are verified, never roll back one side."""
+    class FailingSecondVerificationMarker(MockGroupBackend):
+        def __init__(self):
+            self.mark_calls = 0
+
+        async def mark_verified(self, ip, job):
+            self.mark_calls += 1
+            if self.mark_calls == 2:
+                raise OSError("connection dropped on second verification marker")
+            await super().mark_verified(ip, job)
+
+    backend = FailingSecondVerificationMarker()
+    service.backend = backend
+
+    created = await service.create(LEFT, RIGHT, "Verified before journal error")
+    await service.tasks[created["job_id"]]
+
+    result = service.job(created["job_id"])
+    assert result["state"] == "failed"
+    assert result["rolled_back"] is False
+    assert len((await service.list_pairs())["pairs"]) == 1
+    ips = ("192.168.1.101", "192.168.1.103")
+    assert all(mock_group_store[ip].content is not None for ip in ips)
+    assert {mock_group_store[ip].journal["state"] for ip in ips} == {
+        "verified", "committed"
+    }
+
+    recovered = await service.recover(RIGHT)
+    await service.tasks[recovered["job_id"]]
+    assert service.job(recovered["job_id"])["state"] == "succeeded"
+    assert len((await service.list_pairs())["pairs"]) == 1
+    assert not any([await backend.leftover(ip) for ip in ips])
