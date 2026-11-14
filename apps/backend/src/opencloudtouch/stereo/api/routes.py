@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter
+from opencloudtouch.core.dependencies import StereoServiceDep
 from opencloudtouch.core.exceptions import ErrorDetail
 from opencloudtouch.stereo.models import (
     CreateStereoPair,
@@ -14,12 +15,8 @@ from opencloudtouch.stereo.models import (
 router = APIRouter(prefix="/api/stereo-pairs", tags=["Stereo"])
 
 
-def service(request: Request):
-    return request.app.state.stereo_service
-
-
 @router.get("", response_model=StereoPairList)
-async def list_pairs(stereo=Depends(service)):
+async def list_pairs(stereo: StereoServiceDep):
     return await stereo.list_pairs()
 
 
@@ -50,12 +47,12 @@ async def list_pairs(stereo=Depends(service)):
         },
     },
 )
-async def create_pair(body: CreateStereoPair, stereo=Depends(service)):
+async def create_pair(body: CreateStereoPair, stereo: StereoServiceDep):
     return await stereo.create(body.left_device_id, body.right_device_id, body.name)
 
 
 @router.get("/jobs", response_model=StereoJobList)
-async def list_jobs(stereo=Depends(service)):
+async def list_jobs(stereo: StereoServiceDep):
     return stereo.list_jobs()
 
 
@@ -64,7 +61,7 @@ async def list_jobs(stereo=Depends(service)):
     response_model=StereoJob,
     responses={404: {"model": ErrorDetail, "description": "stereo_job_not_found"}},
 )
-async def get_job(job_id: str, stereo=Depends(service)):
+async def get_job(job_id: str, stereo: StereoServiceDep):
     return stereo.job(job_id)
 
 
@@ -87,7 +84,7 @@ async def get_job(job_id: str, stereo=Depends(service)):
         },
     },
 )
-async def recover(device_id: str, stereo=Depends(service)):
+async def recover(device_id: str, stereo: StereoServiceDep):
     return await stereo.recover(device_id)
 
 
@@ -111,5 +108,5 @@ async def recover(device_id: str, stereo=Depends(service)):
         },
     },
 )
-async def remove_pair(group_id: str, force: bool = False, stereo=Depends(service)):
+async def remove_pair(group_id: str, force: bool = False, stereo: StereoServiceDep):
     return await stereo.remove(group_id, force)
