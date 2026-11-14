@@ -31,6 +31,7 @@ mock_group_store: dict[str, StoredGroup] = {}
 
 class GroupBackend(Protocol):
     async def leftover(self, ip: str) -> bool: ...
+    async def journal_state(self, ip: str) -> str | None: ...
     async def prepare(self, ip: str, job: str, operation: str, new: str | None) -> None: ...
     async def commit(self, ip: str, job: str, *, removing: bool = False) -> None: ...
     async def rollback(self, ip: str, job: str) -> None: ...
@@ -44,6 +45,12 @@ class MockGroupBackend:
     async def leftover(self, ip: str) -> bool:
         state = mock_group_store.get(ip)
         return bool(state and (state.journal or state.backup or state.staged))
+
+    async def journal_state(self, ip: str) -> str | None:
+        state = mock_group_store.get(ip)
+        if state is None or state.journal is None:
+            return None
+        return state.journal.get("state")
 
     async def prepare(self, ip: str, job: str, operation: str, new: str | None) -> None:
         state = mock_group_store.setdefault(ip, StoredGroup())
@@ -164,6 +171,24 @@ class SSHGroupBackend:
             "then echo yes; else echo no; fi"
         ])
         return output[0] == "yes"
+
+    async def journal_state(self, ip: str) -> str | None:
+        # Read only; a missing journal with stray artifacts is handled by leftover().
+        raw = (await self._run(ip, [
+            f"if test -f {GROUP_FILE}.oct-job; then cat {GROUP_FILE}.oct-job; fi"
+        ]))[0]
+        if not raw:
+            return None
+        try:
+            record = json.loads(raw)
+            if not isinstance(record, dict) or record.get("state") not in {
+                "preparing", "prepared", "committed", "verified"
+            }:
+                raise ValueError("Unknown stereo journal state")
+            self._suffix(record["job_id"])
+            return record["state"]
+        except (ValueError, TypeError, KeyError) as exc:
+            raise RuntimeError("stereo_recovery_needed") from exc
 
     async def prepare(self, ip: str, job: str, operation: str, new: str | None) -> None:
         journal, backup, stage = self._suffix(job)
