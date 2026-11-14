@@ -835,63 +835,61 @@ class StereoService:
         previous: dict[str, GroupInfo | None],
         cancelled: bool,
     ) -> bool:
-        """Restore reachable speakers; retain all journals if a peer is offline."""
+        """Restore every speaker reachable over SSH; keep unresolved journals."""
         job["step"] = "rolling_back"
         if not prepared:
             return True
-        complete = True
         async with phase_budget(
             self.rollback_budget_seconds, "stereo_rollback_failed", clock=self.clock
         ):
-            available = prepared
-            unreachable: list[Any] = []
-            if reboot_started and not cancelled:
-                # After a reboot/timeout an offline peer cannot be restored
-                # safely. Continue with the survivor, but do not declare a
-                # complete rollback or delete either device's recovery journal.
-                statuses = await asyncio.gather(
-                    *(self._group_safe(d) for d in prepared)
-                )
-                available = [
-                    device
-                    for device, (_group, reachable) in zip(prepared, statuses)
-                    if reachable
-                ]
-                unreachable = [
-                    device
-                    for device, (_group, reachable) in zip(prepared, statuses)
-                    if not reachable
-                ]
-            for device in reversed(available):
+            restored: list[Any] = []
+            for device in reversed(prepared):
                 try:
-                    if await self.backend.leftover(device.ip):
-                        # Before the first commit, original files are intact.
-                        # A cancelled job leaves the journal for explicit recovery.
-                        if committed:
-                            await self.backend.rollback(device.ip, job["job_id"])
+                    # HTTP may be down while SSH already works. Probe the
+                    # persistence files independently on both speakers.
+                    if await self.backend.leftover(device.ip) and committed:
+                        await self.backend.rollback(device.ip, job["job_id"])
+                    restored.append(device)
                 except Exception:
-                    complete = False
                     job["failed_device_id"] = device.device_id
-            if not complete or cancelled:
-                return False
-            if reboot_started and available:
-                await self._reboot(available)
-                await self._wait_reachable(available)
-            if available:
-                await self._verify_previous(available, previous)
 
-            # An unreachable peer retains its files and journal. Also retain
-            # the survivor's journal, so a later recovery can make a single
-            # coordinated decision for the original transaction.
-            for device in available:
+            if cancelled:
+                # Shielded file-only restore: do not reboot or erase evidence.
+                return False
+
+            verifiable = restored
+            if reboot_started:
+                # Reboot only speakers that have been restored and currently
+                # answer the device API. An SSH-only survivor may already have
+                # its original file back but cannot yet be firmware-verified.
+                responses = await asyncio.gather(
+                    *(self._group_safe(d) for d in restored)
+                )
+                verifiable = [
+                    d for d, (_group, online) in zip(restored, responses) if online
+                ]
+                if verifiable:
+                    await self._reboot(verifiable)
+                    await self._wait_reachable(verifiable)
+
+            if verifiable:
+                await self._verify_previous(verifiable, previous)
+
+            # Only firmware-verified speakers can record a durable "restored"
+            # decision. Retain every journal if any peer is still unresolved.
+            for device in verifiable:
                 if await self.backend.leftover(device.ip):
                     await self.backend.mark_restored(device.ip, job["job_id"])
-            if unreachable:
+            if len(verifiable) != len(prepared):
                 if job["failed_device_id"] is None:
-                    job["failed_device_id"] = unreachable[0].device_id
+                    unresolved = next(
+                        d for d in prepared if d not in verifiable
+                    )
+                    job["failed_device_id"] = unresolved.device_id
                 return False
 
-            # Only a verified, complete rollback may discard the backups.
+            # A complete verified rollback is the only case allowed to remove
+            # both speakers' transaction backups and journals.
             for device in prepared:
                 if await self.backend.leftover(device.ip):
                     await self.backend.cleanup(device.ip, job["job_id"])
