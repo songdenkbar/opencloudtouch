@@ -579,11 +579,9 @@ class StereoService:
                         prior_state = await self.backend.journal_state(left.ip)
                         if not await self.backend.recover(left.ip):
                             raise RuntimeError("stereo_nothing_to_recover")
-                        if prior_state in {"verified", "restored", None, "preparing"}:
-                            # Completed decisions and interrupted preparation
-                            # require artifact cleanup only, not another reboot.
-                            pass
-                        else:
+                        # Completed decisions and interrupted preparation need
+                        # artifact cleanup only, without another reboot.
+                        if prior_state not in {"verified", "restored", None, "preparing"}:
                             job["step"] = "rebooting"
                             await self._reboot(devices)
                             job["step"] = "waiting_for_devices"
