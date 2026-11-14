@@ -6,35 +6,20 @@ The left speaker is the master; only the right file has GROUP_OK status.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from unicodedata import category
 from ipaddress import ip_address
 import re
 from xml.sax.saxutils import escape
 
 from defusedxml import ElementTree
+
+from opencloudtouch.devices.client import GroupInfo, GroupRole
 from defusedxml.common import DefusedXmlException
 
 _DEVICE_ID = re.compile(r"^[A-Za-z0-9]{12}$")
 _GROUP_ID = re.compile(r"^[0-9]{1,12}$")
 GROUP_DIRECTORY = "/mnt/nv/BoseApp-Persistence/1"
 GROUP_FILE = GROUP_DIRECTORY + "/GroupService.xml"
-
-
-@dataclass(frozen=True)
-class GroupRole:
-    device_id: str
-    role: str
-    ip_address: str | None
-
-
-@dataclass(frozen=True)
-class GroupInfo:
-    group_id: str
-    name: str | None
-    master_device_id: str
-    roles: list[GroupRole]
-    status: str | None
 
 
 def validate_device(device_id: str, ip: str) -> None:
