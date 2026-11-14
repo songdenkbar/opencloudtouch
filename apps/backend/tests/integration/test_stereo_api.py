@@ -177,3 +177,38 @@ async def test_http_recover_orphan_backup_without_journal_fails_safely(stereo_ap
     assert result["error_code"] == "stereo_nothing_to_recover"
     assert mock_group_store["192.168.1.101"].backup == "<original/>"
     devices.reboot_device.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_openapi_stereo_responses_have_typed_schemas(stereo_api):
+    """Generated OpenAPI must retain all stereo endpoints and response models."""
+    client, _, _ = stereo_api
+    schema = (await client.get("/openapi.json")).json()
+    paths = schema["paths"]
+    expected = {
+        ("/api/stereo-pairs", "get"): "StereoPairList",
+        ("/api/stereo-pairs", "post"): "StereoJob",
+        ("/api/stereo-pairs/jobs", "get"): "StereoJobList",
+        ("/api/stereo-pairs/jobs/{job_id}", "get"): "StereoJob",
+        ("/api/stereo-pairs/recover/{device_id}", "post"): "StereoJob",
+        ("/api/stereo-pairs/{group_id}", "delete"): "StereoJob",
+    }
+    for (path, method), model in expected.items():
+        endpoint = paths[path][method]
+        status = "202" if method in {"post", "delete"} else "200"
+        actual = endpoint["responses"][status]["content"]["application/json"]["schema"]
+        assert actual["$ref"] == f"#/components/schemas/{model}"
+    assert {"StereoPair", "StereoPairList", "StereoJob", "StereoJobList"} <= set(
+        schema["components"]["schemas"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_http_overlong_name_keeps_stable_coded_error(stereo_api):
+    client, _, _ = stereo_api
+    response = await client.post(
+        "/api/stereo-pairs",
+        json={"left_device_id": LEFT, "right_device_id": RIGHT, "name": "x" * 31},
+    )
+    assert response.status_code == 422
+    assert response.json()["code"] == "stereo_name_invalid"
