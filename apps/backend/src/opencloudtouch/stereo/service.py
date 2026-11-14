@@ -195,7 +195,9 @@ class StereoService:
                     "inconsistent": any(
                         (
                             g.master_device_id,
-                            frozenset((r.device_id, r.role, r.ip_address) for r in g.roles),
+                            frozenset(
+                                (r.device_id, r.role, r.ip_address) for r in g.roles
+                            ),
                             g.name,
                         )
                         != identity
@@ -904,9 +906,7 @@ class StereoService:
                     await self.backend.mark_restored(device.ip, job["job_id"])
             if len(verifiable) != len(prepared):
                 if job["failed_device_id"] is None:
-                    unresolved = next(
-                        d for d in prepared if d not in verifiable
-                    )
+                    unresolved = next(d for d in prepared if d not in verifiable)
                     job["failed_device_id"] = unresolved.device_id
                 return False
 

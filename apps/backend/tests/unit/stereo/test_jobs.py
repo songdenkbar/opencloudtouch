@@ -1397,7 +1397,6 @@ async def test_pair_list_ignores_equivalent_role_element_order(service):
     assert pair["inconsistent"] is False
 
 
-
 @pytest.mark.asyncio
 async def test_reboot_timeout_restores_survivor_and_keeps_both_journals(service):
     """A speaker that never returns must not prevent restoring its peer."""
@@ -1408,7 +1407,12 @@ async def test_reboot_timeout_restores_survivor_and_keeps_both_journals(service)
     job_id = "6" * 32
     for ip, right_file in ((left_ip, False), (right_ip, True)):
         content = build_group_xml(
-            "1234567", "Temporary", LEFT, left_ip, RIGHT, right_ip,
+            "1234567",
+            "Temporary",
+            LEFT,
+            left_ip,
+            RIGHT,
+            right_ip,
             right_file=right_file,
         )
         await backend.prepare(ip, job_id, "create", content)
@@ -1432,15 +1436,18 @@ async def test_reboot_timeout_restores_survivor_and_keeps_both_journals(service)
     backend.leftover = ssh_leftover
     service._reboot = AsyncMock()
     service._wait_reachable = AsyncMock()
-    job = {"job_id": job_id, "step": "waiting_for_devices",
-           "failed_device_id": RIGHT}
+    job = {"job_id": job_id, "step": "waiting_for_devices", "failed_device_id": RIGHT}
 
     result = await service._rollback_job(
         job,
-        [await service.repo.get_by_device_id(LEFT),
-         await service.repo.get_by_device_id(RIGHT)],
-        committed=True, reboot_started=True,
-        previous={LEFT: None, RIGHT: None}, cancelled=False,
+        [
+            await service.repo.get_by_device_id(LEFT),
+            await service.repo.get_by_device_id(RIGHT),
+        ],
+        committed=True,
+        reboot_started=True,
+        previous={LEFT: None, RIGHT: None},
+        cancelled=False,
     )
 
     assert result is False
@@ -1456,7 +1463,6 @@ async def test_reboot_timeout_restores_survivor_and_keeps_both_journals(service)
     assert service._wait_reachable.await_count == 1
 
 
-
 @pytest.mark.asyncio
 async def test_existing_pair_validation_precedes_unreachable_peer(service):
     """The pair-in-use code takes priority over an offline second device."""
@@ -1464,10 +1470,16 @@ async def test_existing_pair_validation_precedes_unreachable_peer(service):
 
     async def status(device):
         if device.device_id == LEFT:
-            return GroupInfo(
-                "1234567", "Existing", LEFT,
-                [GroupRole(LEFT, "LEFT", device.ip)], "GROUP_OK",
-            ), True
+            return (
+                GroupInfo(
+                    "1234567",
+                    "Existing",
+                    LEFT,
+                    [GroupRole(LEFT, "LEFT", device.ip)],
+                    "GROUP_OK",
+                ),
+                True,
+            )
         return None, False
 
     service._group_safe = status
@@ -1482,11 +1494,10 @@ async def test_existing_pair_validation_precedes_unreachable_peer(service):
 async def test_trailing_newline_name_rejected_before_remote_access(service):
     """Trimming may not silently normalize an invalid control character."""
     with pytest.raises(Exception) as exc:
-        await service.create(LEFT, RIGHT, "Pair\\n")
+        await service.create(LEFT, RIGHT, "Pair\n")
     assert getattr(exc.value, "code", None) == "stereo_name_invalid"
     service.repo.get_by_device_id.assert_not_awaited()
     assert not service.busy
-
 
 
 @pytest.mark.asyncio
@@ -1518,7 +1529,6 @@ async def test_shutdown_after_first_commit_restores_files_and_retains_journal(se
     assert not service.busy
 
 
-
 @pytest.mark.asyncio
 async def test_pair_list_detects_conflicting_role_ip(service):
     """Roles include their reported IP addresses, not only identity/side."""
@@ -1545,7 +1555,6 @@ async def test_pair_list_detects_conflicting_role_ip(service):
     assert pair["partial"] is False
 
 
-
 @pytest.mark.asyncio
 async def test_http_offline_peer_still_receives_ssh_file_rollback(service):
     """A failed /getGroup probe must not suppress an available SSH restore."""
@@ -1566,15 +1575,18 @@ async def test_http_offline_peer_still_receives_ssh_file_rollback(service):
     service._group_safe = group_safe
     service._reboot = AsyncMock()
     service._wait_reachable = AsyncMock()
-    job = {"job_id": job_id, "step": "waiting_for_devices",
-           "failed_device_id": RIGHT}
+    job = {"job_id": job_id, "step": "waiting_for_devices", "failed_device_id": RIGHT}
 
     fully_restored = await service._rollback_job(
         job,
-        [await service.repo.get_by_device_id(LEFT),
-         await service.repo.get_by_device_id(RIGHT)],
-        committed=True, reboot_started=True,
-        previous={LEFT: None, RIGHT: None}, cancelled=False,
+        [
+            await service.repo.get_by_device_id(LEFT),
+            await service.repo.get_by_device_id(RIGHT),
+        ],
+        committed=True,
+        reboot_started=True,
+        previous={LEFT: None, RIGHT: None},
+        cancelled=False,
     )
 
     assert fully_restored is False
@@ -1584,7 +1596,6 @@ async def test_http_offline_peer_still_receives_ssh_file_rollback(service):
     assert all([await backend.leftover(ip) for ip in ips])
     rebooted = service._reboot.await_args.args[0]
     assert [d.device_id for d in rebooted] == [LEFT]
-
 
 
 @pytest.mark.asyncio
@@ -1599,7 +1610,6 @@ async def test_local_invalid_device_precedes_busy_lock(service):
     assert service.busy == {LEFT}
     service.zones.get_zone_status.assert_not_awaited()
     service.devices.reboot_device.assert_not_awaited()
-
 
 
 @pytest.mark.asyncio

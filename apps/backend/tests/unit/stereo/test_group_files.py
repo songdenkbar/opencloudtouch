@@ -38,7 +38,19 @@ def test_file_round_trip(right_file: bool) -> None:
     assert "<senderIPAddress>192.0.2.10</senderIPAddress>" in xml
 
 
-@pytest.mark.parametrize("name", ["", " " * 3, "x" * 31, "Bad\x00name", "Bad\nname", "\nStereo", "Stereo\n", "Stereo\t"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "",
+        " " * 3,
+        "x" * 31,
+        "Bad\x00name",
+        "Bad\nname",
+        "\nStereo",
+        "Stereo\n",
+        "Stereo\t",
+    ],
+)
 def test_invalid_name(name: str) -> None:
     with pytest.raises(ValueError):
         validate_name(name)
