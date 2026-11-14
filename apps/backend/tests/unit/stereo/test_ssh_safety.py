@@ -387,3 +387,169 @@ async def test_ssh_cleanup_command_order_keeps_journal_last():
         f"rm -f {backup} {stage} {journal}.tmp",
         f"rm -f {journal}",
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("state", ["preparing", "prepared", "committed", "verified", "restored"])
+async def test_ssh_journal_state_reads_supported_states(state):
+    import json
+
+    job = "e" * 32
+    class JournalBackend(SSHGroupBackend):
+        async def _run(self, ip, commands, *, writable=False):
+            assert not writable
+            return [json.dumps({
+                "job_id": job, "operation": "create",
+                "had_file": False, "state": state,
+            })]
+
+    assert await JournalBackend().journal_state("192.0.2.10") == state
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("raw", [
+    "", "[]", "null", '{"job_id":"bad","had_file":false,"state":"committed"}',
+    '{"job_id":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","had_file":"false","state":"committed"}',
+    '{"job_id":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","had_file":false,"state":"unknown"}',
+    "{malformed",
+])
+async def test_ssh_journal_rejects_missing_or_corrupt_data(raw):
+    class JournalBackend(SSHGroupBackend):
+        async def _run(self, ip, commands, *, writable=False):
+            return [raw]
+
+    backend = JournalBackend()
+    if not raw:
+        assert await backend.journal_record("192.0.2.10") is None
+    else:
+        with pytest.raises(RuntimeError, match="stereo_recovery_needed"):
+            await backend.journal_record("192.0.2.10")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("had_file,backup", [(False, ""), (True, "<original/>"), (True, "")])
+async def test_ssh_previous_content_requires_valid_backup(had_file, backup):
+    import json
+
+    job = "e" * 32
+    calls = []
+    class BackupBackend(SSHGroupBackend):
+        async def _run(self, ip, commands, *, writable=False):
+            calls.extend(commands)
+            if "oct-job" in commands[0]:
+                return [json.dumps({
+                    "job_id": job, "operation": "create",
+                    "had_file": had_file, "state": "committed",
+                })]
+            return [backup]
+
+    backend = BackupBackend()
+    if had_file and not backup:
+        with pytest.raises(RuntimeError, match="stereo_recovery_needed"):
+            await backend.previous_content("192.0.2.10")
+    else:
+        assert await backend.previous_content("192.0.2.10") == (
+            backup if had_file else None
+        )
+    assert any("oct-job" in cmd for cmd in calls)
+    assert any("oct-bak" in cmd for cmd in calls) == had_file
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("had_file,state,expected", [
+    (True, "committed", "cp "),
+    (False, "committed", "rm -f "),
+    (True, "preparing", "rm -f "),
+])
+async def test_ssh_rollback_uses_original_file_or_safe_preparing_cleanup(
+    had_file, state, expected
+):
+    import json
+
+    job = "e" * 32
+    calls = []
+    class RollbackBackend(SSHGroupBackend):
+        async def _run(self, ip, commands, *, writable=False):
+            calls.append((list(commands), writable))
+            if not writable:
+                return [json.dumps({
+                    "job_id": job, "operation": "create",
+                    "had_file": had_file, "state": state,
+                })]
+            return [""] * len(commands)
+
+    await RollbackBackend().rollback("192.0.2.10", job)
+    writes = [str(cmd) for cmds, writable in calls if writable for cmd in cmds]
+    assert any(cmd.startswith(expected) for cmd in writes)
+    if state == "preparing":
+        assert not any(cmd.startswith("cp ") for cmd in writes)
+    elif had_file:
+        assert any(cmd.startswith("test -s ") for cmd in writes)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("removing", [False, True])
+async def test_ssh_commit_uses_expected_atomic_file_action(removing):
+    calls = []
+    class CommitBackend(SSHGroupBackend):
+        async def _run(self, ip, commands, *, writable=False):
+            calls.append((list(commands), writable))
+            return [""] * len(commands)
+
+    await CommitBackend().commit("192.0.2.10", "e" * 32, removing=removing)
+    assert calls[0][1] is True
+    command = calls[0][0][0]
+    assert command.startswith("rm -f " if removing else "mv ")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("state,expect_rollback", [
+    ("committed", True), ("verified", False), ("restored", False),
+    ("preparing", False),
+])
+async def test_ssh_recovery_dispatches_rollback_only_when_needed(
+    state, expect_rollback
+):
+    import json
+
+    job = "e" * 32
+    calls = []
+    class RecoveryBackend(SSHGroupBackend):
+        async def _run(self, ip, commands, *, writable=False):
+            return [json.dumps({
+                "job_id": job, "operation": "create",
+                "had_file": False, "state": state,
+            })]
+        async def rollback(self, ip, job_id):
+            calls.append("rollback")
+        async def cleanup(self, ip, job_id):
+            calls.append("cleanup")
+
+    assert await RecoveryBackend().recover("192.0.2.10") is True
+    assert calls == (["rollback", "cleanup"] if expect_rollback else ["cleanup"])
+
+
+@pytest.mark.asyncio
+async def test_ssh_recover_without_any_artifacts_is_noop():
+    calls = []
+    class RecoveryBackend(SSHGroupBackend):
+        async def _run(self, ip, commands, *, writable=False):
+            calls.append((list(commands), writable))
+            return [""]
+
+    assert await RecoveryBackend().recover("192.0.2.10") is False
+    assert len(calls) == 2
+    assert all(not writable for _, writable in calls)
+
+
+@pytest.mark.asyncio
+async def test_ssh_recover_rejects_malformed_persisted_json_before_writes():
+    calls = []
+    class RecoveryBackend(SSHGroupBackend):
+        async def _run(self, ip, commands, *, writable=False):
+            calls.append(writable)
+            return ["{invalid json"]
+
+    with pytest.raises(RuntimeError, match="stereo_recovery_needed"):
+        await RecoveryBackend().recover("192.0.2.10")
+    assert calls == [False]
