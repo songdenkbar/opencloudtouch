@@ -62,7 +62,9 @@ async def get_job(job_id: str, stereo=Depends(service)):
             "stereo_nothing_to_recover, stereo_recovery_needed, "
             "stereo_job_in_progress, stereo_job_limit_reached"
         )},
-        503: {"model": ErrorDetail, "description": "device_unreachable"},
+        503: {"model": ErrorDetail, "description": (
+            "device_unreachable, stereo_ssh_unreachable"
+        )},
     },
 )
 async def recover(device_id: str, stereo=Depends(service)):
@@ -78,7 +80,9 @@ async def recover(device_id: str, stereo=Depends(service)):
             "stereo_job_limit_reached, stereo_pair_not_found"
         )},
         422: {"model": ErrorDetail, "description": "stereo_group_id_invalid"},
-        503: {"model": ErrorDetail, "description": "device_unreachable"},
+        503: {"model": ErrorDetail, "description": (
+            "device_unreachable, stereo_ssh_unreachable"
+        )},
     },
 )
 async def remove_pair(group_id: str, force: bool = False, stereo=Depends(service)):
