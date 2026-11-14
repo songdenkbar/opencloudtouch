@@ -250,6 +250,19 @@ class StereoService:
                 raise_coded(404, "device_not_found", "Device not found")
             if not await self.backend.leftover(device.ip):
                 raise_coded(409, "stereo_nothing_to_recover", "No recovery information found")
+            state = await self.backend.journal_state(device.ip)
+            # A prepared/committed transaction may involve two speakers.
+            # Rolling back only this speaker could split a functioning pair.
+            # Keep both journals intact pending coordinated pair recovery.
+            if state in {"prepared", "committed"}:
+                raise_coded(
+                    409, "stereo_recovery_needed",
+                    "Pair-wide recovery required; single-speaker rollback is unsafe",
+                )
+            if state is None:
+                # A lone initial .tmp journal can be discarded safely by
+                # backend.recover; orphaned backup/stage files are not safe.
+                pass
             return self._enqueue("recover", [device_id], None, None, device, None)
         except BaseException:
             self.busy.discard(device_id)
