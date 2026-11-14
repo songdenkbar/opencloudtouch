@@ -121,13 +121,17 @@ class StereoService:
             "recovery_needed_device_ids": leftovers,
         }
 
-    async def _eligible(self, left_id: str, right_id: str, name: str) -> tuple[Any, Any, str]:
+    @staticmethod
+    def _validate_request(left_id: str, right_id: str, name: str) -> str:
+        """Reject invalid request fields before reserving device locks."""
         if left_id == right_id:
             raise_coded(422, "stereo_same_device", "Choose two different devices", field="right_device_id")
         try:
-            clean_name = validate_name(name)
+            return validate_name(name)
         except ValueError:
             raise_coded(422, "stereo_name_invalid", "Invalid stereo name", field="name")
+
+    async def _eligible(self, left_id: str, right_id: str) -> tuple[Any, Any]:
         left = await self.repo.get_by_device_id(left_id)
         right = await self.repo.get_by_device_id(right_id)
         if left is None or right is None:
@@ -161,7 +165,7 @@ class StereoService:
                 raise_coded(409, "stereo_device_in_pair", "Device already belongs to a pair", params=params)
             if await self.backend.leftover(device.ip):
                 raise_coded(409, "stereo_recovery_needed", "Recovery required before pairing", params=params)
-        return left, right, clean_name
+        return left, right
 
     def _reserve(self, ids: list[str]) -> None:
         if any(d in self.busy for d in ids):
@@ -198,9 +202,10 @@ class StereoService:
             self.jobs.pop(old)
 
     async def create(self, left_id: str, right_id: str, name: str) -> dict[str, Any]:
+        clean = self._validate_request(left_id, right_id, name)
         self._reserve([left_id, right_id])
         try:
-            left, right, clean = await self._eligible(left_id, right_id, name)
+            left, right = await self._eligible(left_id, right_id)
             existing = {p["group_id"] for p in (await self.list_pairs())["pairs"]}
             group_id = str(secrets.randbelow(9_000_000) + 1_000_000)
             while group_id in existing:
