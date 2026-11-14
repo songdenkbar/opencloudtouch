@@ -309,6 +309,8 @@ class StereoService:
         verified = False
         try:
             if operation == "recover":
+                if left is None:
+                    raise RuntimeError("stereo_device_invalid")
                 job["step"] = "rolling_back"
                 if not await self.backend.recover(left.ip):
                     raise RuntimeError("stereo_nothing_to_recover")
@@ -317,10 +319,13 @@ class StereoService:
                 job["step"] = "waiting_for_devices"
                 await self._wait_online(devices)
             else:
+                if operation == "create" and (left is None or right is None):
+                    raise RuntimeError("stereo_device_invalid")
                 job["step"] = "backing_up"
                 for index, device in enumerate(devices):
                     xml = None
                     if operation == "create":
+                        assert left is not None and right is not None
                         xml = build_group_xml(
                             job["group_id"], job["name"], left.device_id, left.ip,
                             right.device_id, right.ip, right_file=(index == 1),
