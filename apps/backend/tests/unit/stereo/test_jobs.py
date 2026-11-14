@@ -681,3 +681,76 @@ async def test_verified_pair_survives_failure_marking_second_journal(service):
     assert service.job(recovered["job_id"])["state"] == "succeeded"
     assert len((await service.list_pairs())["pairs"]) == 1
     assert not any([await backend.leftover(ip) for ip in ips])
+
+
+@pytest.mark.asyncio
+async def test_automatic_rollback_cleanup_failure_retains_restored_marker(service):
+    """A normal failed create must leave a resumable decision if cleanup fails."""
+    class FailingRollbackCleanup(MockGroupBackend):
+        def __init__(self):
+            self.cleanup_calls = 0
+
+        async def commit(self, ip, job, *, removing=False):
+            raise RuntimeError("stereo_write_failed")
+
+        async def cleanup(self, ip, job):
+            self.cleanup_calls += 1
+            if self.cleanup_calls == 2:
+                raise OSError("SSH disconnected while cleaning backup")
+            await super().cleanup(ip, job)
+
+    backend = FailingRollbackCleanup()
+    service.backend = backend
+    created = await service.create(LEFT, RIGHT, "Rollback marker")
+    await service.tasks[created["job_id"]]
+    result = service.job(created["job_id"])
+    assert result["state"] == "failed"
+    assert result["rolled_back"] is False
+    assert result["error_code"] == "stereo_rollback_failed"
+
+    remaining = [
+        (ip, state) for ip, state in mock_group_store.items()
+        if state.journal is not None
+    ]
+    assert len(remaining) == 1
+    ip, state = remaining[0]
+    assert state.journal["state"] == "restored"
+    state.backup = None  # Cleanup may have removed backup before SSH failed.
+    assert await backend.recover(ip)
+    assert not await backend.leftover(ip)
+    assert state.content is None
+
+
+@pytest.mark.asyncio
+async def test_stereo_pair_listing_limits_parallel_group_reads(service):
+    """Spec #549 limits concurrent /getGroup discovery to five speakers."""
+    import asyncio
+
+    active = 0
+    maximum = 0
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    devices = [device(f"{i:012X}", f"192.0.2.{i + 1}") for i in range(12)]
+    service.repo.get_all.return_value = devices
+
+    async def simulated_group(device):
+        nonlocal active, maximum
+        active += 1
+        maximum = max(maximum, active)
+        if active == 5:
+            entered.set()
+        try:
+            await release.wait()
+            return None, True
+        finally:
+            active -= 1
+
+    service._group_safe = simulated_group
+    task = asyncio.create_task(service.list_pairs())
+    try:
+        await asyncio.wait_for(entered.wait(), timeout=1)
+        assert maximum == 5
+    finally:
+        release.set()
+        await asyncio.wait_for(task, timeout=1)
+    assert maximum == 5
