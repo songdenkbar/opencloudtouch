@@ -351,3 +351,27 @@ async def test_preparing_mock_rollback_never_overwrites_original_file(service):
     await backend.rollback(ip, "a" * 32)
     assert mock_group_store[ip].content == "<original/>"
     assert mock_group_store[ip].journal is not None
+
+
+
+@pytest.mark.asyncio
+async def test_rollback_budget_expiry_retains_journals(service):
+    import asyncio
+
+    class SlowRollback(MockGroupBackend):
+        async def commit(self, ip, job, *, removing=False):
+            raise RuntimeError("stereo_write_failed")
+
+        async def rollback(self, ip, job):
+            await asyncio.sleep(0.05)
+            await super().rollback(ip, job)
+
+    service.backend = SlowRollback()
+    service.rollback_budget_seconds = 0.005
+    job = await service.create(LEFT, RIGHT, "Rollback deadline")
+    await service.tasks[job["job_id"]]
+    result = service.job(job["job_id"])
+    assert result["state"] == "failed"
+    assert result["error_code"] == "stereo_rollback_failed"
+    assert result["rolled_back"] is False
+    assert any(state.journal is not None for state in mock_group_store.values())
