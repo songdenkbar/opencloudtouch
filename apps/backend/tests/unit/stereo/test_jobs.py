@@ -1301,3 +1301,26 @@ async def test_recover_pair_preparing_peer_with_original_file(service):
     assert mock_group_store[right_ip].content == original
     assert not await backend.leftover(left_ip)
     assert not await backend.leftover(right_ip)
+
+
+
+@pytest.mark.asyncio
+async def test_force_remove_when_peer_missing_from_repository(service):
+    """force=true removes the file on the surviving registered speaker."""
+    job = await service.create(LEFT, RIGHT, "Surviving speaker")
+    await service.tasks[job["job_id"]]
+    group_id = service.job(job["job_id"])["group_id"]
+    original_get = service.repo.get_by_device_id.side_effect
+    service.repo.get_by_device_id.side_effect = (
+        lambda key: None if key == RIGHT else original_get(key)
+    )
+    with pytest.raises(Exception) as exc:
+        await service.remove(group_id, force=False)
+    assert getattr(exc.value, "code", None) == "device_unreachable"
+
+    removed = await service.remove(group_id, force=True)
+    await service.tasks[removed["job_id"]]
+    result = service.job(removed["job_id"])
+    assert result["state"] == "succeeded", result
+    assert mock_group_store["192.168.1.101"].content is None
+    assert mock_group_store["192.168.1.103"].content is not None
