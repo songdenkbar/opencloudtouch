@@ -65,4 +65,4 @@ class TestMockDiscoveryAdapter:
         adapter = MockDiscoveryAdapter(timeout=5)
 
         devices = await adapter.discover()
-        assert len(devices) == 3  # Should work regardless of timeout
+        assert len(devices) == 4  # Should work regardless of timeout
