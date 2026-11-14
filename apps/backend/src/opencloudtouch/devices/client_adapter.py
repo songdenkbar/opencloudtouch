@@ -21,6 +21,7 @@ from opencloudtouch.core.exceptions import DeviceConnectionError
 from opencloudtouch.devices.client import (
     BassCapabilities,
     BassInfo,
+    GroupInfo,
     DeviceClient,
     DeviceInfo,
     NowPlayingInfo,
@@ -564,7 +565,7 @@ class BoseDeviceClientAdapter(DeviceClient):
             members=members,
         )
 
-    async def get_group(self):
+    async def get_group(self) -> GroupInfo | None:
         """Use native GET /getGroup; do not use the unavailable /addGroup flow."""
         from opencloudtouch.stereo.group_files import parse_group_xml
 
