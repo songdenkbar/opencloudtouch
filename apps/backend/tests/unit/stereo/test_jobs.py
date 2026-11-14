@@ -1422,6 +1422,14 @@ async def test_reboot_timeout_restores_survivor_and_keeps_both_journals(service)
         return await original_group_safe(device)
 
     service._group_safe = speaker_status
+    original_leftover = backend.leftover
+
+    async def ssh_leftover(ip):
+        if ip == right_ip:
+            raise OSError("RIGHT SSH not reachable")
+        return await original_leftover(ip)
+
+    backend.leftover = ssh_leftover
     service._reboot = AsyncMock()
     service._wait_reachable = AsyncMock()
     job = {"job_id": job_id, "step": "waiting_for_devices",
@@ -1440,8 +1448,8 @@ async def test_reboot_timeout_restores_survivor_and_keeps_both_journals(service)
     assert mock_group_store[left_ip].journal["state"] == "restored"
     assert mock_group_store[right_ip].content is not None
     assert mock_group_store[right_ip].journal["state"] == "committed"
-    assert await backend.leftover(left_ip)
-    assert await backend.leftover(right_ip)
+    assert await original_leftover(left_ip)
+    assert await original_leftover(right_ip)
     service._reboot.assert_awaited_once()
     rebooted = service._reboot.await_args.args[0]
     assert [device.device_id for device in rebooted] == [LEFT]
