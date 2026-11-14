@@ -545,6 +545,12 @@ class StereoService:
                     await self._reboot(available)
                 await self._wait_reachable(prepared)
             await self._verify_previous(prepared, previous)
+            # Record the verified rollback before removing any backups.
+            # If SSH disconnects during cleanup, recovery can safely resume
+            # from 'restored' without requiring an already-deleted backup.
+            for device in prepared:
+                if await self.backend.leftover(device.ip):
+                    await self.backend.mark_restored(device.ip, job["job_id"])
             for device in prepared:
                 if await self.backend.leftover(device.ip):
                     await self.backend.cleanup(device.ip, job["job_id"])
