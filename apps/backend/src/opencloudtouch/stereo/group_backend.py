@@ -68,7 +68,9 @@ class MockGroupBackend:
         state = mock_group_store[ip]
         if not state.journal or state.journal["job_id"] != job:
             raise RuntimeError("stereo_recovery_needed")
-        state.content = state.backup if state.journal["had_file"] else None
+        # A preparing transaction could not have committed the main file.
+        if state.journal.get("state") != "preparing":
+            state.content = state.backup if state.journal["had_file"] else None
         state.staged = None
 
     async def mark_verified(self, ip: str, job: str) -> None:
@@ -205,6 +207,12 @@ class SSHGroupBackend:
         data = (await self._run(ip, [f"cat {journal}"]))[0]
         record = json.loads(data)
         if record.get("job_id") != job:
+            raise RuntimeError("stereo_recovery_needed")
+        if record.get("state") == "preparing":
+            # Backup may be missing or incomplete. No commit was possible.
+            await self._run(ip, [f"rm -f {stage} {journal}.tmp"], writable=True)
+            return
+        if record.get("state") not in {"prepared", "committed"}:
             raise RuntimeError("stereo_recovery_needed")
         if record.get("had_file") is True:
             await self._run(ip, [f"test -s {backup}", f"cp {backup} {GROUP_FILE}"], writable=True)
