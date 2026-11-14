@@ -9,7 +9,8 @@ from __future__ import annotations
 from unicodedata import category
 from ipaddress import ip_address
 import re
-from xml.sax.saxutils import escape  # nosec B406 - escapes XML text; untrusted XML is parsed with defusedxml
+# XML text escaping only; untrusted XML parsing uses defusedxml below.
+from xml.sax.saxutils import escape  # nosec B406
 
 from defusedxml import ElementTree
 
