@@ -565,7 +565,8 @@ async def test_recovery_can_resume_after_interruption_between_cleanups(service):
     assert service.job(first["job_id"])["state"] == "failed"
     assert sum([await backend.leftover(ip) for ip in ips]) == 1
 
-    second = await service.recover(RIGHT)
+    remaining_id = LEFT if await backend.leftover(ips[0]) else RIGHT
+    second = await service.recover(remaining_id)
     await service.tasks[second["job_id"]]
     assert service.job(second["job_id"])["state"] == "succeeded"
     assert not any([await backend.leftover(ip) for ip in ips])
