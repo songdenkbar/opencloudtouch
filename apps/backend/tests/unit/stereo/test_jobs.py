@@ -1543,3 +1543,44 @@ async def test_pair_list_detects_conflicting_role_ip(service):
     pair = (await service.list_pairs())["pairs"][0]
     assert pair["inconsistent"] is True
     assert pair["partial"] is False
+
+
+
+@pytest.mark.asyncio
+async def test_http_offline_peer_still_receives_ssh_file_rollback(service):
+    """A failed /getGroup probe must not suppress an available SSH restore."""
+    backend = service.backend
+    job_id = "7" * 32
+    ips = ("192.168.1.101", "192.168.1.103")
+    for ip in ips:
+        await backend.prepare(ip, job_id, "create", "<new-group/>")
+        await backend.commit(ip, job_id)
+
+    original_group_safe = service._group_safe
+
+    async def group_safe(device):
+        if device.device_id == RIGHT:
+            return None, False
+        return await original_group_safe(device)
+
+    service._group_safe = group_safe
+    service._reboot = AsyncMock()
+    service._wait_reachable = AsyncMock()
+    job = {"job_id": job_id, "step": "waiting_for_devices",
+           "failed_device_id": RIGHT}
+
+    fully_restored = await service._rollback_job(
+        job,
+        [await service.repo.get_by_device_id(LEFT),
+         await service.repo.get_by_device_id(RIGHT)],
+        committed=True, reboot_started=True,
+        previous={LEFT: None, RIGHT: None}, cancelled=False,
+    )
+
+    assert fully_restored is False
+    assert all(mock_group_store[ip].content is None for ip in ips)
+    assert mock_group_store[ips[0]].journal["state"] == "restored"
+    assert mock_group_store[ips[1]].journal["state"] == "committed"
+    assert all([await backend.leftover(ip) for ip in ips])
+    rebooted = service._reboot.await_args.args[0]
+    assert [d.device_id for d in rebooted] == [LEFT]
