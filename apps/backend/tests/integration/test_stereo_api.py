@@ -137,3 +137,43 @@ async def test_http_remove_rejects_unicode_digits(stereo_api, group_id):
     response = await client.delete(f"/api/stereo-pairs/{group_id}")
     assert response.status_code == 422
     assert response.json()["code"] == "stereo_group_id_invalid"
+
+
+@pytest.mark.asyncio
+async def test_http_recover_interrupted_preparation_without_reboot(stereo_api):
+    """The public recovery endpoint removes incomplete preparation artifacts."""
+    from opencloudtouch.stereo.group_backend import StoredGroup
+
+    client, _, devices = stereo_api
+    mock_group_store["192.168.1.101"] = StoredGroup(
+        content="<original/>",
+        journal={
+            "job_id": "a" * 32, "operation": "create",
+            "had_file": True, "state": "preparing",
+        },
+        staged="<unfinished/>",
+    )
+    accepted = await client.post(f"/api/stereo-pairs/recover/{LEFT}")
+    assert accepted.status_code == 202
+    result = await wait_for_job(client, accepted.json()["job_id"])
+    assert result["operation"] == "recover"
+    assert result["state"] == "succeeded"
+    assert mock_group_store["192.168.1.101"].content == "<original/>"
+    assert mock_group_store["192.168.1.101"].journal is None
+    devices.reboot_device.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_http_recover_orphan_backup_without_journal_fails_safely(stereo_api):
+    """Unknown orphaned artifacts cannot be deleted as a successful recovery."""
+    from opencloudtouch.stereo.group_backend import StoredGroup
+
+    client, _, devices = stereo_api
+    mock_group_store["192.168.1.101"] = StoredGroup(backup="<original/>")
+    accepted = await client.post(f"/api/stereo-pairs/recover/{LEFT}")
+    assert accepted.status_code == 202
+    result = await wait_for_job(client, accepted.json()["job_id"])
+    assert result["state"] == "failed"
+    assert result["error_code"] == "stereo_nothing_to_recover"
+    assert mock_group_store["192.168.1.101"].backup == "<original/>"
+    devices.reboot_device.assert_not_awaited()
