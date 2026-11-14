@@ -1324,3 +1324,42 @@ async def test_force_remove_when_peer_missing_from_repository(service):
     assert result["state"] == "succeeded", result
     assert mock_group_store["192.168.1.101"].content is None
     assert mock_group_store["192.168.1.103"].content is not None
+
+
+
+@pytest.mark.asyncio
+async def test_injected_backend_and_fake_sleep_are_used(service):
+    """The spec's fake backend and clock/sleep hooks work without real time."""
+    from opencloudtouch.stereo.jobs import phase_budget
+
+    backend = MockGroupBackend()
+    elapsed = [100.0]
+    calls = []
+
+    async def fake_sleep(seconds):
+        calls.append(seconds)
+        elapsed[0] += seconds
+
+    injected = StereoService(
+        service.repo, service.devices, service.zones,
+        mock_mode=True,
+        backend_factory=lambda: backend,
+        clock=lambda: elapsed[0],
+        sleep=fake_sleep,
+        now=lambda: "2026-01-01T00:00:00Z",
+    )
+    assert injected.backend is backend
+    assert injected._tasks is injected.tasks
+    await injected._sleep(2.5)
+    assert calls == [2.5]
+    assert elapsed[0] == 102.5
+
+    with pytest.raises(RuntimeError, match="stereo_timeout"):
+        async with phase_budget(1, "stereo_timeout", clock=lambda: elapsed[0]):
+            await injected._sleep(2)
+
+    created = await injected.create(LEFT, RIGHT, "Injected")
+    await injected.tasks[created["job_id"]]
+    assert injected.job(created["job_id"])["state"] == "succeeded"
+    assert injected.job(created["job_id"])["started_at"] == "2026-01-01T00:00:00Z"
+    assert injected.job(created["job_id"])["finished_at"] == "2026-01-01T00:00:00Z"
