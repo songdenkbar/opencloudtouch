@@ -370,6 +370,8 @@ class StereoService:
         group_id: str | None,
         left: Any | None,
         right: Any | None,
+        *,
+        recovery_target_id: str | None = None,
     ) -> dict[str, Any]:
         job_id = uuid.uuid4().hex
         job: dict[str, Any] = {
@@ -384,7 +386,7 @@ class StereoService:
             "started_at": self._now(),
             "finished_at": None,
             "error_code": None,
-            "failed_device_id": ids[0] if op == "recover" else None,
+            "failed_device_id": (recovery_target_id or ids[0]) if op == "recover" else None,
             "rolled_back": None,
         }
         self.jobs[job_id] = job
@@ -592,7 +594,10 @@ class StereoService:
         ids = [first.device_id, second.device_id]
         self._reserve(ids)
         try:
-            return self._enqueue("recover", ids, None, None, first, second)
+            return self._enqueue(
+                "recover", ids, None, None, first, second,
+                recovery_target_id=device_id,
+            )
         except BaseException:
             self.busy.difference_update(ids)
             raise
