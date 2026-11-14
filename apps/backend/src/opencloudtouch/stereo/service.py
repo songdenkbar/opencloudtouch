@@ -355,9 +355,11 @@ class StereoService:
     async def _recover_pair(self, devices: list[Any]) -> None:
         """Coordinate one interrupted transaction across both persisted journals."""
         records = [await self.backend.journal_record(d.ip) for d in devices]
-        if any(r is None for r in records):
+        if len(records) != 2:
             raise RuntimeError("stereo_recovery_needed")
         first, second = records
+        if first is None or second is None:
+            raise RuntimeError("stereo_recovery_needed")
         if first["job_id"] != second["job_id"] or first["operation"] != second["operation"]:
             raise RuntimeError("stereo_recovery_needed")
         job_id = first["job_id"]
@@ -369,14 +371,14 @@ class StereoService:
             groups = [group for group, _ok in responses]
             if first["operation"] == "remove":
                 return all(g is None for g in groups)
-            if not all(g is not None for g in groups):
-                return False
             left_group, right_group = groups
+            if left_group is None or right_group is None:
+                return False
             return (
                 left_group.group_id == right_group.group_id
                 and left_group.master_device_id == right_group.master_device_id
                 and left_group.name == right_group.name
-                and all(g.status == "GROUP_OK" for g in groups)
+                and left_group.status == right_group.status == "GROUP_OK"
                 and len(left_group.roles) == 2
                 and {(r.device_id, r.role) for r in left_group.roles}
                 == {(r.device_id, r.role) for r in right_group.roles}
