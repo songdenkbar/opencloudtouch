@@ -375,3 +375,44 @@ async def test_rollback_budget_expiry_retains_journals(service):
     assert result["error_code"] == "stereo_rollback_failed"
     assert result["rolled_back"] is False
     assert any(state.journal is not None for state in mock_group_store.values())
+
+
+@pytest.mark.asyncio
+async def test_recover_both_unverified_speakers_restores_original_pair_state(service):
+    """A crash after both commits, before verification, restores both sides."""
+    backend = MockGroupBackend()
+    job_id = "b" * 32
+    left_ip, right_ip = "192.168.1.101", "192.168.1.103"
+    for ip, content in [(left_ip, "<left-original/>"), (right_ip, "<right-original/>")]:
+        mock_group_store[ip] = StoredGroup(content=content)
+        await backend.prepare(ip, job_id, "create", "<new-stereo/>")
+        await backend.commit(ip, job_id)
+
+    assert await backend.recover(left_ip)
+    assert await backend.recover(right_ip)
+    assert mock_group_store[left_ip].content == "<left-original/>"
+    assert mock_group_store[right_ip].content == "<right-original/>"
+    assert not await backend.leftover(left_ip)
+    assert not await backend.leftover(right_ip)
+
+
+@pytest.mark.asyncio
+@pytest.mark.xfail(
+    strict=True,
+    reason="Known issue: per-device recovery cannot coordinate a partly verified stereo pair",
+)
+async def test_recover_mixed_verification_must_not_leave_split_pair(service):
+    """A crash between mark_verified calls needs coordinated recovery."""
+    backend = MockGroupBackend()
+    job_id = "c" * 32
+    left_ip, right_ip = "192.168.1.101", "192.168.1.103"
+    for ip in (left_ip, right_ip):
+        await backend.prepare(ip, job_id, "create", "<new-stereo/>")
+        await backend.commit(ip, job_id)
+
+    # Simulate a process crash after verifying only the left speaker.
+    await backend.mark_verified(left_ip, job_id)
+    await backend.recover(left_ip)
+    await backend.recover(right_ip)
+
+    assert mock_group_store[left_ip].content == mock_group_store[right_ip].content
