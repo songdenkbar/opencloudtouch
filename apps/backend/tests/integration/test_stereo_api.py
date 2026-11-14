@@ -212,3 +212,24 @@ async def test_http_overlong_name_keeps_stable_coded_error(stereo_api):
     )
     assert response.status_code == 422
     assert response.json()["code"] == "stereo_name_invalid"
+
+
+
+@pytest.mark.asyncio
+async def test_openapi_declares_coded_error_responses(stereo_api):
+    """The spec requires public status codes and machine-readable error schemas."""
+    client, _, _ = stereo_api
+    paths = (await client.get("/openapi.json")).json()["paths"]
+    expected = {
+        ("/api/stereo-pairs", "post"): {"404", "409", "422", "503"},
+        ("/api/stereo-pairs/jobs/{job_id}", "get"): {"404"},
+        ("/api/stereo-pairs/recover/{device_id}", "post"): {"404", "409", "503"},
+        ("/api/stereo-pairs/{group_id}", "delete"): {"404", "409", "422", "503"},
+    }
+    for (path, method), statuses in expected.items():
+        responses = paths[path][method]["responses"]
+        for status in statuses:
+            response = responses[status]
+            assert response["content"]["application/json"]["schema"]["$ref"] == (
+                "#/components/schemas/ErrorDetail"
+            )
