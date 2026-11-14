@@ -27,6 +27,14 @@ from opencloudtouch.stereo.group_files import (
 logger = logging.getLogger(__name__)
 
 
+class StereoDeviceFailure(RuntimeError):
+    """A job failure tied to a particular speaker."""
+
+    def __init__(self, code: str, device_id: str):
+        super().__init__(code)
+        self.device_id = device_id
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -462,8 +470,9 @@ class StereoService:
             *(self.devices.reboot_device(d.device_id) for d in devices),
             return_exceptions=True,
         )
-        if any(isinstance(r, BaseException) for r in results):
-            raise RuntimeError("stereo_reboot_failed")
+        for device, result in zip(devices, results):
+            if isinstance(result, BaseException):
+                raise StereoDeviceFailure("stereo_reboot_failed", device.device_id) from result
 
     async def _info_online(self, device: Any) -> bool:
         """Poll the existing SoundTouch /info API for reboot transitions."""
@@ -491,12 +500,12 @@ class StereoService:
                     break
                 await asyncio.sleep(2)
             else:
-                raise RuntimeError("stereo_timeout")
+                raise StereoDeviceFailure("stereo_timeout", device.device_id)
             for _ in range(36):
                 if await self._info_online(device):
                     return
                 await asyncio.sleep(5)
-            raise RuntimeError("stereo_timeout")
+            raise StereoDeviceFailure("stereo_timeout", device.device_id)
 
         await asyncio.gather(*(wait_one(d) for d in devices))
 
@@ -650,7 +659,7 @@ class StereoService:
                     for device in devices:
                         group, online = await self._group_safe(device)
                         if not online:
-                            raise RuntimeError("device_unreachable")
+                            raise StereoDeviceFailure("device_unreachable", device.device_id)
                         previous[device.device_id] = group
                     job["step"] = "backing_up"
                     for device in devices:
@@ -664,13 +673,25 @@ class StereoService:
                             )
                         # Journal creation can succeed before prepare fails.
                         prepared.append(device)
-                        await self.backend.prepare(device.ip, job["job_id"], operation, xml)
+                        try:
+                            await self.backend.prepare(
+                                device.ip, job["job_id"], operation, xml
+                            )
+                        except Exception as exc:
+                            raise StereoDeviceFailure(
+                                "stereo_write_failed", device.device_id
+                            ) from exc
                     job["step"] = "writing_files"
                     for device in devices:
                         committed = True
-                        await self.backend.commit(
-                            device.ip, job["job_id"], removing=operation == "remove"
-                        )
+                        try:
+                            await self.backend.commit(
+                                device.ip, job["job_id"], removing=operation == "remove"
+                            )
+                        except Exception as exc:
+                            raise StereoDeviceFailure(
+                                "stereo_write_failed", device.device_id
+                            ) from exc
                     job["step"] = "rebooting"
                     reboot_started = True
                     await self._reboot(devices)
@@ -698,6 +719,8 @@ class StereoService:
                 str(exc) if str(exc).startswith(("stereo_", "device_"))
                 else "stereo_ssh_failed"
             )
+            if isinstance(exc, StereoDeviceFailure):
+                job["failed_device_id"] = exc.device_id
             if verified:
                 # No asymmetric rollback after verification. The remaining
                 # verified journal can be cleaned by explicit recovery.
