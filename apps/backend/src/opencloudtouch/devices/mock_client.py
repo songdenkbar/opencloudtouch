@@ -10,6 +10,7 @@ from typing import Optional
 from opencloudtouch.devices.client import (
     BassCapabilities,
     BassInfo,
+    GroupInfo,
     DeviceClient,
     DeviceInfo,
     NowPlayingInfo,
@@ -288,7 +289,7 @@ class MockDeviceClient(DeviceClient):
 
     # ---- Zone Methods ----
 
-    async def get_group(self):
+    async def get_group(self) -> GroupInfo | None:
         """Return simulated firmware stereo status using the shared group-file store."""
         from dataclasses import replace
         from opencloudtouch.stereo.group_backend import mock_group_store
