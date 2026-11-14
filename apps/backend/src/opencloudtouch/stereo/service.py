@@ -85,10 +85,14 @@ class StereoService:
 
         async def query_group(device: Any) -> tuple[GroupInfo | None, bool]:
             async with semaphore:
-                return await self._group_safe(device)
+                try:
+                    return await asyncio.wait_for(self._group_safe(device), timeout=5.0)
+                except TimeoutError:
+                    return None, False
 
         responses = await asyncio.gather(*(query_group(d) for d in speakers))
-        groups: dict[str, list[GroupInfo]] = {}
+        groups: dict[str, list[tuple[str, GroupInfo]]] = {}
+        known_ids = {d.device_id for d in all_devices}
         missing: list[str] = []
         leftovers: list[str] = []
         for device, (group, reachable) in zip(speakers, responses):
@@ -96,32 +100,32 @@ class StereoService:
                 missing.append(device.device_id)
                 continue
             if group:
-                groups.setdefault(group.group_id, []).append(group)
+                groups.setdefault(group.group_id, []).append((device.device_id, group))
             if self.mock_mode or device.ssh_permanent:
                 try:
-                    if await self.backend.leftover(device.ip):
+                    if await asyncio.wait_for(self.backend.leftover(device.ip), timeout=5.0):
                         leftovers.append(device.device_id)
                 except Exception:
                     logger.debug("Could not read recovery state for %s", device.device_id)
         pairs = []
         for group_id, reports in groups.items():
             master = next(
-                (g for g in reports if any(r.device_id == g.master_device_id and r.role == "LEFT" for r in g.roles)),
-                reports[0],
+                (g for speaker_id, g in reports if speaker_id == g.master_device_id),
+                reports[0][1],
             )
             left = next((r.device_id for r in master.roles if r.role == "LEFT"), None)
             right = next((r.device_id for r in master.roles if r.role == "RIGHT"), None)
             identity = (master.master_device_id, [(r.device_id, r.role) for r in master.roles], master.name)
             pairs.append({
                 "group_id": group_id, "name": master.name,
-                "status": "GROUP_OK" if all(g.status == "GROUP_OK" for g in reports) else next(
-                    (g.status for g in reports if g.status != "GROUP_OK"), None
+                "status": "GROUP_OK" if all(g.status == "GROUP_OK" for _, g in reports) else next(
+                    (g.status for _, g in reports if g.status != "GROUP_OK"), None
                 ),
                 "left_device_id": left, "right_device_id": right,
-                "partial": len(reports) < 2,
+                "partial": len(reports) < 2 or left not in known_ids or right not in known_ids,
                 "inconsistent": any(
                     (g.master_device_id, [(r.device_id, r.role) for r in g.roles], g.name) != identity
-                    for g in reports
+                    for _, g in reports
                 ),
             })
         return {
