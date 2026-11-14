@@ -186,3 +186,117 @@ async def test_orphan_with_other_files_needs_manual_recovery():
 
     with pytest.raises(RuntimeError, match="stereo_recovery_needed"):
         await UnsafeUpload().recover("192.0.2.10")
+
+
+@pytest.mark.asyncio
+async def test_ssh_transfer_disconnect_restores_mount_and_closes_connection():
+    """A failed base64 transfer must not leave the writable mount enabled."""
+    events = []
+
+    class FailedSession:
+        async def run(self, command, *, input, check):
+            events.append(("transfer", command))
+            raise OSError("connection closed during upload")
+
+    class FakeSSH:
+        def __init__(self, host):
+            self._connection = FailedSession()
+
+        async def connect(self):
+            return SimpleNamespace(success=True)
+
+        @asynccontextmanager
+        async def write_access(self):
+            events.append("remount-rw")
+            try:
+                yield
+            finally:
+                events.append("restore-mount-state")
+
+        async def execute(self, command):
+            events.append(("command", command))
+            return SimpleNamespace(success=True, output="")
+
+        async def close(self):
+            events.append("close")
+
+    with patch("opencloudtouch.setup.ssh_client.SoundTouchSSHClient", FakeSSH):
+        with pytest.raises(OSError, match="connection closed during upload"):
+            await SSHGroupBackend()._run(
+                "192.0.2.10",
+                [SSHGroupBackend._write("/tmp/oct-stage", "payload")],
+                writable=True,
+            )
+
+    assert events[-2:] == ["restore-mount-state", "close"]
+    assert sum(event == "restore-mount-state" for event in events) == 1
+
+
+@pytest.mark.asyncio
+async def test_ssh_recovery_state_update_uses_atomic_journal_rename():
+    """A failed upload cannot replace the previously durable journal."""
+    import json
+
+    journal = {
+        "job_id": "a" * 32,
+        "operation": "create",
+        "had_file": False,
+        "state": "committed",
+    }
+    calls = []
+
+    class RecordingBackend(SSHGroupBackend):
+        async def _run(self, ip, commands, *, writable=False):
+            calls.append((list(commands), writable))
+            if not writable:
+                return [json.dumps(journal)]
+            return [""] * len(commands)
+
+    await RecordingBackend().mark_restored("192.0.2.10", "a" * 32)
+    assert calls[0][1] is False
+    assert calls[1][1] is True
+    upload, rename = calls[1][0]
+    assert isinstance(upload, tuple)
+    assert upload[0].endswith(".oct-new." + "a" * 32)
+    assert '"restored"' in __import__("base64").b64decode(upload[1]).decode()
+    assert rename.startswith("mv ")
+    assert rename.endswith(".oct-job")
+
+
+@pytest.mark.asyncio
+async def test_ssh_missing_backup_blocks_rollback_before_file_changes():
+    """Never erase a current group when an expected original backup is lost."""
+    import json
+
+    job = "b" * 32
+    journal = json.dumps({
+        "job_id": job, "operation": "remove",
+        "had_file": True, "state": "committed",
+    })
+    calls = []
+
+    class MissingBackup(SSHGroupBackend):
+        async def _run(self, ip, commands, *, writable=False):
+            calls.extend(commands)
+            if any(str(cmd).startswith("cat ") for cmd in commands):
+                return [journal]
+            if any(str(cmd).startswith("test -s ") for cmd in commands):
+                raise OSError("SSH command failed")
+            raise AssertionError("Unexpected file modification")
+
+    with pytest.raises(OSError, match="SSH command failed"):
+        await MissingBackup().rollback("192.0.2.10", job)
+    assert not any(str(cmd).startswith(("cp ", "rm -f ", "mv "))
+                   for cmd in calls)
+
+
+@pytest.mark.asyncio
+async def test_ssh_invalid_journal_does_not_trigger_recovery_writes():
+    """Malformed durable transaction evidence must fail closed."""
+    class CorruptJournal(SSHGroupBackend):
+        async def _run(self, ip, commands, *, writable=False):
+            assert not writable
+            return ['{"state":"committed","job_id":"bad","had_file":true}']
+
+    with pytest.raises(RuntimeError, match="stereo_recovery_needed"):
+        await CorruptJournal().journal_record("192.0.2.10")
