@@ -34,6 +34,7 @@ class GroupBackend(Protocol):
     async def journal_state(self, ip: str) -> str | None: ...
     async def journal_record(self, ip: str) -> dict | None: ...
     async def previous_content(self, ip: str) -> str | None: ...
+    async def mark_restored(self, ip: str, job: str) -> None: ...
     async def prepare(self, ip: str, job: str, operation: str, new: str | None) -> None: ...
     async def commit(self, ip: str, job: str, *, removing: bool = False) -> None: ...
     async def rollback(self, ip: str, job: str) -> None: ...
@@ -96,6 +97,12 @@ class MockGroupBackend:
             state.content = state.backup if state.journal["had_file"] else None
         state.staged = None
 
+    async def mark_restored(self, ip: str, job: str) -> None:
+        state = mock_group_store[ip]
+        if state.journal is None or state.journal.get("job_id") != job:
+            raise RuntimeError("stereo_recovery_needed")
+        state.journal["state"] = "restored"
+
     async def mark_verified(self, ip: str, job: str) -> None:
         state = mock_group_store[ip]
         if state.journal is None or state.journal.get("job_id") != job:
@@ -114,7 +121,7 @@ class MockGroupBackend:
         state = mock_group_store.get(ip)
         if not state or not state.journal:
             return False
-        if state.journal.get("state") not in {"verified", "preparing"}:
+        if state.journal.get("state") not in {"verified", "restored", "preparing"}:
             await self.rollback(ip, state.journal["job_id"])
         await self.cleanup(ip, state.journal["job_id"])
         return True
@@ -197,7 +204,7 @@ class SSHGroupBackend:
         try:
             record = json.loads(raw)
             if not isinstance(record, dict) or record.get("state") not in {
-                "preparing", "prepared", "committed", "verified"
+                "preparing", "prepared", "committed", "verified", "restored"
             } or record.get("had_file") not in {True, False}:
                 raise ValueError("Invalid stereo journal")
             self._suffix(record["job_id"])
@@ -279,6 +286,18 @@ class SSHGroupBackend:
             raise RuntimeError("stereo_recovery_needed")
         await self._run(ip, [f"rm -f {stage}"], writable=True)
 
+    async def mark_restored(self, ip: str, job: str) -> None:
+        journal, _, stage = self._suffix(job)
+        raw = (await self._run(ip, [f"cat {journal}"]))[0]
+        record = json.loads(raw)
+        if record.get("job_id") != job:
+            raise RuntimeError("stereo_recovery_needed")
+        record["state"] = "restored"
+        await self._run(ip, [
+            self._write(stage, json.dumps(record, separators=(",", ":"))),
+            f"mv {stage} {journal}",
+        ], writable=True)
+
     async def mark_verified(self, ip: str, job: str) -> None:
         journal, _, stage = self._suffix(job)
         raw = (await self._run(ip, [f"cat {journal}"]))[0]
@@ -327,7 +346,7 @@ class SSHGroupBackend:
             raise RuntimeError("stereo_recovery_needed") from exc
         job = record["job_id"]
         self._suffix(job)
-        if record.get("state") not in {"verified", "preparing"}:
+        if record.get("state") not in {"verified", "restored", "preparing"}:
             await self.rollback(ip, job)
         await self.cleanup(ip, job)
         return True
