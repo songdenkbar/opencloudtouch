@@ -481,7 +481,9 @@ class StereoService:
                 params={"device_id": device_id},
             )
         record = await self.backend.journal_record(device.ip)
-        if record is None or record["state"] == "preparing":
+        if record is None:
+            # A lone unfinished journal upload may be cleaned locally; the
+            # backend refuses removal if any staged/backup files also exist.
             self._reserve([device_id])
             try:
                 return self._enqueue("recover", [device_id], None, None, device, None)
@@ -504,7 +506,11 @@ class StereoService:
                 )
             if peer_record and peer_record["job_id"] == record["job_id"]:
                 participants.append((candidate, peer_record))
-        if len(participants) == 1 and record["state"] in {"verified", "restored"}:
+        if len(participants) == 1 and record["state"] in {
+            "verified", "restored", "preparing"
+        }:
+            # An isolated preparation cannot have changed GroupService.xml.
+            # For an already final decision, only artifacts remain.
             # The peer journal has already been cleaned. This device has a
             # durable final decision and only needs its own artifacts removed.
             self._reserve([device_id])
