@@ -103,10 +103,10 @@ class StereoService:
                 return await self._group(device), True
             except Exception as exc:
                 logger.debug(
-                    "Stereo group status unavailable for %s (attempt %d/3): %s",
+                    "Stereo group status unavailable for %s (attempt %d/3; %s)",
                     device.device_id,
                     attempt + 1,
-                    exc,
+                    type(exc).__name__,
                 )
                 if attempt < 2:
                     await self._sleep(0.5)
@@ -285,23 +285,25 @@ class StereoService:
                     "Remove device from zone first",
                     params={"device_id": device.device_id},
                 )
-        groups = []
-        for device in (left, right):
-            group, reachable = await self._group_safe(device)
+        group_checks = [
+            (device, *await self._group_safe(device)) for device in (left, right)
+        ]
+        # The specified validation order gives an existing pair priority over
+        # an offline peer, irrespective of the LEFT/RIGHT request ordering.
+        for device, group, reachable in group_checks:
+            if reachable and group is not None:
+                raise_coded(
+                    409,
+                    "stereo_device_in_pair",
+                    "Device already belongs to a pair",
+                    params={"device_id": device.device_id},
+                )
+        for device, _group, reachable in group_checks:
             if not reachable:
                 raise_coded(
                     503,
                     "device_unreachable",
                     "Cannot query stereo group",
-                    params={"device_id": device.device_id},
-                )
-            groups.append(group)
-        for device, group in zip((left, right), groups):
-            if group is not None:
-                raise_coded(
-                    409,
-                    "stereo_device_in_pair",
-                    "Device already belongs to a pair",
                     params={"device_id": device.device_id},
                 )
         for device in (left, right):
