@@ -72,7 +72,14 @@ class StereoService:
     async def list_pairs(self) -> dict[str, Any]:
         all_devices = await self.repo.get_all()
         speakers = [d for d in all_devices if d.model.strip().casefold() == "soundtouch 10"]
-        responses = await asyncio.gather(*(self._group_safe(d) for d in speakers))
+        # Limit concurrent device requests as required by spec #549.
+        semaphore = asyncio.Semaphore(5)
+
+        async def query_group(device: Any) -> tuple[GroupInfo | None, bool]:
+            async with semaphore:
+                return await self._group_safe(device)
+
+        responses = await asyncio.gather(*(query_group(d) for d in speakers))
         groups: dict[str, list[GroupInfo]] = {}
         missing: list[str] = []
         leftovers: list[str] = []
