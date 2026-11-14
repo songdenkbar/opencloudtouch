@@ -4,7 +4,7 @@
  *
  * Prerequisites:
  * - Backend running with OCT_MOCK_MODE=true
- * - MockDiscoveryAdapter returns 3 predefined devices (192.168.1.100-102)
+ * - MockDiscoveryAdapter returns 4 predefined devices (192.168.1.100-103)
  */
 
 /** Force German locale — CI defaults to English (navigator.language='en') */
@@ -96,9 +96,9 @@ describe("Manual IP Configuration", () => {
       // Wait for redirect to dashboard
       cy.location("pathname").should("eq", "/");
 
-      // Verify devices (MockDiscoveryAdapter returns 3 devices total)
+      // Verify devices (MockDiscoveryAdapter returns 4 devices total)
       // Swiper shows 1 card at a time, check dots for count
-      cy.get(".ds-dot").should("have.length", 3);
+      cy.get(".ds-dot").should("have.length", 4);
       cy.get('[data-test="device-card"]').should("have.length", 1);
     });
 
@@ -117,9 +117,9 @@ describe("Manual IP Configuration", () => {
       // Wait for redirect to dashboard
       cy.location("pathname").should("eq", "/");
 
-      // Verify 3 devices (all mock devices)
+      // Verify 4 devices (all mock devices)
       // Swiper shows 1 card at a time, check dots for count
-      cy.get(".ds-dot").should("have.length", 3);
+      cy.get(".ds-dot").should("have.length", 4);
       cy.get('[data-test="device-card"]').should("have.length", 1);
     });
   });
@@ -164,7 +164,7 @@ describe("Manual IP Configuration", () => {
       cy.location("pathname").should("eq", "/");
       cy.get('[data-test="app-header"]').should("be.visible");
       // Swiper shows 1 card at a time with dots for navigation
-      cy.get(".ds-dot").should("have.length", 3); // Mock devices
+      cy.get(".ds-dot").should("have.length", 4); // Mock devices
       cy.get('[data-test="device-card"]').should("have.length", 1);
     });
   });
@@ -199,7 +199,7 @@ describe("Manual IP Configuration", () => {
 
       // Verify initial state - should be on dashboard
       cy.location("pathname").should("eq", "/");
-      cy.get(".ds-dot").should("have.length", 3);
+      cy.get(".ds-dot").should("have.length", 4);
 
       // Reload page
       cy.reload();
@@ -207,14 +207,14 @@ describe("Manual IP Configuration", () => {
       // Verify state persisted after reload
       cy.location("pathname").should("eq", "/");
       cy.get('[data-test="app-header"]').should("be.visible");
-      cy.get(".ds-dot", { timeout: 15000 }).should("have.length", 3);
+      cy.get(".ds-dot", { timeout: 15000 }).should("have.length", 4);
       cy.get('[data-test="device-card"]').should("have.length", 1);
 
       // Verify devices still in DB via API
       const apiUrl = Cypress.expose('apiUrl');
       cy.request("GET", `${apiUrl}/devices`).then((response) => {
-        expect(response.body).to.have.property("count", 3);
-        expect(response.body.devices).to.have.length(3);
+        expect(response.body).to.have.property("count", 4);
+        expect(response.body.devices).to.have.length(4);
       });
     });
 

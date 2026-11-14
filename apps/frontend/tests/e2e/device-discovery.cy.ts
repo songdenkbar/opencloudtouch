@@ -4,7 +4,7 @@
  *
  * Prerequisites:
  * - Backend running with OCT_MOCK_MODE=true
- * - MockDiscoveryAdapter returns 3 predefined devices
+ * - MockDiscoveryAdapter returns 4 predefined devices
  */
 describe("Device Discovery", () => {
   beforeEach(() => {
@@ -14,7 +14,7 @@ describe("Device Discovery", () => {
   });
 
   describe("Happy Path - Successful Discovery", () => {
-    it("should discover devices and redirect to dashboard (3 default devices)", () => {
+    it("should discover devices and redirect to dashboard (4 default devices)", () => {
       // Visit welcome page
       cy.visit("/welcome");
       cy.url().should("include", "/welcome");
@@ -22,21 +22,21 @@ describe("Device Discovery", () => {
       // Click discover
       cy.get('[data-test="discover-button"]').should("be.visible").click();
 
-      // Wait for sync to complete (backend with OCT_MOCK_MODE returns 3 devices)
+      // Wait for sync to complete (backend with OCT_MOCK_MODE returns 4 devices)
       cy.waitForDevices();
 
       // Should redirect to dashboard
       cy.location("pathname").should("eq", "/");
 
-      // Verify devices visible (MockDiscoveryAdapter returns 3 devices)
+      // Verify devices visible (MockDiscoveryAdapter returns 4 devices)
       cy.get('[data-test="app-header"]').should("be.visible");
       cy.get('.ds-card-shell[data-state="current"] [data-test="device-card"]').should("have.length", 1);
 
-      // Wait for ALL 3 devices to load before checking navigation
+      // Wait for ALL 4 devices to load before checking navigation
       // (progressive SSE may deliver devices incrementally)
-      cy.get(".ds-dot").should("have.length", 3);
+      cy.get(".ds-dot").should("have.length", 4);
 
-      // Verify 3 devices by swiping navigation
+      // Verify 4 devices by swiping navigation
       // Start at device 0 - left arrow should be disabled
       cy.get(".ds-arrow--prev").should("be.disabled");
       cy.get(".ds-arrow--next").should("not.be.disabled");
@@ -60,7 +60,7 @@ describe("Device Discovery", () => {
       cy.get(".ds-arrow--prev").should("not.be.disabled");
       cy.get(".ds-arrow--next").should("not.be.disabled");
 
-      // Swipe right 2x → device 2 (last device)
+      // Swipe right 2x → device 2
       cy.get(".ds-arrow--next").click();
       cy.wait(150); // Animation (Phase 2 optimization)
       cy.get('.ds-card-shell[data-state="current"] [data-test="device-card"]')
@@ -70,17 +70,27 @@ describe("Device Discovery", () => {
           cy.get("@firstDeviceIP").should("not.equal", thirdIP);
         });
       cy.get(".ds-arrow--prev").should("not.be.disabled");
+      cy.get(".ds-arrow--next").should("not.be.disabled");
+
+      // Swipe right 3x → device 3 (last device)
+      cy.get(".ds-arrow--next").click();
+      cy.wait(150);
       cy.get(".ds-arrow--next").should("be.disabled"); // End of list
 
-      // Swipe left 1x → back to device 1
+      // Swipe left 1x → back to device 2
       cy.get(".ds-arrow--prev").click();
       cy.wait(150); // Animation (Phase 2 optimization)
       cy.get(".ds-arrow--prev").should("not.be.disabled");
       cy.get(".ds-arrow--next").should("not.be.disabled");
 
-      // Swipe left 2x → back to device 0 (first device)
+      // Swipe left 2x → back to device 1
       cy.get(".ds-arrow--prev").click();
       cy.wait(150); // Animation (Phase 2 optimization)
+      cy.get(".ds-arrow--prev").should("not.be.disabled");
+
+      // Swipe left 3x → back to device 0 (first device)
+      cy.get(".ds-arrow--prev").click();
+      cy.wait(150);
       cy.get(".ds-arrow--prev").should("be.disabled"); // Start of list
       cy.get(".ds-arrow--next").should("not.be.disabled");
     });
@@ -99,21 +109,25 @@ describe("Device Discovery", () => {
 
       cy.location("pathname").should("eq", "/");
 
-      // Wait for ALL 3 devices to load before checking navigation
-      cy.get(".ds-dot").should("have.length", 3);
+      // Wait for ALL 4 devices to load before checking navigation
+      cy.get(".ds-dot").should("have.length", 4);
 
-      // Verify 3 devices by swiping navigation
+      // Verify 4 devices by swiping navigation
       cy.get(".ds-arrow--prev").should("be.disabled");
       cy.get(".ds-arrow--next").should("not.be.disabled");
 
-      // Swipe to last device (2x right)
+      // Swipe to last device (3x right)
+      cy.get(".ds-arrow--next").click();
+      cy.wait(150); // Phase 2 optimization
       cy.get(".ds-arrow--next").click();
       cy.wait(150); // Phase 2 optimization
       cy.get(".ds-arrow--next").click();
       cy.wait(150); // Phase 2 optimization
       cy.get(".ds-arrow--next").should("be.disabled"); // End reached
 
-      // Swipe back to first device (2x left)
+      // Swipe back to first device (3x left)
+      cy.get(".ds-arrow--prev").click();
+      cy.wait(150); // Phase 2 optimization
       cy.get(".ds-arrow--prev").click();
       cy.wait(150); // Phase 2 optimization
       cy.get(".ds-arrow--prev").click();
@@ -124,7 +138,7 @@ describe("Device Discovery", () => {
 
   describe("Unhappy Path - No Devices Found", () => {
     it("should show toast when no devices found", () => {
-      // NOTE: With OCT_MOCK_MODE=true, MockDiscoveryAdapter ALWAYS returns 3 devices
+      // NOTE: With OCT_MOCK_MODE=true, MockDiscoveryAdapter ALWAYS returns 4 devices
       // This test is now a regression guard: Ensure toast shows if adapter returns []
       // To test this properly, we'd need OCT_MOCK_MODE=false + no real devices
 

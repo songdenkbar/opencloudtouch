@@ -73,6 +73,8 @@ from opencloudtouch.zones.repository import ZoneRepository
 from opencloudtouch.zones.routes import device_zone_router
 from opencloudtouch.zones.routes import router as zones_router
 from opencloudtouch.zones.service import ZoneService
+from opencloudtouch.stereo.service import StereoService
+from opencloudtouch.stereo.api.routes import router as stereo_router
 
 # Module-level logger
 logger = logging.getLogger(__name__)
@@ -203,6 +205,11 @@ async def _init_services(
         client_factory=get_device_client,
     )
     logger.info("ZoneService initialized")
+
+    app.state.stereo_service = StereoService(
+        device_repo, device_service, app.state.zone_service, mock_mode=cfg.mock_mode
+    )
+    logger.info("StereoService initialized")
 
     # Auto-discover in mock mode
     if cfg.mock_mode:
@@ -350,6 +357,9 @@ async def _shutdown(app: FastAPI, repos: dict, logger: logging.Logger) -> None:
         await app.state.device_state_manager.stop_icy_polling()
         logger.info("ICY polling stopped")
 
+    if hasattr(app.state, "stereo_service"):
+        await app.state.stereo_service.shutdown()
+
     await app.state.health_check.stop()
     logger.info("Device health-check stopped")
 
@@ -433,6 +443,7 @@ app.include_router(setup_router)  # Device setup wizard
 app.include_router(wizard_router)  # SSH-driven wizard step endpoints
 app.include_router(swupdate_router)  # SWUpdate firmware index emulation
 app.include_router(zones_router)  # Multi-room zone management
+app.include_router(stereo_router)  # Stereo pairs (separate from multi-room zones)
 app.include_router(device_zone_router)  # Per-device zone status
 app.include_router(logs_router)  # Backend log download
 app.include_router(bug_report_router)  # Bug report submission

@@ -10,6 +10,7 @@ from typing import Optional
 from opencloudtouch.devices.client import (
     BassCapabilities,
     BassInfo,
+    GroupInfo,
     DeviceClient,
     DeviceInfo,
     NowPlayingInfo,
@@ -75,6 +76,23 @@ class MockDeviceClient(DeviceClient):
                 track="Here Comes The Sun",
                 album="Abbey Road",
                 artwork_url=None,
+            ),
+        },
+        "A1B2C3D4E5F6": {
+            "info": DeviceInfo(
+                device_id="A1B2C3D4E5F6",
+                name="Study",
+                type="SoundTouch 10",
+                mac_address="A1B2C3D4E5F6",
+                ip_address="192.168.1.103",
+                firmware_version="28.0.12.46499",
+                module_type="sm2",
+                variant="spotty",
+                variant_mode="normal",
+            ),
+            "now_playing": NowPlayingInfo(
+                source="STANDBY",
+                state="STOP_STATE",
             ),
         },
         "112233445566": {
@@ -270,6 +288,17 @@ class MockDeviceClient(DeviceClient):
         )
 
     # ---- Zone Methods ----
+
+    async def get_group(self) -> GroupInfo | None:
+        """Return simulated firmware stereo status using the shared group-file store."""
+        from dataclasses import replace
+        from opencloudtouch.stereo.group_backend import mock_group_store
+        from opencloudtouch.stereo.group_files import parse_group_xml
+
+        info = await self.get_info()
+        state = mock_group_store.get(self.ip_address or info.ip_address)
+        group = parse_group_xml(state.content) if state and state.content else None
+        return replace(group, status="GROUP_OK") if group is not None else None
 
     async def get_zone_status(self) -> ZoneStatus | None:
         """Mock get zone status."""

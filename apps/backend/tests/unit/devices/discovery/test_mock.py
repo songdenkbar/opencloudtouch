@@ -13,18 +13,18 @@ class TestMockDiscoveryAdapter:
 
     @pytest.mark.asyncio
     async def test_returns_predefined_devices(self):
-        """Test that mock adapter returns 3 predefined devices."""
+        """Test that mock adapter returns 4 predefined devices."""
         adapter = MockDiscoveryAdapter()
 
         devices = await adapter.discover()
 
-        assert len(devices) == 3
+        assert len(devices) == 4
         assert isinstance(devices, list)
         assert all(isinstance(d, DiscoveredDevice) for d in devices)
 
-        # Check that all 3 MAC addresses are present
+        # Check that all 4 MAC addresses are present
         mac_addresses = {d.mac_address for d in devices}
-        assert mac_addresses == {"AABBCC112233", "DDEEFF445566", "112233445566"}
+        assert mac_addresses == {"AABBCC112233", "DDEEFF445566", "112233445566", "A1B2C3D4E5F6"}
 
     @pytest.mark.asyncio
     async def test_device_structure(self):
@@ -65,4 +65,4 @@ class TestMockDiscoveryAdapter:
         adapter = MockDiscoveryAdapter(timeout=5)
 
         devices = await adapter.discover()
-        assert len(devices) == 3  # Should work regardless of timeout
+        assert len(devices) == 4  # Should work regardless of timeout

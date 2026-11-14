@@ -2973,6 +2973,205 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/stereo-pairs:
+    get:
+      tags:
+      - Stereo
+      summary: List Pairs
+      operationId: list_pairs_api_stereo_pairs_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StereoPairList'
+    post:
+      tags:
+      - Stereo
+      summary: Create Pair
+      operationId: create_pair_api_stereo_pairs_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStereoPair'
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StereoJob'
+        '404':
+          description: device_not_found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
+        '409':
+          description: stereo_ssh_not_available, stereo_device_in_zone, stereo_device_in_pair,
+            stereo_recovery_needed, stereo_job_in_progress, stereo_job_limit_reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
+        '422':
+          description: stereo_same_device, stereo_name_invalid, stereo_model_unsupported,
+            stereo_device_invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
+        '503':
+          description: stereo_ssh_unreachable, device_unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
+  /api/stereo-pairs/jobs:
+    get:
+      tags:
+      - Stereo
+      summary: List Jobs
+      operationId: list_jobs_api_stereo_pairs_jobs_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StereoJobList'
+  /api/stereo-pairs/jobs/{job_id}:
+    get:
+      tags:
+      - Stereo
+      summary: Get Job
+      operationId: get_job_api_stereo_pairs_jobs__job_id__get
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StereoJob'
+        '404':
+          description: stereo_job_not_found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/stereo-pairs/recover/{device_id}:
+    post:
+      tags:
+      - Stereo
+      summary: Recover
+      operationId: recover_api_stereo_pairs_recover__device_id__post
+      parameters:
+      - name: device_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Device Id
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StereoJob'
+        '404':
+          description: device_not_found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
+        '409':
+          description: stereo_nothing_to_recover, stereo_recovery_needed, stereo_job_in_progress,
+            stereo_job_limit_reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
+        '503':
+          description: device_unreachable, stereo_ssh_unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/stereo-pairs/{group_id}:
+    delete:
+      tags:
+      - Stereo
+      summary: Remove Pair
+      operationId: remove_pair_api_stereo_pairs__group_id__delete
+      parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Group Id
+      - name: force
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Force
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StereoJob'
+        '404':
+          description: stereo_pair_not_found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
+        '409':
+          description: stereo_recovery_needed, stereo_job_in_progress, stereo_job_limit_reached,
+            stereo_pair_not_found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
+        '422':
+          description: stereo_group_id_invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
+        '503':
+          description: device_unreachable, stereo_ssh_unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
   /api/devices/{device_id}/zone:
     get:
       tags:
@@ -3743,6 +3942,23 @@ components:
       - ip
       title: ConnectivityCheckRequest
       description: Request to check device connectivity.
+    CreateStereoPair:
+      properties:
+        left_device_id:
+          type: string
+          title: Left Device Id
+        right_device_id:
+          type: string
+          title: Right Device Id
+        name:
+          type: string
+          title: Name
+      type: object
+      required:
+      - left_device_id
+      - right_device_id
+      - name
+      title: CreateStereoPair
     CreateZoneRequest:
       properties:
         master_id:
@@ -3914,6 +4130,115 @@ components:
       - ip
       title: EnablePermanentSSHRequest
       description: Request to enable permanent SSH access on device.
+    ErrorDetail:
+      description: "Standardized error response format (RFC 7807-inspired).\n\nProvides\
+        \ consistent error structure across all API endpoints.\n\nAttributes:\n  \
+        \  type: Error category (validation_error, not_found, server_error, etc.)\n\
+        \    title: Human-readable error title\n    status: HTTP status code\n   \
+        \ detail: Detailed error message\n    instance: Request path that triggered\
+        \ error (optional)\n    errors: Field-level validation errors (optional, for\
+        \ 422 responses)\n    code: Stable machine-readable error identifier (see\
+        \ ``error_codes``)\n    params: Flat string map for message interpolation\
+        \ on the client\n    extra: Structured data for the client (not for translation)\n\
+        \nExample:\n    {\n        \"type\": \"not_found\",\n        \"title\": \"\
+        Device Not Found\",\n        \"status\": 404,\n        \"detail\": \"Device\
+        \ not found: abc123\",\n        \"instance\": \"/api/devices/abc123\",\n \
+        \       \"errors\": null,\n        \"code\": \"device_not_found\",\n     \
+        \   \"params\": null,\n        \"extra\": null\n    }"
+      properties:
+        type:
+          title: Type
+          type: string
+        title:
+          title: Title
+          type: string
+        status:
+          title: Status
+          type: integer
+        detail:
+          title: Detail
+          type: string
+        instance:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Instance
+        errors:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ErrorItem'
+            type: array
+          - type: 'null'
+          default: null
+          title: Errors
+        code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Code
+        params:
+          anyOf:
+          - additionalProperties:
+              type: string
+            type: object
+          - type: 'null'
+          default: null
+          title: Params
+        extra:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          default: null
+          title: Extra
+      required:
+      - type
+      - title
+      - status
+      - detail
+      title: ErrorDetail
+      type: object
+    ErrorItem:
+      description: 'One field-level error inside ``ErrorDetail.errors``.
+
+
+        ``field`` keeps the legacy dotted location (``body.port``); ``path`` is the
+
+        same location without the leading ``body``/``query``/``path``/``header``
+
+        segment (``port``) and is what clients map to input names.'
+      properties:
+        field:
+          title: Field
+          type: string
+        path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Path
+        message:
+          title: Message
+          type: string
+        type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Type
+        code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Code
+      required:
+      - field
+      - message
+      title: ErrorItem
+      type: object
     FinalizeRequest:
       properties:
         device_ip:
@@ -4633,6 +4958,171 @@ components:
       - ips
       title: SetManualIPsRequest
       description: Request model for setting all manual IPs at once.
+    StereoJob:
+      properties:
+        job_id:
+          type: string
+          title: Job Id
+        operation:
+          type: string
+          enum:
+          - create
+          - remove
+          - recover
+          title: Operation
+        group_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Group Id
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        left_device_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Left Device Id
+        right_device_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Right Device Id
+        state:
+          type: string
+          enum:
+          - running
+          - succeeded
+          - failed
+          title: State
+        step:
+          type: string
+          enum:
+          - validating
+          - backing_up
+          - writing_files
+          - rebooting
+          - waiting_for_devices
+          - verifying
+          - rolling_back
+          - done
+          title: Step
+        started_at:
+          type: string
+          title: Started At
+        finished_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Finished At
+        error_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error Code
+        failed_device_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Failed Device Id
+        rolled_back:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Rolled Back
+      type: object
+      required:
+      - job_id
+      - operation
+      - group_id
+      - name
+      - left_device_id
+      - right_device_id
+      - state
+      - step
+      - started_at
+      - finished_at
+      - error_code
+      - failed_device_id
+      - rolled_back
+      title: StereoJob
+    StereoJobList:
+      properties:
+        jobs:
+          items:
+            $ref: '#/components/schemas/StereoJob'
+          type: array
+          title: Jobs
+      type: object
+      required:
+      - jobs
+      title: StereoJobList
+    StereoPair:
+      properties:
+        group_id:
+          type: string
+          title: Group Id
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        left_device_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Left Device Id
+        right_device_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Right Device Id
+        partial:
+          type: boolean
+          title: Partial
+        inconsistent:
+          type: boolean
+          title: Inconsistent
+      type: object
+      required:
+      - group_id
+      - name
+      - status
+      - left_device_id
+      - right_device_id
+      - partial
+      - inconsistent
+      title: StereoPair
+    StereoPairList:
+      properties:
+        pairs:
+          items:
+            $ref: '#/components/schemas/StereoPair'
+          type: array
+          title: Pairs
+        unreachable_device_ids:
+          items:
+            type: string
+          type: array
+          title: Unreachable Device Ids
+        recovery_needed_device_ids:
+          items:
+            type: string
+          type: array
+          title: Recovery Needed Device Ids
+      type: object
+      required:
+      - pairs
+      - unreachable_device_ids
+      - recovery_needed_device_ids
+      title: StereoPairList
     ValidateHostnameRequest:
       properties:
         hostname:
@@ -4967,112 +5457,3 @@ components:
       - ip
       title: MessageResponse
       description: Generic message response.
-    ErrorItem:
-      description: 'One field-level error inside ``ErrorDetail.errors``.
-
-
-        ``field`` keeps the legacy dotted location (``body.port``); ``path`` is the
-
-        same location without the leading ``body``/``query``/``path``/``header``
-
-        segment (``port``) and is what clients map to input names.'
-      properties:
-        field:
-          title: Field
-          type: string
-        path:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Path
-        message:
-          title: Message
-          type: string
-        type:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Type
-        code:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Code
-      required:
-      - field
-      - message
-      title: ErrorItem
-      type: object
-    ErrorDetail:
-      description: "Standardized error response format (RFC 7807-inspired).\n\nProvides\
-        \ consistent error structure across all API endpoints.\n\nAttributes:\n  \
-        \  type: Error category (validation_error, not_found, server_error, etc.)\n\
-        \    title: Human-readable error title\n    status: HTTP status code\n   \
-        \ detail: Detailed error message\n    instance: Request path that triggered\
-        \ error (optional)\n    errors: Field-level validation errors (optional, for\
-        \ 422 responses)\n    code: Stable machine-readable error identifier (see\
-        \ ``error_codes``)\n    params: Flat string map for message interpolation\
-        \ on the client\n    extra: Structured data for the client (not for translation)\n\
-        \nExample:\n    {\n        \"type\": \"not_found\",\n        \"title\": \"\
-        Device Not Found\",\n        \"status\": 404,\n        \"detail\": \"Device\
-        \ not found: abc123\",\n        \"instance\": \"/api/devices/abc123\",\n \
-        \       \"errors\": null,\n        \"code\": \"device_not_found\",\n     \
-        \   \"params\": null,\n        \"extra\": null\n    }"
-      properties:
-        type:
-          title: Type
-          type: string
-        title:
-          title: Title
-          type: string
-        status:
-          title: Status
-          type: integer
-        detail:
-          title: Detail
-          type: string
-        instance:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Instance
-        errors:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/ErrorItem'
-            type: array
-          - type: 'null'
-          default: null
-          title: Errors
-        code:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Code
-        params:
-          anyOf:
-          - additionalProperties:
-              type: string
-            type: object
-          - type: 'null'
-          default: null
-          title: Params
-        extra:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          default: null
-          title: Extra
-      required:
-      - type
-      - title
-      - status
-      - detail
-      title: ErrorDetail
-      type: object

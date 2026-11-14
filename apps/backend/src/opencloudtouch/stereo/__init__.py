@@ -1,0 +1,1 @@
+"""SoundTouch stereo pairing backend."""

@@ -26,6 +26,7 @@ Keep your SoundTouch® speakers (e.g. SoundTouch® 10/30/300) running — withou
 - Preset programming with local descriptor and playlist endpoints
 - Setup wizard for manual device configuration (SSH/USB)
 - Multi-room zone management
+- Experimental SoundTouch 10 LEFT/RIGHT stereo-pair backend API (SSH setup required; web UI not yet implemented; see [configuration guide](docs/CONFIGURATION.md#stereo-pairs-soundtouch-10))
 - BMX-compatible endpoints for SoundTouch® (including TuneIn stream resolver)
 - Docker deployment on three architectures (amd64, arm64, arm/v7)
 - Pre-built Raspberry Pi SD card images
