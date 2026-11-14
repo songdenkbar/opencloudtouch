@@ -798,3 +798,166 @@ async def test_both_stored_addresses_validated_before_remote_queries(service):
     service.zones.get_zone_status.assert_not_awaited()
     assert not service.busy
     assert not service.tasks
+
+
+@pytest.mark.asyncio
+async def test_group_safe_retries_transient_failures(service):
+    from unittest.mock import AsyncMock, patch
+
+    speaker = await service.repo.get_by_device_id(LEFT)
+    service._group = AsyncMock(side_effect=[OSError("offline"), OSError("offline"), None])
+    with patch("opencloudtouch.stereo.service.asyncio.sleep", new_callable=AsyncMock) as sleep:
+        assert await service._group_safe(speaker) == (None, True)
+    assert service._group.await_count == 3
+    assert sleep.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_group_safe_reports_failure_after_three_attempts(service):
+    from unittest.mock import AsyncMock, patch
+
+    speaker = await service.repo.get_by_device_id(LEFT)
+    service._group = AsyncMock(side_effect=OSError("offline"))
+    with patch("opencloudtouch.stereo.service.asyncio.sleep", new_callable=AsyncMock) as sleep:
+        assert await service._group_safe(speaker) == (None, False)
+    assert service._group.await_count == 3
+    assert sleep.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_list_pairs_reports_unreachable_without_ssh_probe(service):
+    from unittest.mock import AsyncMock
+
+    service._group_safe = AsyncMock(return_value=(None, False))
+    service.backend.leftover = AsyncMock()
+    listing = await service.list_pairs()
+    assert listing["pairs"] == []
+    assert set(listing["unreachable_device_ids"]) == {LEFT, RIGHT}
+    service.backend.leftover.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_list_pairs_ignores_unreadable_recovery_state(service):
+    from unittest.mock import AsyncMock
+
+    service._group_safe = AsyncMock(return_value=(None, True))
+    service.backend.leftover = AsyncMock(side_effect=OSError("SSH lost"))
+    listing = await service.list_pairs()
+    assert listing["pairs"] == []
+    assert listing["recovery_needed_device_ids"] == []
+    assert listing["unreachable_device_ids"] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("missing", [LEFT, RIGHT])
+async def test_create_missing_device_returns_404_and_releases_locks(service, missing):
+    original = service.repo.get_by_device_id.side_effect
+    service.repo.get_by_device_id.side_effect = (
+        lambda key: None if key == missing else original(key)
+    )
+    with pytest.raises(Exception) as exc:
+        await service.create(LEFT, RIGHT, "Test")
+    assert getattr(exc.value, "code", None) == "device_not_found"
+    assert not service.busy
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("side", [LEFT, RIGHT])
+async def test_create_offline_group_query_reports_unreachable(service, side):
+    from unittest.mock import AsyncMock
+
+    async def group_status(speaker):
+        if speaker.device_id == side:
+            return None, False
+        return None, True
+
+    service._group_safe = AsyncMock(side_effect=group_status)
+    with pytest.raises(Exception) as exc:
+        await service.create(LEFT, RIGHT, "Test")
+    assert getattr(exc.value, "code", None) == "device_unreachable"
+    assert not service.busy
+    assert not service.tasks
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("side", [LEFT, RIGHT])
+async def test_create_zone_check_failure_reports_unreachable(service, side):
+    async def get_zone(device_id):
+        if device_id == side:
+            raise OSError("zone API offline")
+        return None
+
+    service.zones.get_zone_status.side_effect = get_zone
+    with pytest.raises(Exception) as exc:
+        await service.create(LEFT, RIGHT, "Test")
+    assert getattr(exc.value, "code", None) == "device_unreachable"
+    assert not service.busy
+
+
+@pytest.mark.asyncio
+async def test_create_rejects_second_device_recovery_artifacts(service):
+    mock_group_store["192.168.1.103"] = StoredGroup(
+        journal={"job_id": "a" * 32, "operation": "create", "had_file": False},
+    )
+    with pytest.raises(Exception) as exc:
+        await service.create(LEFT, RIGHT, "Test")
+    assert getattr(exc.value, "code", None) == "stereo_recovery_needed"
+    assert not service.busy
+
+
+@pytest.mark.asyncio
+async def test_create_rejects_busy_device_without_stealing_lock(service):
+    service.busy.add(RIGHT)
+    with pytest.raises(Exception) as exc:
+        await service.create(LEFT, RIGHT, "Test")
+    assert getattr(exc.value, "code", None) == "stereo_job_in_progress"
+    assert service.busy == {RIGHT}
+
+
+@pytest.mark.asyncio
+async def test_create_rejects_global_job_limit_without_reserving_devices(service):
+    service.tasks = {"a": object(), "b": object()}
+    with pytest.raises(Exception) as exc:
+        await service.create(LEFT, RIGHT, "Test")
+    assert getattr(exc.value, "code", None) == "stereo_job_limit_reached"
+    assert not service.busy
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("missing", [LEFT, RIGHT])
+async def test_remove_detects_missing_persisted_member(service, missing):
+    job = await service.create(LEFT, RIGHT, "Test")
+    await service.tasks[job["job_id"]]
+    group_id = (await service.list_pairs())["pairs"][0]["group_id"]
+    original = service.repo.get_by_device_id.side_effect
+    service.repo.get_by_device_id.side_effect = (
+        lambda key: None if key == missing else original(key)
+    )
+    with pytest.raises(Exception) as exc:
+        await service.remove(group_id)
+    assert getattr(exc.value, "code", None) == "device_unreachable"
+    assert not service.busy
+
+
+@pytest.mark.asyncio
+async def test_remove_rejects_unknown_valid_group(service):
+    with pytest.raises(Exception) as exc:
+        await service.remove("1234567")
+    assert getattr(exc.value, "code", None) == "stereo_pair_not_found"
+    assert not service.busy
+
+
+@pytest.mark.asyncio
+async def test_recover_without_journal_or_backup_reports_nothing_to_recover(service):
+    with pytest.raises(Exception) as exc:
+        await service.recover(LEFT)
+    assert getattr(exc.value, "code", None) == "stereo_nothing_to_recover"
+    assert not service.busy
+
+
+@pytest.mark.asyncio
+async def test_recover_missing_device_reports_404(service):
+    with pytest.raises(Exception) as exc:
+        await service.recover("FFFFFFFFFFFF")
+    assert getattr(exc.value, "code", None) == "device_not_found"
+    assert not service.busy
