@@ -22,7 +22,13 @@ On each affected speaker a job may leave:
 - GroupService.xml.oct-bak.<job_id> — original content when present
 - GroupService.xml.oct-new.<job_id> — staged update
 
-All stereo file changes use OCT's existing SSH write-access guard, which temporarily\nremounts read-only filesystems and restores their previous state. The journal\nrecords whether the original backup has been fully prepared. If preparation\nwas interrupted, recovery cleans incomplete staging without restoring from\na missing backup.\n\nOCT blocks subsequent writes while such files remain. Use
+All stereo file changes use OCT's existing SSH write-access guard, which temporarily
+remounts read-only filesystems and restores their previous state. The journal
+records whether the original backup has been fully prepared. If preparation
+was interrupted, recovery cleans incomplete staging without restoring from
+a missing backup.
+
+OCT blocks subsequent writes while such files remain. Use
 POST /api/stereo-pairs/recover/{device_id} to restore the previous configuration
 from journal and backup, followed by reboot. If the journal indicates that a
 pair was already verified, recovery only cleans leftover artifacts instead of
