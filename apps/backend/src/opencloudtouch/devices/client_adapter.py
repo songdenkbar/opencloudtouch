@@ -566,13 +566,18 @@ class BoseDeviceClientAdapter(DeviceClient):
         )
 
     async def get_group(self) -> GroupInfo | None:
-        """Use native GET /getGroup; do not use the unavailable /addGroup flow."""
+        """Use GET /getGroup; tolerate unavailable or unparseable responses."""
         from opencloudtouch.stereo.group_files import parse_group_xml
 
-        async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, connect=2.0)) as client:
-            response = await client.get(f"{self.base_url}/getGroup")
-            response.raise_for_status()
-            return parse_group_xml(response.content)
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(5.0, connect=2.0)
+            ) as client:
+                response = await client.get(f"{self.base_url}/getGroup")
+                response.raise_for_status()
+                return parse_group_xml(response.content)
+        except httpx.HTTPError:
+            return None
 
     async def get_zone_status(self) -> ZoneStatus | None:
         """Get current zone status from device.
