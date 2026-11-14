@@ -1446,3 +1446,35 @@ async def test_reboot_timeout_restores_survivor_and_keeps_both_journals(service)
     rebooted = service._reboot.await_args.args[0]
     assert [device.device_id for device in rebooted] == [LEFT]
     assert service._wait_reachable.await_count == 1
+
+
+
+@pytest.mark.asyncio
+async def test_existing_pair_validation_precedes_unreachable_peer(service):
+    """The pair-in-use code takes priority over an offline second device."""
+    from opencloudtouch.stereo.group_files import GroupInfo, GroupRole
+
+    async def status(device):
+        if device.device_id == LEFT:
+            return GroupInfo(
+                "1234567", "Existing", LEFT,
+                [GroupRole(LEFT, "LEFT", device.ip)], "GROUP_OK",
+            ), True
+        return None, False
+
+    service._group_safe = status
+    with pytest.raises(Exception) as exc:
+        await service.create(LEFT, RIGHT, "Another stereo")
+    assert getattr(exc.value, "code", None) == "stereo_device_in_pair"
+    assert not service.busy
+    service.devices.reboot_device.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_trailing_newline_name_rejected_before_remote_access(service):
+    """Trimming may not silently normalize an invalid control character."""
+    with pytest.raises(Exception) as exc:
+        await service.create(LEFT, RIGHT, "Pair\\n")
+    assert getattr(exc.value, "code", None) == "stereo_name_invalid"
+    service.repo.get_by_device_id.assert_not_awaited()
+    assert not service.busy
