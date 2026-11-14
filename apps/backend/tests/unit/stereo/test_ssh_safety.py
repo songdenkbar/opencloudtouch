@@ -622,3 +622,26 @@ async def test_ssh_recover_rejects_malformed_persisted_json_before_writes():
     with pytest.raises(RuntimeError, match="stereo_recovery_needed"):
         await RecoveryBackend().recover("192.0.2.10")
     assert calls == [False]
+
+
+
+@pytest.mark.asyncio
+async def test_ssh_journal_rejects_numeric_boolean_and_unknown_operation():
+    """Recovery metadata must be strictly typed before any write is attempted."""
+    import json
+
+    records = [
+        {"job_id": "f" * 32, "operation": "create", "had_file": 0,
+         "state": "committed"},
+        {"job_id": "f" * 32, "operation": "unknown", "had_file": True,
+         "state": "committed"},
+    ]
+
+    for record in records:
+        class InvalidJournal(SSHGroupBackend):
+            async def _run(self, ip, commands, *, writable=False):
+                assert not writable
+                return [json.dumps(record)]
+
+        with pytest.raises(RuntimeError, match="stereo_recovery_needed"):
+            await InvalidJournal().journal_record("192.0.2.10")
