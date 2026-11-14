@@ -832,7 +832,7 @@ class StereoService:
         previous: dict[str, GroupInfo | None],
         cancelled: bool,
     ) -> bool:
-        """Keep recovery artifacts unless restoration and verification succeed."""
+        """Restore reachable speakers; retain all journals if a peer is offline."""
         job["step"] = "rolling_back"
         if not prepared:
             return True
@@ -840,39 +840,55 @@ class StereoService:
         async with phase_budget(
             self.rollback_budget_seconds, "stereo_rollback_failed", clock=self.clock
         ):
-            for device in reversed(prepared):
+            available = prepared
+            unreachable: list[Any] = []
+            if reboot_started and not cancelled:
+                # After a reboot/timeout an offline peer cannot be restored
+                # safely. Continue with the survivor, but do not declare a
+                # complete rollback or delete either device's recovery journal.
+                statuses = await asyncio.gather(
+                    *(self._group_safe(d) for d in prepared)
+                )
+                available = [
+                    device
+                    for device, (_group, reachable) in zip(prepared, statuses)
+                    if reachable
+                ]
+                unreachable = [
+                    device
+                    for device, (_group, reachable) in zip(prepared, statuses)
+                    if not reachable
+                ]
+            for device in reversed(available):
                 try:
                     if await self.backend.leftover(device.ip):
-                        # Before the first commit all original files are intact.
-                        # Cleanup of a staged transaction is enough.
+                        # Before the first commit, original files are intact.
+                        # A cancelled job leaves the journal for explicit recovery.
                         if committed:
                             await self.backend.rollback(device.ip, job["job_id"])
-                        elif cancelled:
-                            # Shutdown leaves the journal as evidence even after
-                            # best-effort file-only restoration.
-                            continue
                 except Exception:
                     complete = False
                     job["failed_device_id"] = device.device_id
             if not complete or cancelled:
                 return False
-            if reboot_started:
-                # A failed reboot command may have rebooted one speaker anyway.
-                # Only request another reboot on currently reachable speakers.
-                online = await asyncio.gather(*(self._group_safe(d) for d in prepared))
-                available = [
-                    d for d, (_group, reachable) in zip(prepared, online) if reachable
-                ]
-                if available:
-                    await self._reboot(available)
-                await self._wait_reachable(prepared)
-            await self._verify_previous(prepared, previous)
-            # Record the verified rollback before removing any backups.
-            # If SSH disconnects during cleanup, recovery can safely resume
-            # from 'restored' without requiring an already-deleted backup.
-            for device in prepared:
+            if reboot_started and available:
+                await self._reboot(available)
+                await self._wait_reachable(available)
+            if available:
+                await self._verify_previous(available, previous)
+
+            # An unreachable peer retains its files and journal. Also retain
+            # the survivor's journal, so a later recovery can make a single
+            # coordinated decision for the original transaction.
+            for device in available:
                 if await self.backend.leftover(device.ip):
                     await self.backend.mark_restored(device.ip, job["job_id"])
+            if unreachable:
+                if job["failed_device_id"] is None:
+                    job["failed_device_id"] = unreachable[0].device_id
+                return False
+
+            # Only a verified, complete rollback may discard the backups.
             for device in prepared:
                 if await self.backend.leftover(device.ip):
                     await self.backend.cleanup(device.ip, job["job_id"])
