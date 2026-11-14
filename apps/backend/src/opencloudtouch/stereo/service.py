@@ -558,12 +558,18 @@ class StereoService:
                     if len(devices) == 2:
                         await self._recover_pair(devices)
                     else:
+                        prior_state = await self.backend.journal_state(left.ip)
                         if not await self.backend.recover(left.ip):
                             raise RuntimeError("stereo_nothing_to_recover")
-                        job["step"] = "rebooting"
-                        await self._reboot(devices)
-                        job["step"] = "waiting_for_devices"
-                        await self._wait_online(devices)
+                        if prior_state in {"verified", "restored", None, "preparing"}:
+                            # Completed decisions and interrupted preparation
+                            # require artifact cleanup only, not another reboot.
+                            pass
+                        else:
+                            job["step"] = "rebooting"
+                            await self._reboot(devices)
+                            job["step"] = "waiting_for_devices"
+                            await self._wait_online(devices)
             else:
                 if operation == "create" and (left is None or right is None):
                     raise RuntimeError("stereo_device_invalid")
