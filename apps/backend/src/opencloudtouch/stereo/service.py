@@ -60,7 +60,7 @@ class StereoService:
         for attempt in range(3):
             try:
                 return await self._group(device), True
-            except (httpx.HTTPError, OSError, ValueError) as exc:
+            except Exception as exc:
                 logger.debug(
                     "Stereo group status unavailable for %s (attempt %d/3): %s",
                     device.device_id, attempt + 1, exc,
