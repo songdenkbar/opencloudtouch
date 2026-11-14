@@ -145,11 +145,11 @@ class SSHGroupBackend:
         from opencloudtouch.setup.ssh_client import SoundTouchSSHClient
 
         ssh = SoundTouchSSHClient(ip)
-        connected = await ssh.connect()
-        if not connected.success:
-            raise OSError("SSH connection failed")
-        output: list[str] = []
         try:
+            connected = await ssh.connect()
+            if not connected.success:
+                raise OSError("SSH connection failed")
+            output: list[str] = []
             async with (ssh.write_access() if writable else nullcontext()):
                 if writable:
                     # write_access remounts read-only / and /mnt/nv, then restores
