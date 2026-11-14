@@ -127,3 +127,13 @@ async def test_http_validation_and_unknown_job(stereo_api):
     missing_group = await client.delete("/api/stereo-pairs/123456")
     assert missing_group.status_code == 404
     assert missing_group.json()["code"] == "stereo_pair_not_found"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("group_id", ["１２３", "١٢٣", "²", "123٤"])
+async def test_http_remove_rejects_unicode_digits(stereo_api, group_id):
+    """The spec requires ASCII [0-9]{1,12}, not Unicode decimal digits."""
+    client, _, _ = stereo_api
+    response = await client.delete(f"/api/stereo-pairs/{group_id}")
+    assert response.status_code == 422
+    assert response.json()["code"] == "stereo_group_id_invalid"
