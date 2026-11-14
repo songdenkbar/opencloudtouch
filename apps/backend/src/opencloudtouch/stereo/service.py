@@ -8,7 +8,8 @@ import secrets
 import uuid
 from datetime import datetime, timezone
 from dataclasses import replace
-from typing import Any
+from typing import Any, Awaitable, Callable
+from time import monotonic
 
 import httpx
 
@@ -55,19 +56,32 @@ class StereoService:
         zone_service: Any,
         *,
         mock_mode: bool = False,
+        backend_factory: Callable[[], GroupBackend] | None = None,
+        clock: Callable[[], float] | None = None,
+        sleep: Callable[[float], Awaitable[None]] | None = None,
+        now: Callable[[], str] | None = None,
     ):
         self.repo = device_repo
         self.devices = device_service
         self.zones = zone_service
         self.mock_mode = mock_mode
         self.backend: GroupBackend = (
-            MockGroupBackend() if mock_mode else SSHGroupBackend()
+            backend_factory()
+            if backend_factory is not None
+            else MockGroupBackend() if mock_mode else SSHGroupBackend()
         )
+        self.clock = clock or monotonic
+        self._sleep_hook = sleep
+        self._now = now or _now
         self.jobs: dict[str, dict[str, Any]] = {}
         self.tasks: dict[str, asyncio.Task[None]] = {}
         self.busy: set[str] = set()
         self.primary_budget_seconds = CREATE_REMOVE_BUDGET_SECONDS
         self.rollback_budget_seconds = ROLLBACK_BUDGET_SECONDS
+
+    async def _sleep(self, seconds: float) -> None:
+        # Resolve asyncio.sleep at call time so existing test patches work too.
+        await (self._sleep_hook or asyncio.sleep)(seconds)
 
     async def _group(self, device: Any) -> GroupInfo | None:
         if self.mock_mode:
@@ -93,7 +107,7 @@ class StereoService:
                     exc,
                 )
                 if attempt < 2:
-                    await asyncio.sleep(0.5)
+                    await self._sleep(0.5)
         return None, False
 
     async def list_pairs(self) -> dict[str, Any]:
@@ -341,7 +355,7 @@ class StereoService:
             "right_device_id": ids[1] if op != "recover" and len(ids) > 1 else None,
             "state": "running",
             "step": "backing_up",
-            "started_at": _now(),
+            "started_at": self._now(),
             "finished_at": None,
             "error_code": None,
             "failed_device_id": ids[0] if op == "recover" else None,
@@ -642,7 +656,7 @@ class StereoService:
                 ):
                     break
                 if attempt < 5:
-                    await asyncio.sleep(0 if self.mock_mode else 10)
+                    await self._sleep(0 if self.mock_mode else 10)
             else:
                 raise RuntimeError("stereo_rollback_failed")
 
@@ -693,13 +707,13 @@ class StereoService:
             for _ in range(30):
                 if not await self._info_online(device):
                     break
-                await asyncio.sleep(2)
+                await self._sleep(2)
             else:
                 raise StereoDeviceFailure("stereo_timeout", device.device_id)
             for _ in range(36):
                 if await self._info_online(device):
                     return
-                await asyncio.sleep(5)
+                await self._sleep(5)
             raise StereoDeviceFailure("stereo_timeout", device.device_id)
 
         await asyncio.gather(*(wait_one(d) for d in devices))
@@ -731,7 +745,7 @@ class StereoService:
                         for g, _ok in groups
                     ):
                         return
-            await asyncio.sleep(10 if not self.mock_mode else 0)
+            await self._sleep(10 if not self.mock_mode else 0)
         expected_roles = (
             {(devices[0].device_id, "LEFT"), (devices[1].device_id, "RIGHT")}
             if len(devices) == 2
@@ -778,7 +792,7 @@ class StereoService:
             ):
                 return
             if attempt < 5:
-                await asyncio.sleep(0 if self.mock_mode else 10)
+                await self._sleep(0 if self.mock_mode else 10)
         for device, (group, reachable) in zip(devices, responses):
             if not reachable or group != previous[device.device_id]:
                 raise StereoDeviceFailure("stereo_rollback_failed", device.device_id)
@@ -797,7 +811,7 @@ class StereoService:
             for _ in range(36):
                 if await self._info_online(device):
                     return
-                await asyncio.sleep(5)
+                await self._sleep(5)
             raise StereoDeviceFailure("stereo_timeout", device.device_id)
 
         await asyncio.gather(*(wait_one(d) for d in devices))
@@ -817,7 +831,9 @@ class StereoService:
         if not prepared:
             return True
         complete = True
-        async with phase_budget(self.rollback_budget_seconds, "stereo_rollback_failed"):
+        async with phase_budget(
+            self.rollback_budget_seconds, "stereo_rollback_failed", clock=self.clock
+        ):
             for device in reversed(prepared):
                 try:
                     if await self.backend.leftover(device.ip):
@@ -874,7 +890,9 @@ class StereoService:
             if operation == "recover":
                 if left is None:
                     raise RuntimeError("stereo_device_invalid")
-                async with phase_budget(self.primary_budget_seconds, "stereo_timeout"):
+                async with phase_budget(
+                    self.primary_budget_seconds, "stereo_timeout", clock=self.clock
+                ):
                     job["step"] = "rolling_back"
                     if len(devices) == 2:
                         await self._recover_pair(devices)
@@ -897,7 +915,9 @@ class StereoService:
             else:
                 if operation == "create" and (left is None or right is None):
                     raise RuntimeError("stereo_device_invalid")
-                async with phase_budget(self.primary_budget_seconds, "stereo_timeout"):
+                async with phase_budget(
+                    self.primary_budget_seconds, "stereo_timeout", clock=self.clock
+                ):
                     # Capture the exact old firmware state on every processed
                     # device; a rollback must restore that state, not merely
                     # pass the verification rules of the opposite operation.
@@ -1012,7 +1032,7 @@ class StereoService:
                     "Stereo job cancelled; recovery files retained if needed"
                 )
         finally:
-            job["finished_at"] = _now()
+            job["finished_at"] = self._now()
 
     async def shutdown(self) -> None:
         tasks = list(self.tasks.values())
