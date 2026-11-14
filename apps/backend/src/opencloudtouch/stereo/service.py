@@ -479,14 +479,23 @@ class StereoService:
                 # verified journal can be cleaned by explicit recovery.
                 job["rolled_back"] = False
             elif prepared:
+                # Own the rollback task explicitly. On shutdown, shield() by
+                # itself would return immediately on cancellation and leave an
+                # orphan rollback task running after the device lock is freed.
+                rollback_task = asyncio.create_task(self._rollback_job(
+                    job, prepared, committed=committed,
+                    reboot_started=reboot_started and not cancelled,
+                    previous=previous, cancelled=cancelled,
+                ))
                 try:
-                    # The second deadline starts only when the main operation
-                    # fails; shutdown uses file-only best effort, no reboot.
-                    restored = await asyncio.shield(self._rollback_job(
-                        job, prepared, committed=committed,
-                        reboot_started=reboot_started and not cancelled,
-                        previous=previous, cancelled=cancelled,
-                    ))
+                    restored = await asyncio.shield(rollback_task)
+                except asyncio.CancelledError:
+                    # Finish the bounded file-only rollback before the parent
+                    # task becomes done and its lock is released.
+                    try:
+                        restored = await rollback_task
+                    except BaseException:
+                        restored = False
                 except BaseException:
                     restored = False
                 job["rolled_back"] = restored
