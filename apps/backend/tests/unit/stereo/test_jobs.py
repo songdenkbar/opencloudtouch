@@ -397,25 +397,32 @@ async def test_recover_both_unverified_speakers_restores_original_pair_state(ser
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    strict=True,
-    reason="Known issue: per-device recovery cannot coordinate a partly verified stereo pair",
-)
-async def test_recover_mixed_verification_must_not_leave_split_pair(service):
-    """A crash between mark_verified calls needs coordinated recovery."""
-    backend = MockGroupBackend()
+async def test_recover_mixed_verification_preserves_pair_via_service(service):
+    """A crash between verified markers is resolved by a paired decision."""
+    from opencloudtouch.stereo.group_files import build_group_xml
+
+    backend = service.backend
     job_id = "c" * 32
     left_ip, right_ip = "192.168.1.101", "192.168.1.103"
-    for ip in (left_ip, right_ip):
-        await backend.prepare(ip, job_id, "create", "<new-stereo/>")
+    for ip, right_file in ((left_ip, False), (right_ip, True)):
+        content = build_group_xml(
+            "8765432", "Recovered", LEFT, left_ip, RIGHT, right_ip,
+            right_file=right_file,
+        )
+        await backend.prepare(ip, job_id, "create", content)
         await backend.commit(ip, job_id)
 
-    # Simulate a process crash after verifying only the left speaker.
     await backend.mark_verified(left_ip, job_id)
-    await backend.recover(left_ip)
-    await backend.recover(right_ip)
+    recovery = await service.recover(RIGHT)
+    await service.tasks[recovery["job_id"]]
 
-    assert mock_group_store[left_ip].content == mock_group_store[right_ip].content
+    assert service.job(recovery["job_id"])["state"] == "succeeded"
+    pair = (await service.list_pairs())["pairs"]
+    assert len(pair) == 1
+    assert pair[0]["partial"] is False
+    assert pair[0]["inconsistent"] is False
+    assert pair[0]["group_id"] == "8765432"
+    assert not any([await backend.leftover(ip) for ip in (left_ip, right_ip)])
 
 
 @pytest.mark.asyncio
@@ -530,3 +537,86 @@ async def test_service_recovery_restarts_after_interrupted_rollback_decision(ser
     assert service.job(second["job_id"])["state"] == "succeeded"
     assert all(mock_group_store[ip].content is None for ip in ips)
     assert not any([await backend.leftover(ip) for ip in ips])
+
+
+@pytest.mark.asyncio
+async def test_recovery_can_resume_after_interruption_between_cleanups(service):
+    """Once both journals say restored, finishing either cleanup is safe."""
+    class InterruptedCleanup(MockGroupBackend):
+        def __init__(self):
+            self.calls = 0
+
+        async def cleanup(self, ip, job):
+            self.calls += 1
+            if self.calls == 2:
+                raise OSError("crash during second cleanup")
+            await super().cleanup(ip, job)
+
+    backend = InterruptedCleanup()
+    service.backend = backend
+    job_id = "d" * 32
+    ips = ("192.168.1.101", "192.168.1.103")
+    for ip in ips:
+        await backend.prepare(ip, job_id, "create", "<new-stereo/>")
+        await backend.commit(ip, job_id)
+
+    first = await service.recover(LEFT)
+    await service.tasks[first["job_id"]]
+    assert service.job(first["job_id"])["state"] == "failed"
+    assert sum([await backend.leftover(ip) for ip in ips]) == 1
+
+    second = await service.recover(RIGHT)
+    await service.tasks[second["job_id"]]
+    assert service.job(second["job_id"])["state"] == "succeeded"
+    assert not any([await backend.leftover(ip) for ip in ips])
+    assert all(mock_group_store[ip].content is None for ip in ips)
+    service.devices.reboot_device.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_pair_recovery_refuses_unreachable_peer_without_writes(service):
+    """An unknown peer state must not cause unilateral restoration."""
+    backend = service.backend
+    job_id = "e" * 32
+    ips = ("192.168.1.101", "192.168.1.103")
+    for ip in ips:
+        await backend.prepare(ip, job_id, "create", "<new-stereo/>")
+        await backend.commit(ip, job_id)
+
+    original_record = backend.journal_record
+
+    async def failing_record(ip):
+        if ip == ips[1]:
+            raise OSError("speaker unavailable")
+        return await original_record(ip)
+
+    backend.journal_record = failing_record
+    with pytest.raises(Exception) as exc:
+        await service.recover(LEFT)
+    assert getattr(exc.value, "code", None) == "device_unreachable"
+    assert all(mock_group_store[ip].content == "<new-stereo/>" for ip in ips)
+    assert all(mock_group_store[ip].journal is not None for ip in ips)
+    assert not service.busy
+
+
+@pytest.mark.asyncio
+async def test_verified_cleanup_only_does_not_reboot_device(service):
+    """A leftover verified marker does not require changing speaker state."""
+    ip = "192.168.1.101"
+    job_id = "f" * 32
+    mock_group_store[ip] = StoredGroup(
+        content="<existing/>",
+        backup="<original/>",
+        journal={
+            "job_id": job_id,
+            "operation": "create",
+            "had_file": True,
+            "state": "verified",
+        },
+    )
+    recovery = await service.recover(LEFT)
+    await service.tasks[recovery["job_id"]]
+    assert service.job(recovery["job_id"])["state"] == "succeeded"
+    assert mock_group_store[ip].content == "<existing/>"
+    assert not await service.backend.leftover(ip)
+    service.devices.reboot_device.assert_not_awaited()
