@@ -322,7 +322,9 @@ async def test_ssh_cleanup_interruption_preserves_journal_and_can_retry(fail_at)
     backend = SSHGroupBackend()
     journal, backup, stage = backend._suffix(job)
     original_group = "<group id='123'/>"
+    from opencloudtouch.stereo.group_files import GROUP_FILE
     files = {
+        GROUP_FILE: original_group,
         journal: json.dumps({
             "job_id": job, "operation": "create",
             "had_file": False, "state": "verified",
@@ -357,9 +359,9 @@ async def test_ssh_cleanup_interruption_preserves_journal_and_can_retry(fail_at)
     assert journal in files, "Journal must be the last artifact removed"
 
     # The real group file is not part of cleanup, even on a retry.
-    assert original_group == "<group id='123'/>"
+    assert files[GROUP_FILE] == original_group
     await interrupted.cleanup("192.0.2.10", job)
-    assert files == {}
+    assert files == {GROUP_FILE: original_group}
 
 
 @pytest.mark.asyncio
