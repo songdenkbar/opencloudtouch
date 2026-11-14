@@ -1283,6 +1283,26 @@ async def test_recover_pair_with_unfinished_second_preparation(service):
 
 
 @pytest.mark.asyncio
+async def test_pair_recovery_job_identifies_requested_device_not_sorted_first(service):
+    """The requested recovery target must survive pair-wide device sorting."""
+    backend = service.backend
+    job_id = "a" * 32
+    left_ip, right_ip = "192.168.1.101", "192.168.1.103"
+    # RIGHT sorts before LEFT by device ID, but recovery is requested for LEFT.
+    assert RIGHT < LEFT
+    for ip in (left_ip, right_ip):
+        await backend.prepare(ip, job_id, "create", "<group />")
+    recovery = await service.recover(LEFT)
+    assert recovery["failed_device_id"] == LEFT
+    await service.tasks[recovery["job_id"]]
+    result = service.job(recovery["job_id"])
+    assert result["state"] == "succeeded", result
+    assert result["failed_device_id"] == LEFT
+    assert not await backend.leftover(left_ip)
+    assert not await backend.leftover(right_ip)
+
+
+@pytest.mark.asyncio
 async def test_recover_pair_preparing_peer_with_original_file(service):
     """A preparing peer's original must be read from the untouched file."""
     backend = service.backend
