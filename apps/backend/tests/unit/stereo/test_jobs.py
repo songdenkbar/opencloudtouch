@@ -621,3 +621,27 @@ async def test_verified_cleanup_only_does_not_reboot_device(service):
     assert mock_group_store[ip].content == "<existing/>"
     assert not await service.backend.leftover(ip)
     service.devices.reboot_device.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_pair_recovery_after_backup_deleted_but_journals_restored(service):
+    """Resume cleanup after SSH loses connection between rm backup and rm journal."""
+    backend = service.backend
+    job_id = "9" * 32
+    ips = ("192.168.1.101", "192.168.1.103")
+    for ip in ips:
+        mock_group_store[ip] = StoredGroup(
+            content="<original/>",
+            backup=None,  # Previous cleanup already removed the backup.
+            journal={
+                "job_id": job_id, "operation": "remove",
+                "had_file": True, "state": "restored",
+            },
+        )
+
+    recovery = await service.recover(LEFT)
+    await service.tasks[recovery["job_id"]]
+    assert service.job(recovery["job_id"])["state"] == "succeeded"
+    assert not any([await backend.leftover(ip) for ip in ips])
+    assert all(mock_group_store[ip].content == "<original/>" for ip in ips)
+    service.devices.reboot_device.assert_not_awaited()
