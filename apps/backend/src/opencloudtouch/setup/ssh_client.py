@@ -18,7 +18,10 @@ import shlex
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import AsyncIterator, Optional, Sequence
+from typing import TYPE_CHECKING, AsyncIterator, Optional, Sequence, cast
+
+if TYPE_CHECKING:
+    import asyncssh
 
 from opencloudtouch.core import device_timing
 
@@ -65,7 +68,7 @@ class SoundTouchSSHClient:
     def __init__(self, host: str, port: int = 22):
         self.host = host
         self.port = port
-        self._connection = None
+        self._connection: Optional["asyncssh.SSHClientConnection"] = None
 
     async def connect(self, timeout: float = 10.0) -> SSHConnectionResult:
         """Establish the SSH connection and record how long it took."""
@@ -179,8 +182,9 @@ class SoundTouchSSHClient:
 
             result = await self._connection.run(command)
 
-            output = result.stdout or ""
-            stderr = result.stderr or ""
+            # AsyncSSH uses UTF-8 text output by default.
+            output = cast(str, result.stdout) or ""
+            stderr = cast(str, result.stderr) or ""
 
             if stderr:
                 output += f"\n[stderr]: {stderr}"
