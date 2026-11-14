@@ -90,7 +90,6 @@ def test_unparseable_or_unsafe_xml_returns_none(xml: str) -> None:
     assert parse_group_xml(xml) is None
 
 
-
 def test_group_models_use_the_device_client_contract():
     """No duplicate GroupInfo/GroupRole types between client and XML parser."""
     from opencloudtouch.devices.client import (

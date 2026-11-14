@@ -422,7 +422,9 @@ class StereoService:
                 if not force or (left is None and right is None):
                     missing_id = ids[0] if left is None else ids[1]
                     raise_coded(
-                        503, "device_unreachable", "Pair member missing",
+                        503,
+                        "device_unreachable",
+                        "Pair member missing",
                         params={"device_id": missing_id},
                     )
             reachable: list[Any] = []
@@ -531,7 +533,9 @@ class StereoService:
             if peer_record and peer_record["job_id"] == record["job_id"]:
                 participants.append((candidate, peer_record))
         if len(participants) == 1 and record["state"] in {
-            "verified", "restored", "preparing"
+            "verified",
+            "restored",
+            "preparing",
         }:
             # An isolated preparation cannot have changed GroupService.xml.
             # For an already final decision, only artifacts remain.

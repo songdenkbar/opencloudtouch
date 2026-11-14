@@ -1239,7 +1239,6 @@ async def test_busy_device_error_contains_device_id(service):
     assert error.params == {"device_id": RIGHT}
 
 
-
 @pytest.mark.asyncio
 async def test_recover_pair_with_unfinished_second_preparation(service):
     """An absent backup on a preparing peer must not block paired recovery."""
@@ -1249,7 +1248,12 @@ async def test_recover_pair_with_unfinished_second_preparation(service):
     from opencloudtouch.stereo.group_files import build_group_xml
 
     staged = build_group_xml(
-        "1234567", "Interrupted", LEFT, left_ip, RIGHT, right_ip,
+        "1234567",
+        "Interrupted",
+        LEFT,
+        left_ip,
+        RIGHT,
+        right_ip,
         right_file=False,
     )
     # LEFT was committed; RIGHT crashed immediately after writing its journal
@@ -1259,8 +1263,10 @@ async def test_recover_pair_with_unfinished_second_preparation(service):
     mock_group_store[right_ip] = StoredGroup(
         content=None,
         journal={
-            "job_id": job_id, "operation": "create",
-            "had_file": False, "state": "preparing",
+            "job_id": job_id,
+            "operation": "create",
+            "had_file": False,
+            "state": "preparing",
         },
         backup=None,
         staged=None,
@@ -1286,8 +1292,10 @@ async def test_recover_pair_preparing_peer_with_original_file(service):
     mock_group_store[right_ip] = StoredGroup(
         content=original,
         journal={
-            "job_id": job_id, "operation": "remove",
-            "had_file": True, "state": "preparing",
+            "job_id": job_id,
+            "operation": "remove",
+            "had_file": True,
+            "state": "preparing",
         },
     )
     mock_group_store[left_ip] = StoredGroup(content=original)
@@ -1303,7 +1311,6 @@ async def test_recover_pair_preparing_peer_with_original_file(service):
     assert not await backend.leftover(right_ip)
 
 
-
 @pytest.mark.asyncio
 async def test_force_remove_when_peer_missing_from_repository(service):
     """force=true removes the file on the surviving registered speaker."""
@@ -1313,8 +1320,8 @@ async def test_force_remove_when_peer_missing_from_repository(service):
     original_get = service.repo.get_by_device_id.side_effect
     surviving = await service.repo.get_by_device_id(LEFT)
     service.repo.get_all.return_value = [surviving]
-    service.repo.get_by_device_id.side_effect = (
-        lambda key: None if key == RIGHT else original_get(key)
+    service.repo.get_by_device_id.side_effect = lambda key: (
+        None if key == RIGHT else original_get(key)
     )
     with pytest.raises(Exception) as exc:
         await service.remove(group_id, force=False)
@@ -1326,7 +1333,6 @@ async def test_force_remove_when_peer_missing_from_repository(service):
     assert result["state"] == "succeeded", result
     assert mock_group_store["192.168.1.101"].content is None
     assert mock_group_store["192.168.1.103"].content is not None
-
 
 
 @pytest.mark.asyncio
@@ -1343,7 +1349,9 @@ async def test_injected_backend_and_fake_sleep_are_used(service):
         elapsed[0] += seconds
 
     injected = StereoService(
-        service.repo, service.devices, service.zones,
+        service.repo,
+        service.devices,
+        service.zones,
         mock_mode=True,
         backend_factory=lambda: backend,
         clock=lambda: elapsed[0],
@@ -1365,7 +1373,6 @@ async def test_injected_backend_and_fake_sleep_are_used(service):
     assert injected.job(created["job_id"])["state"] == "succeeded"
     assert injected.job(created["job_id"])["started_at"] == "2026-01-01T00:00:00Z"
     assert injected.job(created["job_id"])["finished_at"] == "2026-01-01T00:00:00Z"
-
 
 
 @pytest.mark.asyncio
