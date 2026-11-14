@@ -3,6 +3,7 @@
 Pure XML generation and parsing only: no SSH writes or reboots happen here.
 The left speaker is the master; only the right file has GROUP_OK status.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -71,16 +72,16 @@ def build_group_xml(
     return (
         '<?xml version="1.0" encoding="UTF-8" ?>\n'
         f'<group id="{group_id}">\n'
-        f'  <name>{safe_name}</name>\n'
-        f'  <masterDeviceId>{left_device_id}</masterDeviceId>\n'
-        '  <roles>\n'
-        f'    <groupRole><deviceId>{left_device_id}</deviceId>'
-        f'<role>LEFT</role><ipAddress>{left_ip}</ipAddress></groupRole>\n'
-        f'    <groupRole><deviceId>{right_device_id}</deviceId>'
-        f'<role>RIGHT</role><ipAddress>{right_ip}</ipAddress></groupRole>\n'
-        '  </roles>\n'
-        f'  <senderIPAddress>{left_ip}</senderIPAddress>\n'
-        f'{status}</group>\n'
+        f"  <name>{safe_name}</name>\n"
+        f"  <masterDeviceId>{left_device_id}</masterDeviceId>\n"
+        "  <roles>\n"
+        f"    <groupRole><deviceId>{left_device_id}</deviceId>"
+        f"<role>LEFT</role><ipAddress>{left_ip}</ipAddress></groupRole>\n"
+        f"    <groupRole><deviceId>{right_device_id}</deviceId>"
+        f"<role>RIGHT</role><ipAddress>{right_ip}</ipAddress></groupRole>\n"
+        "  </roles>\n"
+        f"  <senderIPAddress>{left_ip}</senderIPAddress>\n"
+        f"{status}</group>\n"
     )
 
 
@@ -99,11 +100,13 @@ def parse_group_xml(xml: str | bytes) -> GroupInfo | None:
             device_id = node.findtext("deviceId")
             role = node.findtext("role")
             if device_id and role:
-                roles.append(GroupRole(
-                    device_id=device_id,
-                    role=role,
-                    ip_address=node.findtext("ipAddress"),
-                ))
+                roles.append(
+                    GroupRole(
+                        device_id=device_id,
+                        role=role,
+                        ip_address=node.findtext("ipAddress"),
+                    )
+                )
         return GroupInfo(
             group_id=group_id,
             name=root.findtext("name"),

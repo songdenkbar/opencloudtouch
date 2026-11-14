@@ -37,7 +37,9 @@ async def test_ssh_write_access_restored_on_command_failure():
             events.append(command)
             if command.startswith("test -d"):
                 return SimpleNamespace(success=True, output="")
-            return SimpleNamespace(success=False, output="", error="simulated write error")
+            return SimpleNamespace(
+                success=False, output="", error="simulated write error"
+            )
 
         async def close(self):
             events.append("close")
@@ -124,7 +126,9 @@ async def test_ssh_preparation_publishes_prepared_only_after_backup():
     final_commands = commands[2][0]
     assert any(isinstance(cmd, str) and cmd.startswith("cp ") for cmd in final_commands)
     assert final_commands[-1].startswith("mv ")
-    assert final_commands[-1].endswith(".oct-job.tmp /mnt/nv/BoseApp-Persistence/1/GroupService.xml.oct-job")
+    assert final_commands[-1].endswith(
+        ".oct-job.tmp /mnt/nv/BoseApp-Persistence/1/GroupService.xml.oct-job"
+    )
     assert all(writable for _, writable in commands[1:])
 
 
@@ -152,7 +156,6 @@ async def test_ssh_preparation_backup_failure_keeps_preparing_journal():
     assert writes[0][-1].startswith("mv ")
 
 
-
 @pytest.mark.asyncio
 async def test_orphan_initial_journal_upload_is_cleaned_without_touching_group():
     commands = []
@@ -168,10 +171,14 @@ async def test_orphan_initial_journal_upload_is_cleaned_without_touching_group()
 
     backend = InterruptedUpload()
     assert await backend.recover("192.0.2.10") is True
-    assert any("rm -f" in str(command) and ".oct-job.tmp" in str(command)
-               for command in commands)
-    assert not any(str(command).startswith("rm -f /mnt/nv/BoseApp-Persistence/1/GroupService.xml ")
-                   for command in commands)
+    assert any(
+        "rm -f" in str(command) and ".oct-job.tmp" in str(command)
+        for command in commands
+    )
+    assert not any(
+        str(command).startswith("rm -f /mnt/nv/BoseApp-Persistence/1/GroupService.xml ")
+        for command in commands
+    )
 
 
 @pytest.mark.asyncio
@@ -269,10 +276,14 @@ async def test_ssh_missing_backup_blocks_rollback_before_file_changes():
     import json
 
     job = "b" * 32
-    journal = json.dumps({
-        "job_id": job, "operation": "remove",
-        "had_file": True, "state": "committed",
-    })
+    journal = json.dumps(
+        {
+            "job_id": job,
+            "operation": "remove",
+            "had_file": True,
+            "state": "committed",
+        }
+    )
     executed = []
 
     class MissingBackup(SSHGroupBackend):
@@ -296,13 +307,15 @@ async def test_ssh_missing_backup_blocks_rollback_before_file_changes():
     with pytest.raises(OSError, match="SSH command failed"):
         await MissingBackup().rollback("192.0.2.10", job)
     assert any(str(command).startswith("test -s ") for command in executed)
-    assert not any(str(command).startswith(("cp ", "rm -f ", "mv "))
-                   for command in executed)
+    assert not any(
+        str(command).startswith(("cp ", "rm -f ", "mv ")) for command in executed
+    )
 
 
 @pytest.mark.asyncio
 async def test_ssh_invalid_journal_does_not_trigger_recovery_writes():
     """Malformed durable transaction evidence must fail closed."""
+
     class CorruptJournal(SSHGroupBackend):
         async def _run(self, ip, commands, *, writable=False):
             assert not writable
@@ -323,12 +336,17 @@ async def test_ssh_cleanup_interruption_preserves_journal_and_can_retry(fail_at)
     journal, backup, stage = backend._suffix(job)
     original_group = "<group id='123'/>"
     from opencloudtouch.stereo.group_files import GROUP_FILE
+
     files = {
         GROUP_FILE: original_group,
-        journal: json.dumps({
-            "job_id": job, "operation": "create",
-            "had_file": False, "state": "verified",
-        }),
+        journal: json.dumps(
+            {
+                "job_id": job,
+                "operation": "create",
+                "had_file": False,
+                "state": "verified",
+            }
+        ),
         backup: "<old/>",
         stage: "staged",
         journal + ".tmp": "temporary",
@@ -346,7 +364,7 @@ async def test_ssh_cleanup_interruption_preserves_journal_and_can_retry(fail_at)
                     removal_count += 1
                     if removal_count == fail_at:
                         raise OSError("simulated SSH interruption")
-                    for pathname in command[len("rm -f "):].split():
+                    for pathname in command[len("rm -f ") :].split():
                         files.pop(pathname, None)
                     output.append("")
                 else:
@@ -390,29 +408,44 @@ async def test_ssh_cleanup_command_order_keeps_journal_last():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("state", ["preparing", "prepared", "committed", "verified", "restored"])
+@pytest.mark.parametrize(
+    "state", ["preparing", "prepared", "committed", "verified", "restored"]
+)
 async def test_ssh_journal_state_reads_supported_states(state):
     import json
 
     job = "e" * 32
+
     class JournalBackend(SSHGroupBackend):
         async def _run(self, ip, commands, *, writable=False):
             assert not writable
-            return [json.dumps({
-                "job_id": job, "operation": "create",
-                "had_file": False, "state": state,
-            })]
+            return [
+                json.dumps(
+                    {
+                        "job_id": job,
+                        "operation": "create",
+                        "had_file": False,
+                        "state": state,
+                    }
+                )
+            ]
 
     assert await JournalBackend().journal_state("192.0.2.10") == state
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("raw", [
-    "", "[]", "null", '{"job_id":"bad","had_file":false,"state":"committed"}',
-    '{"job_id":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","had_file":"false","state":"committed"}',
-    '{"job_id":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","had_file":false,"state":"unknown"}',
-    "{malformed",
-])
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "",
+        "[]",
+        "null",
+        '{"job_id":"bad","had_file":false,"state":"committed"}',
+        '{"job_id":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","had_file":"false","state":"committed"}',
+        '{"job_id":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","had_file":false,"state":"unknown"}',
+        "{malformed",
+    ],
+)
 async def test_ssh_journal_rejects_missing_or_corrupt_data(raw):
     class JournalBackend(SSHGroupBackend):
         async def _run(self, ip, commands, *, writable=False):
@@ -427,20 +460,29 @@ async def test_ssh_journal_rejects_missing_or_corrupt_data(raw):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("had_file,backup", [(False, ""), (True, "<original/>"), (True, "")])
+@pytest.mark.parametrize(
+    "had_file,backup", [(False, ""), (True, "<original/>"), (True, "")]
+)
 async def test_ssh_previous_content_requires_valid_backup(had_file, backup):
     import json
 
     job = "e" * 32
     calls = []
+
     class BackupBackend(SSHGroupBackend):
         async def _run(self, ip, commands, *, writable=False):
             calls.extend(commands)
             if "oct-job" in commands[0]:
-                return [json.dumps({
-                    "job_id": job, "operation": "create",
-                    "had_file": had_file, "state": "committed",
-                })]
+                return [
+                    json.dumps(
+                        {
+                            "job_id": job,
+                            "operation": "create",
+                            "had_file": had_file,
+                            "state": "committed",
+                        }
+                    )
+                ]
             return [backup]
 
     backend = BackupBackend()
@@ -456,11 +498,14 @@ async def test_ssh_previous_content_requires_valid_backup(had_file, backup):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("had_file,state,expected", [
-    (True, "committed", "cp "),
-    (False, "committed", "rm -f "),
-    (True, "preparing", "rm -f "),
-])
+@pytest.mark.parametrize(
+    "had_file,state,expected",
+    [
+        (True, "committed", "cp "),
+        (False, "committed", "rm -f "),
+        (True, "preparing", "rm -f "),
+    ],
+)
 async def test_ssh_rollback_uses_original_file_or_safe_preparing_cleanup(
     had_file, state, expected
 ):
@@ -468,14 +513,21 @@ async def test_ssh_rollback_uses_original_file_or_safe_preparing_cleanup(
 
     job = "e" * 32
     calls = []
+
     class RollbackBackend(SSHGroupBackend):
         async def _run(self, ip, commands, *, writable=False):
             calls.append((list(commands), writable))
             if not writable:
-                return [json.dumps({
-                    "job_id": job, "operation": "create",
-                    "had_file": had_file, "state": state,
-                })]
+                return [
+                    json.dumps(
+                        {
+                            "job_id": job,
+                            "operation": "create",
+                            "had_file": had_file,
+                            "state": state,
+                        }
+                    )
+                ]
             return [""] * len(commands)
 
     await RollbackBackend().rollback("192.0.2.10", job)
@@ -491,6 +543,7 @@ async def test_ssh_rollback_uses_original_file_or_safe_preparing_cleanup(
 @pytest.mark.parametrize("removing", [False, True])
 async def test_ssh_commit_uses_expected_atomic_file_action(removing):
     calls = []
+
     class CommitBackend(SSHGroupBackend):
         async def _run(self, ip, commands, *, writable=False):
             calls.append((list(commands), writable))
@@ -503,10 +556,15 @@ async def test_ssh_commit_uses_expected_atomic_file_action(removing):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("state,expect_rollback", [
-    ("committed", True), ("verified", False), ("restored", False),
-    ("preparing", False),
-])
+@pytest.mark.parametrize(
+    "state,expect_rollback",
+    [
+        ("committed", True),
+        ("verified", False),
+        ("restored", False),
+        ("preparing", False),
+    ],
+)
 async def test_ssh_recovery_dispatches_rollback_only_when_needed(
     state, expect_rollback
 ):
@@ -514,14 +572,23 @@ async def test_ssh_recovery_dispatches_rollback_only_when_needed(
 
     job = "e" * 32
     calls = []
+
     class RecoveryBackend(SSHGroupBackend):
         async def _run(self, ip, commands, *, writable=False):
-            return [json.dumps({
-                "job_id": job, "operation": "create",
-                "had_file": False, "state": state,
-            })]
+            return [
+                json.dumps(
+                    {
+                        "job_id": job,
+                        "operation": "create",
+                        "had_file": False,
+                        "state": state,
+                    }
+                )
+            ]
+
         async def rollback(self, ip, job_id):
             calls.append("rollback")
+
         async def cleanup(self, ip, job_id):
             calls.append("cleanup")
 
@@ -532,6 +599,7 @@ async def test_ssh_recovery_dispatches_rollback_only_when_needed(
 @pytest.mark.asyncio
 async def test_ssh_recover_without_any_artifacts_is_noop():
     calls = []
+
     class RecoveryBackend(SSHGroupBackend):
         async def _run(self, ip, commands, *, writable=False):
             calls.append((list(commands), writable))
@@ -545,6 +613,7 @@ async def test_ssh_recover_without_any_artifacts_is_noop():
 @pytest.mark.asyncio
 async def test_ssh_recover_rejects_malformed_persisted_json_before_writes():
     calls = []
+
     class RecoveryBackend(SSHGroupBackend):
         async def _run(self, ip, commands, *, writable=False):
             calls.append(writable)

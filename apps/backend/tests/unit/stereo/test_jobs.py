@@ -1,4 +1,5 @@
 """Mock-mode stereo lifecycle and rollback regression tests."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -6,10 +7,13 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from opencloudtouch.stereo.group_backend import MockGroupBackend, StoredGroup, mock_group_store
+from opencloudtouch.stereo.group_backend import (
+    MockGroupBackend,
+    StoredGroup,
+    mock_group_store,
+)
 from opencloudtouch.stereo.group_files import parse_group_xml
 from opencloudtouch.stereo.service import StereoService
-
 
 LEFT = "DDEEFF445566"
 RIGHT = "A1B2C3D4E5F6"
@@ -17,7 +21,9 @@ RIGHT = "A1B2C3D4E5F6"
 
 def device(device_id: str, ip: str):
     return SimpleNamespace(
-        device_id=device_id, ip=ip, model="SoundTouch 10",
+        device_id=device_id,
+        ip=ip,
+        model="SoundTouch 10",
         ssh_permanent=False,
     )
 
@@ -35,9 +41,12 @@ def service():
     right = device(RIGHT, "192.168.1.103")
     repo = SimpleNamespace(
         get_all=AsyncMock(return_value=[left, right]),
-        get_by_device_id=AsyncMock(side_effect=lambda key: {
-            LEFT: left, RIGHT: right,
-        }.get(key)),
+        get_by_device_id=AsyncMock(
+            side_effect=lambda key: {
+                LEFT: left,
+                RIGHT: right,
+            }.get(key)
+        ),
     )
     devices = SimpleNamespace(reboot_device=AsyncMock())
     zones = SimpleNamespace(get_zone_status=AsyncMock(return_value=None))
@@ -117,7 +126,6 @@ async def test_device_in_zone_rejected(service):
     assert getattr(exc.value, "code", None) == "stereo_device_in_zone"
 
 
-
 @pytest.mark.asyncio
 async def test_second_commit_failure_rolls_back_both_devices(service):
     class FailingSecondCommit(MockGroupBackend):
@@ -150,7 +158,6 @@ async def test_rejects_leftover_before_new_pair(service):
     assert getattr(exc.value, "code", None) == "stereo_recovery_needed"
 
 
-
 @pytest.mark.asyncio
 async def test_cleanup_failure_never_undoes_verified_pair(service):
     class FailingCleanup(MockGroupBackend):
@@ -176,7 +183,6 @@ async def test_cleanup_failure_never_undoes_verified_pair(service):
     assert await service.backend.recover("192.168.1.103")
     assert len((await service.list_pairs())["pairs"]) == 1
     assert not await service.backend.leftover("192.168.1.103")
-
 
 
 @pytest.mark.asyncio
@@ -246,18 +252,24 @@ async def test_original_state_verified_before_cleanup(service):
             raise RuntimeError("stereo_write_failed")
 
     service.backend = VerificationFails()
+
     # Make firmware falsely report a group after restoration.
     async def wrong_group(device):
         from opencloudtouch.stereo.group_files import (
-            GroupInfo, GroupRole,
+            GroupInfo,
+            GroupRole,
         )
-        return GroupInfo(
-            group_id="7777777",
-            name="Wrong",
-            master_device_id=LEFT,
-            roles=[GroupRole(LEFT, "LEFT", "192.168.1.101")],
-            status="GROUP_OK",
-        ), True
+
+        return (
+            GroupInfo(
+                group_id="7777777",
+                name="Wrong",
+                master_device_id=LEFT,
+                roles=[GroupRole(LEFT, "LEFT", "192.168.1.101")],
+                status="GROUP_OK",
+            ),
+            True,
+        )
 
     original_group_safe = service._group_safe
     failures = 0
@@ -285,7 +297,6 @@ async def test_original_state_verified_before_cleanup(service):
     assert result["error_code"] == "stereo_rollback_failed"
     assert failures > 0
     assert any(group.journal is not None for group in mock_group_store.values())
-
 
 
 @pytest.mark.asyncio
@@ -353,7 +364,6 @@ async def test_preparing_mock_rollback_never_overwrites_original_file(service):
     assert mock_group_store[ip].journal is not None
 
 
-
 @pytest.mark.asyncio
 async def test_rollback_budget_expiry_retains_journals(service):
     import asyncio
@@ -406,7 +416,12 @@ async def test_recover_mixed_verification_preserves_pair_via_service(service):
     left_ip, right_ip = "192.168.1.101", "192.168.1.103"
     for ip, right_file in ((left_ip, False), (right_ip, True)):
         content = build_group_xml(
-            "8765432", "Recovered", LEFT, left_ip, RIGHT, right_ip,
+            "8765432",
+            "Recovered",
+            LEFT,
+            left_ip,
+            RIGHT,
+            right_ip,
             right_file=right_file,
         )
         await backend.prepare(ip, job_id, "create", content)
@@ -434,8 +449,10 @@ async def test_single_speaker_recovery_rejects_unsafe_pair_transaction(service, 
         content="<new-stereo/>",
         backup="<original/>",
         journal={
-            "job_id": "d" * 32, "operation": "create",
-            "had_file": True, "state": state,
+            "job_id": "d" * 32,
+            "operation": "create",
+            "had_file": True,
+            "state": state,
         },
     )
     with pytest.raises(Exception) as exc:
@@ -455,8 +472,10 @@ async def test_verified_single_speaker_recovery_only_cleans_journal(service):
         content="<new-stereo/>",
         backup="<original/>",
         journal={
-            "job_id": "e" * 32, "operation": "create",
-            "had_file": True, "state": "verified",
+            "job_id": "e" * 32,
+            "operation": "create",
+            "had_file": True,
+            "state": "verified",
         },
     )
     job = await service.recover(LEFT)
@@ -493,7 +512,12 @@ async def test_service_recovers_mixed_verified_and_committed_as_completed_pair(s
     left_ip, right_ip = "192.168.1.101", "192.168.1.103"
     for ip, right_file in ((left_ip, False), (right_ip, True)):
         xml = build_group_xml(
-            "8765432", "Recovered", LEFT, left_ip, RIGHT, right_ip,
+            "8765432",
+            "Recovered",
+            LEFT,
+            left_ip,
+            RIGHT,
+            right_ip,
             right_file=right_file,
         )
         await backend.prepare(ip, job_id, "create", xml)
@@ -510,6 +534,7 @@ async def test_service_recovers_mixed_verified_and_committed_as_completed_pair(s
 @pytest.mark.asyncio
 async def test_service_recovery_restarts_after_interrupted_rollback_decision(service):
     """A second crash between restored markers is safe to retry."""
+
     class InterruptedMarker(MockGroupBackend):
         def __init__(self):
             self.calls = 0
@@ -542,6 +567,7 @@ async def test_service_recovery_restarts_after_interrupted_rollback_decision(ser
 @pytest.mark.asyncio
 async def test_recovery_can_resume_after_interruption_between_cleanups(service):
     """Once both journals say restored, finishing either cleanup is safe."""
+
     class InterruptedCleanup(MockGroupBackend):
         def __init__(self):
             self.calls = 0
@@ -634,8 +660,10 @@ async def test_pair_recovery_after_backup_deleted_but_journals_restored(service)
             content="<original/>",
             backup=None,  # Previous cleanup already removed the backup.
             journal={
-                "job_id": job_id, "operation": "remove",
-                "had_file": True, "state": "restored",
+                "job_id": job_id,
+                "operation": "remove",
+                "had_file": True,
+                "state": "restored",
             },
         )
 
@@ -650,6 +678,7 @@ async def test_pair_recovery_after_backup_deleted_but_journals_restored(service)
 @pytest.mark.asyncio
 async def test_verified_pair_survives_failure_marking_second_journal(service):
     """Once both firmware responses are verified, never roll back one side."""
+
     class FailingSecondVerificationMarker(MockGroupBackend):
         def __init__(self):
             self.mark_calls = 0
@@ -673,7 +702,8 @@ async def test_verified_pair_survives_failure_marking_second_journal(service):
     ips = ("192.168.1.101", "192.168.1.103")
     assert all(mock_group_store[ip].content is not None for ip in ips)
     assert {mock_group_store[ip].journal["state"] for ip in ips} == {
-        "verified", "committed"
+        "verified",
+        "committed",
     }
 
     recovered = await service.recover(RIGHT)
@@ -686,6 +716,7 @@ async def test_verified_pair_survives_failure_marking_second_journal(service):
 @pytest.mark.asyncio
 async def test_automatic_rollback_cleanup_failure_retains_restored_marker(service):
     """A normal failed create must leave a resumable decision if cleanup fails."""
+
     class FailingRollbackCleanup(MockGroupBackend):
         def __init__(self):
             self.cleanup_calls = 0
@@ -709,7 +740,8 @@ async def test_automatic_rollback_cleanup_failure_retains_restored_marker(servic
     assert result["error_code"] == "stereo_rollback_failed"
 
     remaining = [
-        (ip, state) for ip, state in mock_group_store.items()
+        (ip, state)
+        for ip, state in mock_group_store.items()
         if state.journal is not None
     ]
     assert len(remaining) == 1
@@ -805,8 +837,12 @@ async def test_group_safe_retries_transient_failures(service):
     from unittest.mock import AsyncMock, patch
 
     speaker = await service.repo.get_by_device_id(LEFT)
-    service._group = AsyncMock(side_effect=[OSError("offline"), OSError("offline"), None])
-    with patch("opencloudtouch.stereo.service.asyncio.sleep", new_callable=AsyncMock) as sleep:
+    service._group = AsyncMock(
+        side_effect=[OSError("offline"), OSError("offline"), None]
+    )
+    with patch(
+        "opencloudtouch.stereo.service.asyncio.sleep", new_callable=AsyncMock
+    ) as sleep:
         assert await service._group_safe(speaker) == (None, True)
     assert service._group.await_count == 3
     assert sleep.await_count == 2
@@ -818,7 +854,9 @@ async def test_group_safe_reports_failure_after_three_attempts(service):
 
     speaker = await service.repo.get_by_device_id(LEFT)
     service._group = AsyncMock(side_effect=OSError("offline"))
-    with patch("opencloudtouch.stereo.service.asyncio.sleep", new_callable=AsyncMock) as sleep:
+    with patch(
+        "opencloudtouch.stereo.service.asyncio.sleep", new_callable=AsyncMock
+    ) as sleep:
         assert await service._group_safe(speaker) == (None, False)
     assert service._group.await_count == 3
     assert sleep.await_count == 2
@@ -852,8 +890,8 @@ async def test_list_pairs_ignores_unreadable_recovery_state(service):
 @pytest.mark.parametrize("missing", [LEFT, RIGHT])
 async def test_create_missing_device_returns_404_and_releases_locks(service, missing):
     original = service.repo.get_by_device_id.side_effect
-    service.repo.get_by_device_id.side_effect = (
-        lambda key: None if key == missing else original(key)
+    service.repo.get_by_device_id.side_effect = lambda key: (
+        None if key == missing else original(key)
     )
     with pytest.raises(Exception) as exc:
         await service.create(LEFT, RIGHT, "Test")
@@ -930,8 +968,8 @@ async def test_remove_detects_missing_persisted_member(service, missing):
     await service.tasks[job["job_id"]]
     group_id = (await service.list_pairs())["pairs"][0]["group_id"]
     original = service.repo.get_by_device_id.side_effect
-    service.repo.get_by_device_id.side_effect = (
-        lambda key: None if key == missing else original(key)
+    service.repo.get_by_device_id.side_effect = lambda key: (
+        None if key == missing else original(key)
     )
     with pytest.raises(Exception) as exc:
         await service.remove(group_id)
@@ -966,7 +1004,6 @@ async def test_recover_missing_device_reports_404(service):
 @pytest.mark.asyncio
 async def test_reboot_dispatches_both_speakers_and_reports_failure(service):
     """A failed reboot of either speaker must fail the coordinated operation."""
-    from unittest.mock import AsyncMock
 
     speakers = await service.repo.get_all()
     service.mock_mode = False
@@ -1057,8 +1094,8 @@ async def test_rollback_wait_times_out_if_speaker_stays_unreachable(service):
 @pytest.mark.parametrize("missing", [LEFT, RIGHT])
 async def test_missing_device_error_contains_requested_device_id(service, missing):
     original = service.repo.get_by_device_id.side_effect
-    service.repo.get_by_device_id.side_effect = (
-        lambda key: None if key == missing else original(key)
+    service.repo.get_by_device_id.side_effect = lambda key: (
+        None if key == missing else original(key)
     )
     with pytest.raises(Exception) as exc:
         await service.create(LEFT, RIGHT, "Test")
@@ -1068,7 +1105,9 @@ async def test_missing_device_error_contains_requested_device_id(service, missin
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("failure", [False, OSError("connection refused"), TimeoutError("timeout")])
+@pytest.mark.parametrize(
+    "failure", [False, OSError("connection refused"), TimeoutError("timeout")]
+)
 async def test_live_ssh_port_failure_returns_coded_503_without_writes(service, failure):
     from unittest.mock import AsyncMock, patch
 
@@ -1092,10 +1131,10 @@ async def test_live_ssh_port_failure_returns_coded_503_without_writes(service, f
     assert not service.busy
 
 
-
 @pytest.mark.asyncio
 async def test_write_failure_identifies_second_speaker(service):
     """A failed second commit is a write error, not an unclassified SSH error."""
+
     class FailsRightCommit(MockGroupBackend):
         async def commit(self, ip, job, *, removing=False):
             if ip == "192.168.1.103":
@@ -1145,10 +1184,16 @@ async def test_verification_failure_identifies_speaker(service):
     ]
 
     async def group_safe(device):
-        return GroupInfo(
-            "1234567" if device.device_id == LEFT else "9999999",
-            "Pair", LEFT, roles, "GROUP_OK",
-        ), True
+        return (
+            GroupInfo(
+                "1234567" if device.device_id == LEFT else "9999999",
+                "Pair",
+                LEFT,
+                roles,
+                "GROUP_OK",
+            ),
+            True,
+        )
 
     service._group_safe = group_safe
     with pytest.raises(StereoDeviceFailure) as exc:
@@ -1167,10 +1212,16 @@ async def test_list_pairs_uses_master_report_even_if_slave_responds_first(servic
     roles = [GroupRole(LEFT, "LEFT", left.ip), GroupRole(RIGHT, "RIGHT", right.ip)]
 
     async def group_safe(device):
-        return GroupInfo(
-            "1234567", "Master name" if device.device_id == LEFT else "Old name",
-            LEFT, roles, "GROUP_OK",
-        ), True
+        return (
+            GroupInfo(
+                "1234567",
+                "Master name" if device.device_id == LEFT else "Old name",
+                LEFT,
+                roles,
+                "GROUP_OK",
+            ),
+            True,
+        )
 
     service._group_safe = group_safe
     result = await service.list_pairs()

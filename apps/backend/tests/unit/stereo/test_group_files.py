@@ -1,4 +1,5 @@
 """Contract tests for the SoundTouch stereo XML fixture from issue #549."""
+
 import pytest
 
 from opencloudtouch.stereo.group_files import (
@@ -14,8 +15,13 @@ RIGHT = "AABBCC445566"
 @pytest.mark.parametrize("right_file", [False, True])
 def test_file_round_trip(right_file: bool) -> None:
     xml = build_group_xml(
-        "1234567", "Living & Dining", LEFT, "192.0.2.10",
-        RIGHT, "192.0.2.11", right_file=right_file,
+        "1234567",
+        "Living & Dining",
+        LEFT,
+        "192.0.2.10",
+        RIGHT,
+        "192.0.2.11",
+        right_file=right_file,
     )
     group = parse_group_xml(xml)
     assert group is not None
@@ -23,7 +29,8 @@ def test_file_round_trip(right_file: bool) -> None:
     assert group.name == "Living & Dining"
     assert group.master_device_id == LEFT
     assert [(r.device_id, r.role) for r in group.roles] == [
-        (LEFT, "LEFT"), (RIGHT, "RIGHT"),
+        (LEFT, "LEFT"),
+        (RIGHT, "RIGHT"),
     ]
     assert group.status == ("GROUP_OK" if right_file else None)
     assert xml.count("<status>GROUP_OK</status>") == int(right_file)
@@ -48,16 +55,26 @@ def test_invalid_name(name: str) -> None:
 def test_invalid_fields(left: str, right_ip: str, group_id: str) -> None:
     with pytest.raises(ValueError):
         build_group_xml(
-            group_id, "Living Room", left, "192.0.2.10",
-            RIGHT, right_ip, right_file=False,
+            group_id,
+            "Living Room",
+            left,
+            "192.0.2.10",
+            RIGHT,
+            right_ip,
+            right_file=False,
         )
 
 
 def test_rejects_same_device() -> None:
     with pytest.raises(ValueError):
         build_group_xml(
-            "1234567", "Living Room", LEFT, "192.0.2.10",
-            LEFT, "192.0.2.11", right_file=True,
+            "1234567",
+            "Living Room",
+            LEFT,
+            "192.0.2.10",
+            LEFT,
+            "192.0.2.11",
+            right_file=True,
         )
 
 

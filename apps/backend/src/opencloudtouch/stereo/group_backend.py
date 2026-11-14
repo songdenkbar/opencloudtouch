@@ -1,4 +1,5 @@
 """On-speaker transactional file handling for SoundTouch stereo configuration."""
+
 from __future__ import annotations
 
 import base64
@@ -35,7 +36,9 @@ class GroupBackend(Protocol):
     async def journal_record(self, ip: str) -> dict | None: ...
     async def previous_content(self, ip: str) -> str | None: ...
     async def mark_restored(self, ip: str, job: str) -> None: ...
-    async def prepare(self, ip: str, job: str, operation: str, new: str | None) -> None: ...
+    async def prepare(
+        self, ip: str, job: str, operation: str, new: str | None
+    ) -> None: ...
     async def commit(self, ip: str, job: str, *, removing: bool = False) -> None: ...
     async def rollback(self, ip: str, job: str) -> None: ...
     async def mark_verified(self, ip: str, job: str) -> None: ...
@@ -45,6 +48,7 @@ class GroupBackend(Protocol):
 
 class MockGroupBackend:
     """Safe fake for CI and local development."""
+
     async def leftover(self, ip: str) -> bool:
         state = mock_group_store.get(ip)
         return bool(state and (state.journal or state.backup or state.staged))
@@ -74,7 +78,9 @@ class MockGroupBackend:
         if await self.leftover(ip):
             raise RuntimeError("stereo_recovery_needed")
         state.journal = {
-            "job_id": job, "operation": operation, "had_file": state.content is not None,
+            "job_id": job,
+            "operation": operation,
+            "had_file": state.content is not None,
             "state": "preparing",
         }
         state.backup = state.content
@@ -129,6 +135,7 @@ class MockGroupBackend:
 
 class SSHGroupBackend:
     """On-device journal and backup; never overwrite an un-recovered transaction."""
+
     @staticmethod
     def _suffix(job: str) -> tuple[str, str, str]:
         if not _JOB.fullmatch(job):
@@ -140,7 +147,11 @@ class SSHGroupBackend:
         )
 
     async def _run(
-        self, ip: str, commands: Sequence[str | tuple[str, str]], *, writable: bool = False
+        self,
+        ip: str,
+        commands: Sequence[str | tuple[str, str]],
+        *,
+        writable: bool = False,
     ) -> list[str]:
         from opencloudtouch.setup.ssh_client import SoundTouchSSHClient
 
@@ -150,11 +161,13 @@ class SSHGroupBackend:
             if not connected.success:
                 raise OSError("SSH connection failed")
             output: list[str] = []
-            async with (ssh.write_access() if writable else nullcontext()):
+            async with ssh.write_access() if writable else nullcontext():
                 if writable:
                     # write_access remounts read-only / and /mnt/nv, then restores
                     # their prior state in finally; verify the target is usable.
-                    check = await ssh.execute(f"test -d {GROUP_DIRECTORY} && test -w {GROUP_DIRECTORY}")
+                    check = await ssh.execute(
+                        f"test -d {GROUP_DIRECTORY} && test -w {GROUP_DIRECTORY}"
+                    )
                     if not check.success:
                         raise OSError("Stereo persistence directory not writable")
                 for command in commands:
@@ -170,7 +183,8 @@ class SSHGroupBackend:
                         stdout = process.stdout or ""
                         output.append(
                             stdout.decode("utf-8").strip()
-                            if isinstance(stdout, bytes) else stdout.strip()
+                            if isinstance(stdout, bytes)
+                            else stdout.strip()
                         )
                     else:
                         command_result = await ssh.execute(command)
@@ -188,24 +202,33 @@ class SSHGroupBackend:
 
     async def leftover(self, ip: str) -> bool:
         # glob is resolved by shell. Existence of any artifact blocks new operations.
-        output = await self._run(ip, [
-            f"if test -e {GROUP_FILE}.oct-job || test -e {GROUP_FILE}.oct-job.tmp || "
-            f"ls {GROUP_FILE}.oct-bak.* {GROUP_FILE}.oct-new.* >/dev/null 2>&1; "
-            "then echo yes; else echo no; fi"
-        ])
+        output = await self._run(
+            ip,
+            [
+                f"if test -e {GROUP_FILE}.oct-job || test -e {GROUP_FILE}.oct-job.tmp || "
+                f"ls {GROUP_FILE}.oct-bak.* {GROUP_FILE}.oct-new.* >/dev/null 2>&1; "
+                "then echo yes; else echo no; fi"
+            ],
+        )
         return output[0] == "yes"
 
     async def journal_record(self, ip: str) -> dict | None:
-        raw = (await self._run(ip, [
-            f"if test -f {GROUP_FILE}.oct-job; then cat {GROUP_FILE}.oct-job; fi"
-        ]))[0]
+        raw = (
+            await self._run(
+                ip,
+                [f"if test -f {GROUP_FILE}.oct-job; then cat {GROUP_FILE}.oct-job; fi"],
+            )
+        )[0]
         if not raw:
             return None
         try:
             record = json.loads(raw)
-            if not isinstance(record, dict) or record.get("state") not in {
-                "preparing", "prepared", "committed", "verified", "restored"
-            } or record.get("had_file") not in {True, False}:
+            if (
+                not isinstance(record, dict)
+                or record.get("state")
+                not in {"preparing", "prepared", "committed", "verified", "restored"}
+                or record.get("had_file") not in {True, False}
+            ):
                 raise ValueError("Invalid stereo journal")
             self._suffix(record["job_id"])
             return record
@@ -223,30 +246,39 @@ class SSHGroupBackend:
         if not record["had_file"]:
             return None
         _, backup, _ = self._suffix(record["job_id"])
-        output = (await self._run(ip, [f"if test -s {backup}; then cat {backup}; fi"]))[0]
+        output = (await self._run(ip, [f"if test -s {backup}; then cat {backup}; fi"]))[
+            0
+        ]
         if not output:
             raise RuntimeError("stereo_recovery_needed")
         return output
-
 
     async def prepare(self, ip: str, job: str, operation: str, new: str | None) -> None:
         journal, backup, stage = self._suffix(job)
         if await self.leftover(ip):
             raise RuntimeError("stereo_recovery_needed")
-        had_file = (await self._run(ip, [
-            f"if test -f {GROUP_FILE}; then echo yes; else echo no; fi"
-        ]))[0] == "yes"
+        had_file = (
+            await self._run(
+                ip, [f"if test -f {GROUP_FILE}; then echo yes; else echo no; fi"]
+            )
+        )[0] == "yes"
         record = {
-            "job_id": job, "operation": operation, "had_file": had_file,
+            "job_id": job,
+            "operation": operation,
+            "had_file": had_file,
             "state": "preparing",
         }
         # The journal must exist before the backup. 'preparing' means no
         # commit was attempted; a crash before backup completion must not
         # trigger restoration from a nonexistent or incomplete backup.
-        await self._run(ip, [
-            self._write(journal + ".tmp", json.dumps(record)),
-            f"mv {journal}.tmp {journal}",
-        ], writable=True)
+        await self._run(
+            ip,
+            [
+                self._write(journal + ".tmp", json.dumps(record)),
+                f"mv {journal}.tmp {journal}",
+            ],
+            writable=True,
+        )
         commands: list[str | tuple[str, str]] = []
         if had_file:
             commands += [f"cp {GROUP_FILE} {backup}", f"test -s {backup}"]
@@ -279,7 +311,9 @@ class SSHGroupBackend:
         if record.get("state") not in {"prepared", "committed"}:
             raise RuntimeError("stereo_recovery_needed")
         if record.get("had_file") is True:
-            await self._run(ip, [f"test -s {backup}", f"cp {backup} {GROUP_FILE}"], writable=True)
+            await self._run(
+                ip, [f"test -s {backup}", f"cp {backup} {GROUP_FILE}"], writable=True
+            )
         elif record.get("had_file") is False:
             await self._run(ip, [f"rm -f {GROUP_FILE}"], writable=True)
         else:
@@ -294,10 +328,14 @@ class SSHGroupBackend:
         if record.get("job_id") != job:
             raise RuntimeError("stereo_recovery_needed")
         record["state"] = state
-        await self._run(ip, [
-            self._write(stage, json.dumps(record, separators=(",", ":"))),
-            f"mv {stage} {journal}",
-        ], writable=True)
+        await self._run(
+            ip,
+            [
+                self._write(stage, json.dumps(record, separators=(",", ":"))),
+                f"mv {stage} {journal}",
+            ],
+            writable=True,
+        )
 
     async def mark_restored(self, ip: str, job: str) -> None:
         await self._mark_state(ip, job, "restored")
@@ -314,31 +352,41 @@ class SSHGroupBackend:
         # Remove disposable artifacts first, retaining the durable journal
         # until the very last command. An SSH interruption between commands
         # leaves a recoverable transaction rather than orphaned backups.
-        await self._run(ip, [
-            f"rm -f {backup} {stage} {journal}.tmp",
-            f"rm -f {journal}",
-        ], writable=True)
+        await self._run(
+            ip,
+            [
+                f"rm -f {backup} {stage} {journal}.tmp",
+                f"rm -f {journal}",
+            ],
+            writable=True,
+        )
 
     async def recover(self, ip: str) -> bool:
-        data = (await self._run(ip, [
-            f"if test -f {GROUP_FILE}.oct-job; then cat {GROUP_FILE}.oct-job; fi"
-        ]))[0]
+        data = (
+            await self._run(
+                ip,
+                [f"if test -f {GROUP_FILE}.oct-job; then cat {GROUP_FILE}.oct-job; fi"],
+            )
+        )[0]
         if not data:
             # An interruption during the first journal upload leaves only a
             # .oct-job.tmp artifact. Removing it is safe only when no backup
             # or staged transaction exists; otherwise require manual review.
-            state = (await self._run(ip, [
-                f"if ls {GROUP_FILE}.oct-bak.* {GROUP_FILE}.oct-new.* "
-                f">/dev/null 2>&1; then echo unsafe; "
-                f"elif test -e {GROUP_FILE}.oct-job.tmp; then echo pending; "
-                "else echo none; fi"
-            ]))[0]
+            state = (
+                await self._run(
+                    ip,
+                    [
+                        f"if ls {GROUP_FILE}.oct-bak.* {GROUP_FILE}.oct-new.* "
+                        f">/dev/null 2>&1; then echo unsafe; "
+                        f"elif test -e {GROUP_FILE}.oct-job.tmp; then echo pending; "
+                        "else echo none; fi"
+                    ],
+                )
+            )[0]
             if state == "unsafe":
                 raise RuntimeError("stereo_recovery_needed")
             if state == "pending":
-                await self._run(
-                    ip, [f"rm -f {GROUP_FILE}.oct-job.tmp"], writable=True
-                )
+                await self._run(ip, [f"rm -f {GROUP_FILE}.oct-job.tmp"], writable=True)
                 return True
             return False
         try:

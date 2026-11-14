@@ -36,8 +36,14 @@ class StereoJob(BaseModel):
     right_device_id: str | None
     state: Literal["running", "succeeded", "failed"]
     step: Literal[
-        "validating", "backing_up", "writing_files", "rebooting",
-        "waiting_for_devices", "verifying", "rolling_back", "done",
+        "validating",
+        "backing_up",
+        "writing_files",
+        "rebooting",
+        "waiting_for_devices",
+        "verifying",
+        "rolling_back",
+        "done",
     ]
     started_at: str
     finished_at: str | None

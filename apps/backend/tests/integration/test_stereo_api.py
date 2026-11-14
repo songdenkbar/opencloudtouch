@@ -16,7 +16,6 @@ from opencloudtouch.stereo.api.routes import router as stereo_router
 from opencloudtouch.stereo.group_backend import mock_group_store
 from opencloudtouch.stereo.service import StereoService
 
-
 LEFT = "DDEEFF445566"
 RIGHT = "A1B2C3D4E5F6"
 
@@ -148,8 +147,10 @@ async def test_http_recover_interrupted_preparation_without_reboot(stereo_api):
     mock_group_store["192.168.1.101"] = StoredGroup(
         content="<original/>",
         journal={
-            "job_id": "a" * 32, "operation": "create",
-            "had_file": True, "state": "preparing",
+            "job_id": "a" * 32,
+            "operation": "create",
+            "had_file": True,
+            "state": "preparing",
         },
         staged="<unfinished/>",
     )
@@ -212,7 +213,6 @@ async def test_http_overlong_name_keeps_stable_coded_error(stereo_api):
     )
     assert response.status_code == 422
     assert response.json()["code"] == "stereo_name_invalid"
-
 
 
 @pytest.mark.asyncio
