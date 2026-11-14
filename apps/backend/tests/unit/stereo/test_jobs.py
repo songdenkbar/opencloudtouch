@@ -416,3 +416,44 @@ async def test_recover_mixed_verification_must_not_leave_split_pair(service):
     await backend.recover(right_ip)
 
     assert mock_group_store[left_ip].content == mock_group_store[right_ip].content
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("state", ["prepared", "committed"])
+async def test_single_speaker_recovery_rejects_unsafe_pair_transaction(service, state):
+    """Never roll back only one side of an undecided stereo transaction."""
+    ip = "192.168.1.101"
+    mock_group_store[ip] = StoredGroup(
+        content="<new-stereo/>",
+        backup="<original/>",
+        journal={
+            "job_id": "d" * 32, "operation": "create",
+            "had_file": True, "state": state,
+        },
+    )
+    with pytest.raises(Exception) as exc:
+        await service.recover(LEFT)
+    assert getattr(exc.value, "code", None) == "stereo_recovery_needed"
+    assert mock_group_store[ip].content == "<new-stereo/>"
+    assert mock_group_store[ip].journal["state"] == state
+    assert not service.tasks
+    assert not service.busy
+
+
+@pytest.mark.asyncio
+async def test_verified_single_speaker_recovery_only_cleans_journal(service):
+    """Cleaning an already-verified transaction must retain the final file."""
+    ip = "192.168.1.101"
+    mock_group_store[ip] = StoredGroup(
+        content="<new-stereo/>",
+        backup="<original/>",
+        journal={
+            "job_id": "e" * 32, "operation": "create",
+            "had_file": True, "state": "verified",
+        },
+    )
+    job = await service.recover(LEFT)
+    await service.tasks[job["job_id"]]
+    assert service.job(job["job_id"])["state"] == "succeeded"
+    assert mock_group_store[ip].content == "<new-stereo/>"
+    assert not await service.backend.leftover(ip)
