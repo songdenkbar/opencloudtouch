@@ -457,3 +457,76 @@ async def test_verified_single_speaker_recovery_only_cleans_journal(service):
     assert service.job(job["job_id"])["state"] == "succeeded"
     assert mock_group_store[ip].content == "<new-stereo/>"
     assert not await service.backend.leftover(ip)
+
+
+@pytest.mark.asyncio
+async def test_service_recovers_both_pending_speaker_journals(service):
+    """One recovery request rolls back a whole interrupted transaction."""
+    backend = service.backend
+    job_id = "f" * 32
+    ips = ("192.168.1.101", "192.168.1.103")
+    for ip in ips:
+        mock_group_store[ip] = StoredGroup(content=None)
+        await backend.prepare(ip, job_id, "create", "<new-stereo/>")
+        await backend.commit(ip, job_id)
+    recovery = await service.recover(LEFT)
+    await service.tasks[recovery["job_id"]]
+    assert service.job(recovery["job_id"])["state"] == "succeeded"
+    assert all(mock_group_store[ip].content is None for ip in ips)
+    assert all(not await backend.leftover(ip) for ip in ips)
+
+
+@pytest.mark.asyncio
+async def test_service_recovers_mixed_verified_and_committed_as_completed_pair(service):
+    """If one speaker is verified, preserve a pair verified on both speakers."""
+    from opencloudtouch.stereo.group_files import build_group_xml
+
+    backend = service.backend
+    job_id = "a" * 32
+    left_ip, right_ip = "192.168.1.101", "192.168.1.103"
+    for ip, right_file in ((left_ip, False), (right_ip, True)):
+        xml = build_group_xml(
+            "8765432", "Recovered", LEFT, left_ip, RIGHT, right_ip,
+            right_file=right_file,
+        )
+        await backend.prepare(ip, job_id, "create", xml)
+        await backend.commit(ip, job_id)
+    await backend.mark_verified(left_ip, job_id)
+
+    recovery = await service.recover(RIGHT)
+    await service.tasks[recovery["job_id"]]
+    assert service.job(recovery["job_id"])["state"] == "succeeded"
+    assert len((await service.list_pairs())["pairs"]) == 1
+    assert all(not await backend.leftover(ip) for ip in (left_ip, right_ip))
+
+
+@pytest.mark.asyncio
+async def test_service_recovery_restarts_after_interrupted_rollback_decision(service):
+    """A second crash between restored markers is safe to retry."""
+    class InterruptedMarker(MockGroupBackend):
+        def __init__(self):
+            self.calls = 0
+
+        async def mark_restored(self, ip, job):
+            self.calls += 1
+            if self.calls == 2:
+                raise OSError("simulated process interruption")
+            await super().mark_restored(ip, job)
+
+    backend = InterruptedMarker()
+    service.backend = backend
+    job_id = "b" * 32
+    ips = ("192.168.1.101", "192.168.1.103")
+    for ip in ips:
+        await backend.prepare(ip, job_id, "create", "<new-stereo/>")
+        await backend.commit(ip, job_id)
+    first = await service.recover(LEFT)
+    await service.tasks[first["job_id"]]
+    assert service.job(first["job_id"])["state"] == "failed"
+    assert any(await backend.leftover(ip) for ip in ips)
+
+    second = await service.recover(RIGHT)
+    await service.tasks[second["job_id"]]
+    assert service.job(second["job_id"])["state"] == "succeeded"
+    assert all(mock_group_store[ip].content is None for ip in ips)
+    assert all(not await backend.leftover(ip) for ip in ips)
