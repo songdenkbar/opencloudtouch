@@ -360,6 +360,7 @@ class StereoService:
         first, second = records
         if first is None or second is None:
             raise RuntimeError("stereo_recovery_needed")
+        confirmed_records = (first, second)
         if first["job_id"] != second["job_id"] or first["operation"] != second["operation"]:
             raise RuntimeError("stereo_recovery_needed")
         job_id = first["job_id"]
@@ -387,15 +388,15 @@ class StereoService:
                 == {d.device_id for d in devices}
             )
 
-        if all(r["state"] == "restored" for r in records):
+        if all(r["state"] == "restored" for r in confirmed_records):
             # Rollback already completed on both devices. Cleanup may have
             # deleted backup files before an SSH disconnect, so never read
             # those backups or reboot the speakers on this resume path.
             pass
-        elif any(r["state"] == "verified" for r in records):
+        elif any(r["state"] == "verified" for r in confirmed_records):
             # A verified marker is written only after both speakers passed
             # the firmware-level check. Never undo one half of that decision.
-            if any(r["state"] == "restored" for r in records):
+            if any(r["state"] == "restored" for r in confirmed_records):
                 raise RuntimeError("stereo_recovery_needed")
             if not await matching_final_state():
                 raise RuntimeError("stereo_recovery_needed")
@@ -408,7 +409,7 @@ class StereoService:
                 parse_group_xml(await self.backend.previous_content(d.ip) or "<group />")
                 for d in devices
             ]
-            for device, record in zip(devices, records):
+            for device, record in zip(devices, confirmed_records):
                 if record["state"] != "restored":
                     await self.backend.rollback(device.ip, job_id)
             # A write may have happened before its journal was updated; always
