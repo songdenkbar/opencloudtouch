@@ -75,6 +75,8 @@ class StereoService:
         self._now = now or _now
         self.jobs: dict[str, dict[str, Any]] = {}
         self.tasks: dict[str, asyncio.Task[None]] = {}
+        # Public tests and A.3 refer to the internal in-flight task registry.
+        self._tasks = self.tasks
         self.busy: set[str] = set()
         self.primary_budget_seconds = CREATE_REMOVE_BUDGET_SECONDS
         self.rollback_budget_seconds = ROLLBACK_BUDGET_SECONDS
