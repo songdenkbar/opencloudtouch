@@ -119,7 +119,8 @@ async def test_ssh_preparation_publishes_prepared_only_after_backup():
     await backend.prepare("192.0.2.10", "a" * 32, "create", "<group/>")
 
     assert commands[1][1] is True
-    assert commands[1][0][0][0].endswith(".oct-job")
+    assert commands[1][0][0][0].endswith(".oct-job.tmp")
+    assert commands[1][0][-1].startswith("mv ")
     final_commands = commands[2][0]
     assert any(isinstance(cmd, str) and cmd.startswith("cp ") for cmd in final_commands)
     assert final_commands[-1].startswith("mv ")
@@ -147,5 +148,41 @@ async def test_ssh_preparation_backup_failure_keeps_preparing_journal():
         await FailingBackend().prepare("192.0.2.10", "a" * 32, "create", "<group/>")
     assert len(writes) == 2
     # Only the initial journal is durable; the prepared state was not published.
-    assert writes[0][0][0].endswith(".oct-job")
-    assert not any("mv " in str(cmd) for cmd in writes[0])
+    assert writes[0][0][0].endswith(".oct-job.tmp")
+    assert writes[0][-1].startswith("mv ")
+
+
+
+@pytest.mark.asyncio
+async def test_orphan_initial_journal_upload_is_cleaned_without_touching_group():
+    commands = []
+
+    class InterruptedUpload(SSHGroupBackend):
+        async def _run(self, ip, cmds, *, writable=False):
+            commands.extend(cmds)
+            if any("if test -f" in str(cmd) for cmd in cmds):
+                return [""]
+            if any("if ls " in str(cmd) for cmd in cmds):
+                return ["pending"]
+            return [""]
+
+    backend = InterruptedUpload()
+    assert await backend.recover("192.0.2.10") is True
+    assert any("rm -f" in str(command) and ".oct-job.tmp" in str(command)
+               for command in commands)
+    assert not any(str(command).startswith("rm -f /mnt/nv/BoseApp-Persistence/1/GroupService.xml ")
+                   for command in commands)
+
+
+@pytest.mark.asyncio
+async def test_orphan_with_other_files_needs_manual_recovery():
+    class UnsafeUpload(SSHGroupBackend):
+        async def _run(self, ip, cmds, *, writable=False):
+            if any("if test -f" in str(cmd) for cmd in cmds):
+                return [""]
+            if any("if ls " in str(cmd) for cmd in cmds):
+                return ["unsafe"]
+            raise AssertionError("Unexpected modification")
+
+    with pytest.raises(RuntimeError, match="stereo_recovery_needed"):
+        await UnsafeUpload().recover("192.0.2.10")
