@@ -158,7 +158,7 @@ class StereoService:
             right = next((r.device_id for r in master.roles if r.role == "RIGHT"), None)
             identity = (
                 master.master_device_id,
-                [(r.device_id, r.role) for r in master.roles],
+                frozenset((r.device_id, r.role) for r in master.roles),
                 master.name,
             )
             pairs.append(
@@ -181,7 +181,7 @@ class StereoService:
                     "inconsistent": any(
                         (
                             g.master_device_id,
-                            [(r.device_id, r.role) for r in g.roles],
+                            frozenset((r.device_id, r.role) for r in g.roles),
                             g.name,
                         )
                         != identity
