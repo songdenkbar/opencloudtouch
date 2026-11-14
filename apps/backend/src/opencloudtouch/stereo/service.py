@@ -305,11 +305,20 @@ class StereoService:
                 if not ok:
                     if force:
                         continue
-                    raise_coded(503, "device_unreachable", "Pair member is unreachable")
+                    raise_coded(
+                        503, "device_unreachable", "Pair member is unreachable",
+                        params={"device_id": device.device_id},
+                    )
                 if not group or group.group_id != group_id:
-                    raise_coded(409, "stereo_pair_not_found", "Pair membership changed")
+                    raise_coded(
+                        409, "stereo_pair_not_found", "Pair membership changed",
+                        params={"device_id": device.device_id},
+                    )
                 if await self.backend.leftover(device.ip):
-                    raise_coded(409, "stereo_recovery_needed", "Recovery required")
+                    raise_coded(
+                        409, "stereo_recovery_needed", "Recovery required",
+                        params={"device_id": device.device_id},
+                    )
                 reachable.append(device)
             if not reachable:
                 raise_coded(503, "device_unreachable", "Both speakers are unreachable")
