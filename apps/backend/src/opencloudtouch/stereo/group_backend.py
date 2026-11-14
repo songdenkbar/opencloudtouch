@@ -231,7 +231,8 @@ class SSHGroupBackend:
                 not isinstance(record, dict)
                 or record.get("state")
                 not in {"preparing", "prepared", "committed", "verified", "restored"}
-                or record.get("had_file") not in {True, False}
+                or type(record.get("had_file")) is not bool
+                or record.get("operation") not in {"create", "remove"}
             ):
                 raise ValueError("Invalid stereo journal")
             self._suffix(record["job_id"])
