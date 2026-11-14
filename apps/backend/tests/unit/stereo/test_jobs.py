@@ -1599,3 +1599,27 @@ async def test_local_invalid_device_precedes_busy_lock(service):
     assert service.busy == {LEFT}
     service.zones.get_zone_status.assert_not_awaited()
     service.devices.reboot_device.assert_not_awaited()
+
+
+
+@pytest.mark.asyncio
+async def test_malformed_group_response_never_counts_as_unpaired(service, monkeypatch):
+    """A broken HTTP group document cannot authorize an on-device overwrite."""
+    import httpx
+
+    original_client = httpx.AsyncClient
+
+    def fake_client(*args, **kwargs):
+        transport = httpx.MockTransport(
+            lambda request: httpx.Response(200, text="<group><broken>")
+        )
+        return original_client(transport=transport, *args, **kwargs)
+
+    monkeypatch.setattr("opencloudtouch.stereo.service.httpx.AsyncClient", fake_client)
+    service.mock_mode = False
+    device = await service.repo.get_by_device_id(LEFT)
+    with pytest.raises(Exception):
+        await service._group(device)
+    group, reachable = await service._group_safe(device)
+    assert group is None
+    assert reachable is False
