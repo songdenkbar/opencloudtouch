@@ -5,9 +5,13 @@ import base64
 import json
 import re
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol, cast
+from collections.abc import Sequence
 
-from opencloudtouch.stereo.group_files import GROUP_FILE, GROUP_DIRECTORY
+if TYPE_CHECKING:
+    from asyncssh import SSHClientConnection
+
+from opencloudtouch.stereo.group_files import GROUP_FILE
 
 _JOB = re.compile(r"^[0-9a-f]{32}$")
 
@@ -101,7 +105,7 @@ class SSHGroupBackend:
             GROUP_FILE + ".oct-new." + job,
         )
 
-    async def _run(self, ip: str, commands: list[str | tuple[str, str]]) -> list[str]:
+    async def _run(self, ip: str, commands: Sequence[str | tuple[str, str]]) -> list[str]:
         from opencloudtouch.setup.ssh_client import SoundTouchSSHClient
         ssh = SoundTouchSSHClient(ip)
         connection = await ssh.connect()
@@ -113,10 +117,10 @@ class SSHGroupBackend:
                 if isinstance(command, tuple):
                     # Payload is sent via stdin, never included in the command or logs.
                     shell, payload = command
-                    connection = ssh._connection
-                    if connection is None:
+                    session = cast("SSHClientConnection | None", ssh._connection)
+                    if session is None:
                         raise OSError("SSH connection closed")
-                    result = await connection.run(shell, input=payload, check=False)
+                    result = await session.run(shell, input=payload, check=False)
                     if result.exit_status != 0:
                         raise OSError("SSH transfer failed")
                     output.append((result.stdout or "").strip())
