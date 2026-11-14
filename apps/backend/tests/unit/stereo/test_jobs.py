@@ -176,3 +176,112 @@ async def test_cleanup_failure_never_undoes_verified_pair(service):
     assert await service.backend.recover("192.168.1.103")
     assert len((await service.list_pairs())["pairs"]) == 1
     assert not await service.backend.leftover("192.168.1.103")
+
+
+
+@pytest.mark.asyncio
+async def test_timeout_starts_rollback_with_independent_budget(service):
+    import asyncio
+
+    class SlowCommit(MockGroupBackend):
+        async def commit(self, ip, job, *, removing=False):
+            await asyncio.sleep(0.03)
+            await super().commit(ip, job, removing=removing)
+
+    service.backend = SlowCommit()
+    service.primary_budget_seconds = 0.005
+    service.rollback_budget_seconds = 1.0
+    job = await service.create(LEFT, RIGHT, "Timeout test")
+    await service.tasks[job["job_id"]]
+    result = service.job(job["job_id"])
+    assert result["state"] == "failed"
+    assert result["error_code"] == "stereo_timeout"
+    assert result["rolled_back"] is True
+    assert all(group.content is None for group in mock_group_store.values())
+    assert all(group.journal is None for group in mock_group_store.values())
+
+
+@pytest.mark.asyncio
+async def test_second_commit_rollback_has_no_reboot(service):
+    class FailingSecondCommit(MockGroupBackend):
+        def __init__(self):
+            self.calls = 0
+
+        async def commit(self, ip, job, *, removing=False):
+            self.calls += 1
+            if self.calls == 2:
+                raise RuntimeError("stereo_write_failed")
+            await super().commit(ip, job, removing=removing)
+
+    service.backend = FailingSecondCommit()
+    job = await service.create(LEFT, RIGHT, "Rollback before reboot")
+    await service.tasks[job["job_id"]]
+    assert service.job(job["job_id"])["rolled_back"] is True
+    service.devices.reboot_device.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_rollback_failure_retains_recovery_journal(service):
+    class FailingRollback(MockGroupBackend):
+        async def commit(self, ip, job, *, removing=False):
+            raise RuntimeError("stereo_write_failed")
+
+        async def rollback(self, ip, job):
+            raise OSError("rollback unavailable")
+
+    service.backend = FailingRollback()
+    job = await service.create(LEFT, RIGHT, "Keep journal")
+    await service.tasks[job["job_id"]]
+    result = service.job(job["job_id"])
+    assert result["state"] == "failed"
+    assert result["error_code"] == "stereo_rollback_failed"
+    assert result["rolled_back"] is False
+    assert any(group.journal is not None for group in mock_group_store.values())
+
+
+@pytest.mark.asyncio
+async def test_original_state_verified_before_cleanup(service):
+    class VerificationFails(MockGroupBackend):
+        async def commit(self, ip, job, *, removing=False):
+            raise RuntimeError("stereo_write_failed")
+
+    service.backend = VerificationFails()
+    # Make firmware falsely report a group after restoration.
+    async def wrong_group(device):
+        from opencloudtouch.stereo.group_files import (
+            GroupInfo, GroupRole,
+        )
+        return GroupInfo(
+            group_id="7777777",
+            name="Wrong",
+            master_device_id=LEFT,
+            roles=[GroupRole(LEFT, "LEFT", "192.168.1.101")],
+            status="GROUP_OK",
+        ), True
+
+    original_group_safe = service._group_safe
+    failures = 0
+
+    async def group_safe(device):
+        nonlocal failures
+        result = await original_group_safe(device)
+        if not mock_group_store.get("192.168.1.101"):
+            return result
+        if mock_group_store["192.168.1.101"].journal is not None:
+            failures += 1
+            return await wrong_group(device)
+        return result
+
+    service._group_safe = group_safe
+    # This also affects initial validation if installed too early; install
+    # only after the service has accepted the create request.
+    service._group_safe = original_group_safe
+    created = await service.create(LEFT, RIGHT, "Verify state")
+    service._group_safe = group_safe
+    await service.tasks[created["job_id"]]
+    result = service.job(created["job_id"])
+    assert result["state"] == "failed"
+    assert result["rolled_back"] is False
+    assert result["error_code"] == "stereo_rollback_failed"
+    assert failures > 0
+    assert any(group.journal is not None for group in mock_group_store.values())
