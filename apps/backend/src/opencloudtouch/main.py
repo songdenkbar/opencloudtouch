@@ -428,6 +428,11 @@ app.include_router(bmx_router)  # BMX stream resolution for Bose devices
 app.include_router(radiobrowser_router)  # BMX RadioBrowser playback
 app.include_router(resolve_router)  # Legacy BMX resolve endpoint
 app.include_router(marge_router)  # Marge (streaming.bose.com) account sync
+# Deliberately disabled by default: native stereo pairing research only.
+import os
+if os.environ.get("OCT_NATIVE_STEREO_PROBE") == "1":
+    from opencloudtouch.marge.native_group_probe import router as native_stereo_probe_router
+    app.include_router(native_stereo_probe_router)
 app.include_router(playlist_router)  # M3U/PLS playlist files for Bose presets
 app.include_router(setup_router)  # Device setup wizard
 app.include_router(wizard_router)  # SSH-driven wizard step endpoints
