@@ -73,6 +73,9 @@ def test_probe_full_account_matches_st10_wire_contract():
     assert parsed.findtext("accountStatus") == "OK"
     assert parsed.findtext("mode") == "global"
     assert parsed.findtext("preferredLanguage") == "en"
+    assert parsed.find("devices") is not None
+    assert parsed.find("sources") is not None
+    assert parsed.find("providerSettings") is not None
 
 
 def test_probe_full_account_rejects_invalid_account():
@@ -94,3 +97,36 @@ def test_create_group_without_trailing_slash():
         assert response.headers["location"].startswith("/streaming/account/1234567/group/")
         assert response.headers["content-type"].startswith("application/vnd.bose.streaming-v1.2+xml")
     native_group_probe._groups.clear()
+
+
+def test_probe_full_account_embeds_real_device_and_preset():
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    device = SimpleNamespace(
+        device_id="88C255662D45", model="SoundTouch 10", name="Wohnzimmer",
+        ip="192.168.55.31", firmware_version="27.0.6",
+    )
+    timestamp = datetime(2026, 6, 18, tzinfo=timezone.utc)
+    preset = SimpleNamespace(
+        preset_number=2, source="LOCAL_INTERNET_RADIO",
+        station_name="Absolut Relax", station_url="https://example.org/radio.mp3",
+        station_favicon="https://example.org/logo.png",
+        created_at=timestamp, updated_at=timestamp,
+    )
+    root = native_group_probe.probe_full_account_xml(
+        "4628559", device=device, presets=[preset],
+    )
+    assert root.findtext("./devices/device/name") == "Wohnzimmer"
+    assert root.find("./devices/device").get("deviceid") == "88C255662D45"
+    assert root.find("./devices/device/presets/preset").get("buttonNumber") == "2"
+    assert root.findtext("./devices/device/presets/preset/name") == "Absolut Relax"
+    assert root.findtext("./devices/device/presets/preset/source/sourceproviderid") == "11"
+    assert root.find("./devices/device/presets/preset/location").text.startswith("http")
+    assert root.findtext("./sources/source[@id='11']/sourcename") == "LOCAL_INTERNET_RADIO"
+
+
+def test_probe_account_requires_device_data_in_route():
+    """The standalone builder never invents a device on an unknown account."""
+    root = native_group_probe.probe_full_account_xml("4628559")
+    assert len(root.findall("./devices/device")) == 0

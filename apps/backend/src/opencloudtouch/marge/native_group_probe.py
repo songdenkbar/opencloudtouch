@@ -4,6 +4,11 @@ Enabled only with OCT_NATIVE_STEREO_PROBE=1. One process, no persistence.
 Never writes files to speakers. Do not expose this to untrusted networks.
 """
 import logging
+from datetime import timezone
+from typing import Any
+
+from opencloudtouch.core.source_types import BASE_SOURCES
+from opencloudtouch.marge.xml_builder import _build_orion_location
 import secrets
 from dataclasses import dataclass
 from xml.etree import ElementTree as XML
@@ -51,30 +56,83 @@ def _parse_group(body: bytes) -> tuple[XML.Element, str, frozenset[str]]:
     return root, master, devices
 
 
-def probe_full_account_xml(account: str) -> XML.Element:
-    """Firmware-compatible minimal Marge full-account reply for this opt-in probe.
+def _probe_source_xml(source: Any) -> XML.Element:
+    """Represent an OCT source in the SoundCork-compatible Marge account format."""
+    elem = XML.Element("source", {"id": source.streaming_id, "type": "Audio"})
+    XML.SubElement(elem, "createdOn").text = source.created_on
+    XML.SubElement(elem, "credential", {"type": source.secret_type})
+    XML.SubElement(elem, "name").text = source.account
+    XML.SubElement(elem, "sourceproviderid").text = source.streaming_id
+    XML.SubElement(elem, "sourcename").text = source.display_name
+    XML.SubElement(elem, "sourceSettings")
+    XML.SubElement(elem, "updatedOn").text = source.created_on
+    XML.SubElement(elem, "username").text = source.account
+    return elem
 
-    SoundCork's ST10 implementation uses an <account> root with accountStatus,
-    mode and preferredLanguage. Do not replace OCT's normal preset-sync format.
+
+def _probe_preset_xml(preset: Any) -> XML.Element:
+    """Convert an OCT radio preset into the Marge account-level wire format."""
+    src = next(
+        (src for src in BASE_SOURCES if src.source_type == (preset.source or "LOCAL_INTERNET_RADIO")),
+        None,
+    )
+    if src is None:
+        raise ValueError(f"Unsupported probe preset source: {preset.source!r}")
+    location = preset.station_url or ""
+    if src.source_type != "TUNEIN":
+        location = _build_orion_location(location, preset.station_name, preset.station_favicon or "")
+    elem = XML.Element("preset", {"buttonNumber": str(preset.preset_number)})
+    XML.SubElement(elem, "containerArt").text = preset.station_favicon or ""
+    XML.SubElement(elem, "contentItemType").text = "stationurl"
+    XML.SubElement(elem, "createdOn").text = preset.created_at.astimezone(timezone.utc).isoformat()
+    XML.SubElement(elem, "location").text = location
+    XML.SubElement(elem, "name").text = preset.station_name
+    XML.SubElement(elem, "username").text = preset.station_name
+    elem.append(_probe_source_xml(src))
+    XML.SubElement(elem, "updatedOn").text = preset.updated_at.astimezone(timezone.utc).isoformat()
+    return elem
+
+
+def probe_full_account_xml(
+    account: str,
+    *,
+    device: Any | None = None,
+    presets: list[Any] | None = None,
+) -> XML.Element:
+    """Build the ST10 Marge full-account reply following SoundCork's nesting.
+
+    No synthetic device is emitted when device is unknown; callers must
+    resolve the account first rather than synchronize an empty device list.
     """
     if not account.isdigit() or not 1 <= len(account) <= 20:
         raise HTTPException(422, "Invalid account")
     root = XML.Element("account", {"id": account})
     XML.SubElement(root, "accountStatus").text = "OK"
+    devices = XML.SubElement(root, "devices")
+    if device is not None:
+        element = XML.SubElement(devices, "device", {"deviceid": device.device_id})
+        product = XML.SubElement(element, "attachedProduct", {"product_code": device.model})
+        XML.SubElement(product, "components")
+        XML.SubElement(product, "productlabel").text = device.model
+        XML.SubElement(element, "firmwareVersion").text = device.firmware_version
+        XML.SubElement(element, "ipaddress").text = device.ip
+        XML.SubElement(element, "name").text = device.name
+        preset_list = XML.SubElement(element, "presets")
+        for preset in presets or []:
+            preset_list.append(_probe_preset_xml(preset))
+        XML.SubElement(element, "recents")
     XML.SubElement(root, "mode").text = "global"
     XML.SubElement(root, "preferredLanguage").text = "en"
+    settings = XML.SubElement(root, "providerSettings")
+    setting = XML.SubElement(settings, "providerSetting")
+    XML.SubElement(setting, "boseId").text = account
+    XML.SubElement(setting, "keyName").text = "ELIGIBLE_FOR_TRIAL"
+    XML.SubElement(setting, "value").text = "true"
+    XML.SubElement(setting, "providerId").text = "14"
+    sources = XML.SubElement(root, "sources")
+    for src in BASE_SOURCES:
+        sources.append(_probe_source_xml(src))
     return root
-
-
-def _created_group_response(account: str, group: StoredGroup) -> Response:
-    """Match the ST10 Marge create-group response contract (AfterTouch #270)."""
-    return Response(
-        group.body,
-        status_code=201,
-        media_type="application/vnd.bose.streaming-v1.2+xml",
-        headers={"Location": f"/streaming/account/{account}/group/{group.group_id}"},
-    )
-
 
 @router.post("/streaming/account/{account}/group/")
 @router.post("/streaming/account/{account}/group", include_in_schema=False)

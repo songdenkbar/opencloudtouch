@@ -270,7 +270,23 @@ async def streaming_full_account(
     if os.environ.get("OCT_NATIVE_STEREO_PROBE") == "1":
         from opencloudtouch.marge.native_group_probe import probe_full_account_xml
 
-        return _xml_response(probe_full_account_xml(account_id), _MEDIA_STREAMING_XML)
+        from fastapi import HTTPException
+
+        device_id = await marge.resolve_device_id_for_account(account_id)
+        if not device_id:
+            logger.error("[NATIVE-STEREO-PROBE] Cannot resolve account %s; refusing empty sync", account_id)
+            raise HTTPException(503, "Probe account not mapped to a device")
+        device_repo = marge._device_repo
+        if device_repo is None:
+            raise HTTPException(503, "Probe requires device repository")
+        device = await device_repo.get_by_device_id(device_id)
+        if device is None:
+            raise HTTPException(503, "Probe account device not found")
+        presets = await marge.get_presets(device_id)
+        return _xml_response(
+            probe_full_account_xml(account_id, device=device, presets=presets),
+            _MEDIA_STREAMING_XML,
+        )
 
     device_id = await marge.resolve_device_id_for_account(account_id)
     if not device_id:
