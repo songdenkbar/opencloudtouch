@@ -134,6 +134,16 @@ def probe_full_account_xml(
         sources.append(_probe_source_xml(src))
     return root
 
+def _created_group_response(account: str, group: StoredGroup) -> Response:
+    """Return a firmware-compatible ST10 Marge group creation response."""
+    return Response(
+        group.body,
+        status_code=201,
+        media_type="application/vnd.bose.streaming-v1.2+xml",
+        headers={"Location": f"/streaming/account/{account}/group/{group.group_id}"},
+    )
+
+
 @router.post("/streaming/account/{account}/group/")
 @router.post("/streaming/account/{account}/group", include_in_schema=False)
 async def create_marge_group(account: str, request: Request) -> Response:
