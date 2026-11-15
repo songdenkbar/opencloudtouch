@@ -51,6 +51,21 @@ def _parse_group(body: bytes) -> tuple[XML.Element, str, frozenset[str]]:
     return root, master, devices
 
 
+def probe_full_account_xml(account: str) -> XML.Element:
+    """Firmware-compatible minimal Marge full-account reply for this opt-in probe.
+
+    SoundCork's ST10 implementation uses an <account> root with accountStatus,
+    mode and preferredLanguage. Do not replace OCT's normal preset-sync format.
+    """
+    if not account.isdigit() or not 1 <= len(account) <= 20:
+        raise HTTPException(422, "Invalid account")
+    root = XML.Element("account", {"id": account})
+    XML.SubElement(root, "accountStatus").text = "OK"
+    XML.SubElement(root, "mode").text = "global"
+    XML.SubElement(root, "preferredLanguage").text = "en"
+    return root
+
+
 @router.post("/streaming/account/{account}/group/")
 @router.post("/streaming/account/{account}/group", include_in_schema=False)
 async def create_marge_group(account: str, request: Request) -> Response:

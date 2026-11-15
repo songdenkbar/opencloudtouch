@@ -1,6 +1,7 @@
 """Marge (streaming.bose.com) account sync routes."""
 
 import logging
+import os
 from typing import Annotated, Any
 from xml.etree import ElementTree as ET
 
@@ -263,6 +264,13 @@ async def streaming_full_account(
         XML Response with <account> structure
     """
     logger.info("[MARGE/STREAMING] Full account sync for account %s", account_id)
+
+    # Isolated ST10 protocol probe: the speaker expects an <account> root here.
+    # Keep the established OCT response unchanged outside the opt-in experiment.
+    if os.environ.get("OCT_NATIVE_STEREO_PROBE") == "1":
+        from opencloudtouch.marge.native_group_probe import probe_full_account_xml
+
+        return _xml_response(probe_full_account_xml(account_id), _MEDIA_STREAMING_XML)
 
     device_id = await marge.resolve_device_id_for_account(account_id)
     if not device_id:
