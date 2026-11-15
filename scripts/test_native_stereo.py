@@ -147,7 +147,7 @@ async def main() -> None:
             if model != "SoundTouch 10" or not device_id or len(device_id) != 12:
                 raise RuntimeError(f"Device {ip} is not an identified SoundTouch 10")
             if ip == left:
-                if args.account and account != args.account:
+                if args.account and account and account != args.account:
                     raise RuntimeError("LEFT account override differs from speaker /info")
                 args.account = args.account or account
                 if not args.account or not args.account.isdigit():
