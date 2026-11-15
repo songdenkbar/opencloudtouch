@@ -66,6 +66,16 @@ def probe_full_account_xml(account: str) -> XML.Element:
     return root
 
 
+def _created_group_response(account: str, group: StoredGroup) -> Response:
+    """Match the ST10 Marge create-group response contract (AfterTouch #270)."""
+    return Response(
+        group.body,
+        status_code=201,
+        media_type="application/vnd.bose.streaming-v1.2+xml",
+        headers={"Location": f"/streaming/account/{account}/group/{group.group_id}"},
+    )
+
+
 @router.post("/streaming/account/{account}/group/")
 @router.post("/streaming/account/{account}/group", include_in_schema=False)
 async def create_marge_group(account: str, request: Request) -> Response:
@@ -76,7 +86,7 @@ async def create_marge_group(account: str, request: Request) -> Response:
     for group in _groups.values():
         if group.account == account and group.master == master and group.devices == devices:
             logger.info("[NATIVE-STEREO-PROBE] Reusing group %s", group.group_id)
-            return Response(group.body, media_type="application/vnd.bose.streaming-v1.2+xml")
+            return _created_group_response(account, group)
     if any(group.account == account and group.devices & devices for group in _groups.values()):
         raise HTTPException(409, "Speaker is already in a probe group")
     gid = str(secrets.randbelow(9_000_000) + 1_000_000)
@@ -89,7 +99,7 @@ async def create_marge_group(account: str, request: Request) -> Response:
     payload = XML.tostring(root, encoding="utf-8", xml_declaration=True)
     _groups[(account, gid)] = StoredGroup(account, gid, master, devices, payload)
     logger.info("[NATIVE-STEREO-PROBE] Created group %s for master %s", gid, master)
-    return Response(payload, media_type="application/vnd.bose.streaming-v1.2+xml")
+    return _created_group_response(account, _groups[(account, gid)])
 
 
 @router.get("/streaming/account/{account}/device/{device}/group")

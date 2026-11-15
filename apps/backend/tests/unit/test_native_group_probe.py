@@ -16,8 +16,13 @@ def test_create_reuse_and_delete():
     app.include_router(native_group_probe.router)
     with TestClient(app) as client:
         r = client.post("/streaming/account/1234567/group/", content=payload())
-        assert r.status_code == 200 and b'id="' in r.content
-        assert client.post("/streaming/account/1234567/group/", content=payload()).content == r.content
+        assert r.status_code == 201 and b'id="' in r.content
+        assert r.headers["content-type"].startswith("application/vnd.bose.streaming-v1.2+xml")
+        assert r.headers["location"].startswith("/streaming/account/1234567/group/")
+        again = client.post("/streaming/account/1234567/group/", content=payload())
+        assert again.status_code == 201
+        assert again.content == r.content
+        assert again.headers["location"] == r.headers["location"]
         assert client.get("/streaming/account/1234567/device/112233445566/group").content == r.content
         assert client.get("/streaming/account/1234567/device/ABCDEFABCDEF/group").content == b"<group />"
         gid = r.text.split('id="', 1)[1].split('"', 1)[0]
@@ -51,7 +56,7 @@ def test_conflict_and_bad_roles():
     with TestClient(app) as client:
         malformed = payload().replace(b"<role>LEFT</role>", b"<role>RIGHT</role>")
         assert client.post("/streaming/account/1234567/group/", content=malformed).status_code == 422
-        assert client.post("/streaming/account/1234567/group/", content=payload()).status_code == 200
+        assert client.post("/streaming/account/1234567/group/", content=payload()).status_code == 201
         conflict = payload().replace(b"112233445566", b"ABCDEF123456")
         assert client.post("/streaming/account/1234567/group/", content=conflict).status_code == 409
     native_group_probe._groups.clear()
@@ -77,3 +82,15 @@ def test_probe_full_account_rejects_invalid_account():
     with pytest.raises(HTTPException) as error:
         native_group_probe.probe_full_account_xml("not-a-number")
     assert error.value.status_code == 422
+
+
+def test_create_group_without_trailing_slash():
+    native_group_probe._groups.clear()
+    app = FastAPI()
+    app.include_router(native_group_probe.router)
+    with TestClient(app) as client:
+        response = client.post("/streaming/account/1234567/group", content=payload())
+        assert response.status_code == 201
+        assert response.headers["location"].startswith("/streaming/account/1234567/group/")
+        assert response.headers["content-type"].startswith("application/vnd.bose.streaming-v1.2+xml")
+    native_group_probe._groups.clear()
