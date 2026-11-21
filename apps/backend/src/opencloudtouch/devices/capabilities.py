@@ -99,19 +99,27 @@ async def get_device_capabilities(client: SoundTouchClient) -> DeviceCapabilitie
         asyncio.to_thread(client.GetSourceList),
     )
 
-    # Parse supported endpoints. bosesoundtouchapi versions expose these
-    # either as SupportedUrls objects or as an internal _Capabilities mapping.
-    supported_endpoints = set()
-    supported_urls = getattr(caps, "SupportedUrls", None)
-    if supported_urls is not None:
-        for url_obj in supported_urls:
-            endpoint = url_obj.Url.lstrip("/")
-            supported_endpoints.add(endpoint)
-    else:
-        capability_map = getattr(caps, "_Capabilities", {}) or {}
-        if isinstance(capability_map, dict):
-            for endpoint_path in capability_map.values():
-                supported_endpoints.add(str(endpoint_path).lstrip("/"))
+    # SoundTouchDevice already loads /supportedURLs during initialization.
+    # Prefer its device-specific URI list without another network request.
+    supported_uris = getattr(client.Device, "SupportedUris", None)
+    supported_endpoints = {
+        uri.Path.lstrip("/")
+        for uri in (supported_uris or [])
+        if isinstance(getattr(uri, "Path", None), str)
+    }
+
+    # Preserve legacy detection when no supported URI list is available.
+    if not supported_endpoints:
+        supported_urls = getattr(caps, "SupportedUrls", None)
+        if supported_urls is not None:
+            for url_obj in supported_urls:
+                endpoint = url_obj.Url.lstrip("/")
+                supported_endpoints.add(endpoint)
+        else:
+            capability_map = getattr(caps, "_Capabilities", {}) or {}
+            if isinstance(capability_map, dict):
+                for endpoint_path in capability_map.values():
+                    supported_endpoints.add(str(endpoint_path).lstrip("/"))
 
     # Parse available sources. bosesoundtouchapi versions expose these
     # either as Sources or as SourceItems/_SourceItems.
