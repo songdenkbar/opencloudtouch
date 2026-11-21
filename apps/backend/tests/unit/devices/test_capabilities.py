@@ -23,6 +23,7 @@ def mock_client_st30():
     client = MagicMock(spec=SoundTouchClient)
     client.Device.DeviceName = "Living Room"
     client.Device.DeviceId = "AABBCC112233"
+    client.Device.SupportedUris = []
 
     # Mock GetInformation()
     info = MagicMock(spec=Information)
@@ -66,6 +67,7 @@ def mock_client_st300():
     client = MagicMock(spec=SoundTouchClient)
     client.Device.DeviceName = "TV"
     client.Device.DeviceId = "AABBCC112244"
+    client.Device.SupportedUris = []
 
     # Mock GetInformation()
     info = MagicMock(spec=Information)
@@ -372,6 +374,59 @@ async def test_get_device_capabilities_supports_internal_library_fields():
     assert "systemtimeout" in result.supported_endpoints
     assert "rebroadcastlatencymode" in result.supported_endpoints
     assert "AUX" in result.supported_sources
+
+
+@pytest.mark.asyncio
+async def test_supported_uris_take_precedence_over_sparse_capabilities(mock_client_st30):
+    """The device URI list detects Bluetooth, zones and groups (#622)."""
+    mock_client_st30.Device.SupportedUris = [
+        MagicMock(Path="/info"),
+        MagicMock(Path="/bluetoothInfo"),
+        MagicMock(Path="/getZone"),
+        MagicMock(Path="/setZone"),
+        MagicMock(Path="/getGroup"),
+    ]
+    mock_client_st30.GetCapabilities.return_value.SupportedUrls = None
+    mock_client_st30.GetCapabilities.return_value._Capabilities = {
+        "systemtimeout": "/systemtimeout",
+        "rebroadcastlatencymode": "/rebroadcastlatencymode",
+    }
+
+    result = await get_device_capabilities(mock_client_st30)
+
+    assert result.has_bluetooth is True
+    assert result.has_zone_support is True
+    assert result.has_group_support is True
+    assert result.supports_endpoint("/getGroup")
+    assert "systemtimeout" not in result.supported_endpoints
+    mock_client_st30.GetSupportedUrls.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_missing_supported_uris_falls_back_to_capabilities(mock_client_st30):
+    """Legacy capability mapping remains available when URIs are absent."""
+    mock_client_st30.Device.SupportedUris = None
+    mock_client_st30.GetCapabilities.return_value.SupportedUrls = None
+    mock_client_st30.GetCapabilities.return_value._Capabilities = {
+        "bluetoothInfo": "/bluetoothInfo",
+        "getZone": "/getZone",
+    }
+
+    result = await get_device_capabilities(mock_client_st30)
+
+    assert result.has_bluetooth is True
+    assert result.has_zone_support is True
+    assert result.has_group_support is False
+
+
+@pytest.mark.asyncio
+async def test_empty_supported_uris_falls_back_to_capabilities(mock_client_st30):
+    """An empty device URI list does not discard legacy endpoint detection."""
+    mock_client_st30.Device.SupportedUris = []
+    result = await get_device_capabilities(mock_client_st30)
+    assert result.supports_endpoint("bluetoothInfo")
+    assert result.supports_endpoint("getZone")
+
 
 
 def test_merge_bass_capabilities_preserves_existing_fields():
