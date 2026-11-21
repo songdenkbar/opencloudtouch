@@ -1462,6 +1462,8 @@ async def test_cancelled_write_rolls_back_and_allows_next_write(repo, monkeypatc
             await allow_commit.wait()
         await original_commit(connection)
 
+    # Patch the class because the connection's commit method cannot be replaced
+    # on the instance. Pause only this test connection via the identity check.
     monkeypatch.setattr(type(repo._conn), "commit", paused_commit)
 
     task = asyncio.create_task(repo.update_setup_status(device.device_id, "configured"))
@@ -1493,5 +1495,33 @@ async def test_cancelled_write_rolls_back_and_allows_next_write(repo, monkeypatc
         assert persisted is not None
         assert persisted.setup_status == "unknown"
         assert persisted.name == "Renamed"
+    finally:
+        await other.close()
+
+
+@pytest.mark.asyncio
+async def test_update_name_unknown_device_returns_false(repo):
+    """Renaming an unknown device returns False without leaving a transaction."""
+    updated = await repo.update_name("UNKNOWN_DEVICE", "New name")
+
+    assert updated is False
+    assert not repo._conn.in_transaction
+
+    # A separate connection should still be able to write afterwards.
+    other = DeviceRepository(repo.db_path)
+    await other.initialize()
+    try:
+        device = Device(
+            device_id="AABBCCDDEEFF",
+            ip="192.168.1.10",
+            name="Speaker",
+            model="SoundTouch 10",
+            mac_address="AABBCCDDEEFF",
+            firmware_version="27.0.6",
+        )
+        await asyncio.wait_for(other.upsert(device), timeout=3)
+        stored = await other.get_by_device_id(device.device_id)
+        assert stored is not None
+        assert stored.name == "Speaker"
     finally:
         await other.close()
